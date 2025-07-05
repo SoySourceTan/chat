@@ -1,0 +1,14 @@
+[
+  {
+    "timestamp": "2024-07-29T10:00:00.000Z",
+    "username": "user1",
+    "icon": "icon1.png",
+    "message": "Hello!"
+  },
+  {
+    "timestamp": "2024-07-29T10:01:00.000Z",
+    "username": "user2",
+    "icon": "icon50.png",
+    "message": "Hi there!"
+  }
+]

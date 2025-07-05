@@ -1,0 +1,80 @@
+/* style.css */
+.main-content {
+  margin-top: 70px;
+  margin-bottom: 120px;
+}
+
+#messages {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+}
+
+#messages li {
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+/* ストライプ表示 */
+#messages li:nth-child(odd):not(.bg-warning) {
+  background-color: #f8f9fa;
+}
+
+#messages li:nth-child(even):not(.bg-warning) {
+  background-color: #e9ecef;
+}
+
+/* ピン留めメッセージ */
+#messages li.bg-warning {
+  background-color: #fff3cd;
+}
+
+.form-control:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+.navbar-brand {
+  font-weight: bold;
+}
+
+/* 確定ボタンのスタイル */
+#confirmName {
+  min-width: 80px;
+  white-space: nowrap;
+  font-size: 1rem;
+  padding: 0.375rem 0.75rem;
+}
+
+/* 絵文字ピッカーボタン */
+#emojiPicker {
+  min-width: 45px;
+  white-space: nowrap;
+}
+
+/* フォントサイズスライダー */
+#fontSizeSlider {
+  width: 100px;
+}
+
+/* 検索バー */
+#search {
+  max-width: 200px;
+}
+
+/* Adminパネル */
+#adminPanel {
+  margin-bottom: 20px;
+}
+
+#activeUsers, #userActions {
+  max-height: 200px;
+  overflow-y: auto;
+}
