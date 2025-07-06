@@ -1,6 +1,6 @@
 body {
   padding-top: 56px;
-  padding-bottom: 80px;
+  padding-bottom: 100px;
   overflow-y: auto;
 }
 
@@ -19,21 +19,36 @@ body {
   display: flex !important;
   flex-direction: column;
   overflow-y: auto;
+  max-height: calc(100vh - 180px);
   margin-bottom: 20px;
+  padding: 10px;
 }
 
 #messages::-webkit-scrollbar {
-  display: none;
+  width: 8px;
+}
+
+#messages::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+#messages::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+#messages::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 #messages {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  -ms-overflow-style: auto;
+  scrollbar-width: thin;
 }
 
 .btn-floating {
   position: fixed;
-  bottom: 100px;
+  bottom: 120px;
   right: 20px;
   z-index: 1000;
   border-radius: 50%;
@@ -46,14 +61,53 @@ body {
 
 .message {
   max-width: 70%;
+  margin-bottom: 10px;
+  word-wrap: break-word;
 }
 
 .latest-message .message {
-  color: #003087;
+  animation: highlight 2s ease-out;
 }
 
 .latest-message {
   margin-bottom: 20px;
+}
+
+@keyframes highlight {
+  0% { background-color: rgba(255, 255, 0, 0.3); }
+  100% { background-color: inherit; }
+}
+
+.fade-in {
+  opacity: 0;
+  transition: opacity 0.5s ease-in;
+}
+
+#newMessageBtn {
+  border-radius: 50px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s;
+}
+
+#newMessageBtn:hover {
+  transform: scale(1.1);
+}
+
+.provider-icon {
+  font-size: 16px;
+  color: #007bff; /* アイコンの色をブランドカラーに */
+}
+
+.provider-icon.fa-x-twitter {
+  color: #000000; /* Xのブランドカラー（黒） */
+}
+
+.provider-icon.fa-google {
+  color: #db4437; /* Googleのブランドカラー（赤） */
+}
+
+.provider-icon.fa-user-secret {
+  color: #6c757d; /* 匿名はグレー */
 }
 
 .main-content {
@@ -81,6 +135,10 @@ textarea#m {
 }
 
 .navbar {
+  z-index: 1050;
+}
+
+footer {
   z-index: 1050;
 }
 
@@ -134,7 +192,7 @@ textarea#m {
 
 emoji-picker {
   position: fixed;
-  bottom: 80px;
+  bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -159,6 +217,18 @@ emoji-picker {
 
 [data-bs-theme="dark"] footer {
   background-color: #343a40 !important;
+}
+
+[data-bs-theme="dark"] .provider-icon.fa-x-twitter {
+  color: #ffffff; /* ダークテーマでのXアイコン */
+}
+
+[data-bs-theme="dark"] .provider-icon.fa-google {
+  color: #db4437;
+}
+
+[data-bs-theme="dark"] .provider-icon.fa-user-secret {
+  color: #adb5bd;
 }
 
 .alert-success {
