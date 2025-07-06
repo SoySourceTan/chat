@@ -513,30 +513,37 @@
         }
       });
 
-async function verifyAdminToken() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('admin_token');
-  const uid = urlParams.get('uid');
-  if (token && uid && auth.currentUser && auth.currentUser.uid === uid) {
-    try {
-      const response = await fetch(`https://trextacy.com/chat-admin/verify_token.php?token=${token}&uid=${uid}`);
-      const result = await response.json();
-      if (result.success) {
-        adminPanel.classList.remove('d-none');
-        adminLoginModal.hide();
-        adminLoginModalEl.setAttribute('inert', '');
-        isAdmin = true;
-        showSuccess('Adminログインしました。');
-        window.history.replaceState(null, '', window.location.pathname);
-      } else {
-        showError(result.error || '無効なトークンです。');
+      async function verifyAdminToken() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('admin_token');
+        const uid = urlParams.get('uid');
+        if (token && uid && auth.currentUser && auth.currentUser.uid === uid) {
+          try {
+            const response = await fetch(`https://trextacy.com/chat-admin/verify_token.php?token=${encodeURIComponent(token)}&uid=${encodeURIComponent(uid)}`);
+            const result = await response.json();
+            if (result.success) {
+              await set(ref(database, `admins/${uid}`), { active: true, token: token });
+              await push(actionsRef, {
+                type: 'adminLogin',
+                userId: uid,
+                username: userInfo.textContent,
+                timestamp: Date.now()
+              });
+              adminPanel.classList.remove('d-none');
+              adminLoginModal.hide();
+              adminLoginModalEl.setAttribute('inert', '');
+              isAdmin = true;
+              showSuccess('Adminログインしました。');
+              window.history.replaceState(null, '', window.location.pathname);
+            } else {
+              showError(result.error || '無効なトークンです。');
+            }
+          } catch (error) {
+            console.error('トークン検証エラー:', error);
+            showError('Admin認証に失敗しました: ' + error.message);
+          }
+        }
       }
-    } catch (error) {
-      console.error('トークン検証エラー:', error);
-      showError('Admin認証に失敗しました: ' + error.message);
-    }
-  }
-}
 
       adminLogout.addEventListener('click', async () => {
         try {
