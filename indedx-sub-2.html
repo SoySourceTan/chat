@@ -26,15 +26,15 @@
     </div>
   </div>
 
-  <div class="modal fade" id="unameModal" tabindex="-1" aria-labelledby="unameModalLabel" aria-hidden="true">
+  <div class="modal fade" id="usernameModal" tabindex="-1" aria-labelledby="usernameModalLabel" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="unameModalLabel">ユーザー名設定</h5>
+          <h5 class="modal-title" id="usernameModalLabel">ユーザー名設定</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <input type="text" id="uname" class="form-control" placeholder="名前を入力してください" required>
+          <input type="text" id="username" class="form-control" placeholder="名前を入力してください" required>
           <div class="invalid-feedback">名前を入力してください。</div>
           <button id="confirmName" class="btn btn-primary w-100 mt-2">確定</button>
           <button id="signOut" class="btn btn-danger w-100 mt-2">ログアウト</button>
@@ -150,9 +150,6 @@
   <div class="main-content">
     <div class="container">
       <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
-      <button id="newMessageBtn" class="btn btn-primary btn-sm d-none" style="position: fixed; bottom: 100px; right: 20px; z-index: 1000;">
-        <i class="fas fa-arrow-down"></i> 新着メッセージ
-      </button>
       <ul id="messages" class="list-group"></ul>
     </div>
   </div>
@@ -161,7 +158,7 @@
     <div class="container">
       <div class="d-flex justify-content-between align-items-center">
         <span id="admin-trigger" class="cursor-pointer">DAEMON</span>
-        <form id="messageForm" class="needs-validation w-100" novalidate>
+        <form class="needs-validation w-100" novalidate>
           <div class="row g-2 justify-content-center align-items-center">
             <div class="col-md-10">
               <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required></textarea>
@@ -205,7 +202,7 @@
       const bannedUsersRef = ref(database, 'bannedUsers');
       const kickedUsersRef = ref(database, 'kickedUsers');
 
-      const formEl = document.getElementById('messageForm');
+      const formEl = document.querySelector('form');
       const messagesEl = document.getElementById('messages');
       const inputEl = document.getElementById('m');
       const errorAlert = document.getElementById('error-alert');
@@ -214,11 +211,11 @@
       const googleLogin = document.getElementById('googleLogin');
       const anonymousLogin = document.getElementById('anonymousLogin');
       const userInfo = document.getElementById('user-info');
-      const unameModalEl = document.getElementById('unameModal');
-      const unameModal = new bootstrap.Modal(unameModalEl);
+      const usernameModalEl = document.getElementById('usernameModal');
+      const usernameModal = new bootstrap.Modal(usernameModalEl);
       const loginModalEl = document.getElementById('loginModal');
       const loginModal = new bootstrap.Modal(loginModalEl);
-      const unameInput = document.getElementById('uname');
+      const usernameInput = document.getElementById('username');
       const confirmName = document.getElementById('confirmName');
       const signOutBtn = document.getElementById('signOut');
       const adminTrigger = document.getElementById('admin-trigger');
@@ -236,11 +233,9 @@
       const confirmActionModal = new bootstrap.Modal(confirmActionModalEl);
       const confirmActionMessage = document.getElementById('confirmActionMessage');
       const confirmActionBtn = document.getElementById('confirmActionBtn');
-      const newMessageBtn = document.getElementById('newMessageBtn');
 
       let isAdmin = false;
       let isLoggingIn = false;
-      let isUserScrolledUp = false;
 
       function showError(message) {
         errorAlert.textContent = message;
@@ -257,52 +252,30 @@
         setTimeout(() => successAlert.remove(), 3000);
       }
 
-      async function updateUserUI(user) {
-        try {
-          if (user) {
-            const userData = await get(ref(database, `users/${user.uid}`));
-            const username = userData.val()?.username || user.displayName || 'ゲスト';
-            userInfo.innerHTML = `${username} <i class="fas fa-pencil-alt ms-1"></i>`;
-            loginBtn.textContent = 'ログアウト';
-            loginModal.hide();
-            if (user.isAnonymous || !userData.val()?.username) {
-              if (!isLoggingIn) {
-                unameModalEl.removeAttribute('inert');
-                unameModal.show();
-                setTimeout(() => unameInput.focus(), 100);
-              }
+      function updateUserUI(user) {
+        if (user) {
+          userInfo.innerHTML = `${user.displayName || 'ゲスト'} <i class="fas fa-pencil-alt ms-1"></i>`;
+          loginBtn.textContent = 'ログアウト';
+          loginModal.hide();
+          if (user.isAnonymous || !user.displayName) {
+            if (!isLoggingIn) {
+              usernameModalEl.removeAttribute('inert');
+              usernameModal.show();
             }
-          } else {
-            userInfo.innerHTML = 'ゲスト <i class="fas fa-pencil-alt ms-1"></i>';
-            loginBtn.textContent = 'ログイン';
-            adminPanel.classList.add('d-none');
-            unameModalEl.setAttribute('inert', '');
-            loginModal.hide();
-            isAdmin = false;
           }
-        } catch (error) {
-          console.error('ユーザーUI更新エラー:', error);
-          showError('ユーザー情報の更新に失敗しました。');
+        } else {
+          userInfo.innerHTML = 'ゲスト <i class="fas fa-pencil-alt ms-1"></i>';
+          loginBtn.textContent = 'ログイン';
+          adminPanel.classList.add('d-none');
+          usernameModalEl.setAttribute('inert', '');
+          loginModal.hide();
+          isAdmin = false;
         }
       }
 
       // ツールチップ初期化
       document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
         new bootstrap.Tooltip(el);
-      });
-
-      // スクロール位置の監視
-      messagesEl.addEventListener('scroll', () => {
-        const isAtBottom = messagesEl.scrollHeight - messagesEl.scrollTop <= messagesEl.clientHeight + 10;
-        isUserScrolledUp = !isAtBottom;
-        newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-      });
-
-      // 新着メッセージボタンのクリックハンドラ
-      newMessageBtn.addEventListener('click', () => {
-        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
-        isUserScrolledUp = false;
-        newMessageBtn.classList.add('d-none');
       });
 
       twitterLogin.addEventListener('click', async () => {
@@ -314,21 +287,19 @@
           const user = result.user;
           const providerId = result.providerId || 'twitter.com';
           await set(ref(database, `users/${user.uid}`), {
-            username: user.displayName || `user${Date.now()}`,
-            provider: providerId,
-            ipAddress: 'unknown'
+            username: user.displayName || 'ゲスト',
+            provider: providerId
           });
           await push(actionsRef, {
             type: 'connect',
             userId: user.uid,
-            username: user.displayName || `user${Date.now()}`,
+            username: user.displayName || 'ゲスト',
             timestamp: Date.now()
           });
-          console.log('Xログイン成功:', user.displayName);
-          await updateUserUI(user);
-          showSuccess('Xでログインしました。');
+          console.log('Twitterログイン成功:', user.displayName);
+          loginModal.hide();
         } catch (error) {
-          console.error('Xログインエラー:', error);
+          console.error('Twitterログインエラー:', error);
           showError('Xログインに失敗しました: ' + error.message);
         } finally {
           isLoggingIn = false;
@@ -344,19 +315,17 @@
           const user = result.user;
           const providerId = result.providerId || 'google.com';
           await set(ref(database, `users/${user.uid}`), {
-            username: user.displayName || `user${Date.now()}`,
-            provider: providerId,
-            ipAddress: 'unknown'
+            username: user.displayName || 'ゲスト',
+            provider: providerId
           });
           await push(actionsRef, {
             type: 'connect',
             userId: user.uid,
-            username: user.displayName || `user${Date.now()}`,
+            username: user.displayName || 'ゲスト',
             timestamp: Date.now()
           });
           console.log('Googleログイン成功:', user.displayName);
-          await updateUserUI(user);
-          showSuccess('Googleでログインしました。');
+          loginModal.hide();
         } catch (error) {
           console.error('Googleログインエラー:', error);
           showError('Googleログインに失敗しました: ' + error.message);
@@ -374,8 +343,7 @@
           const uniqueUsername = `anon${Date.now()}`;
           await set(ref(database, `users/${user.uid}`), {
             username: uniqueUsername,
-            provider: 'anonymous',
-            ipAddress: 'unknown'
+            provider: 'anonymous'
           });
           await push(actionsRef, {
             type: 'connect',
@@ -384,8 +352,15 @@
             timestamp: Date.now()
           });
           console.log('匿名ログイン成功');
-          await updateUserUI(user);
           showSuccess('匿名でログインしました。');
+          loginModal.hide();
+          loginModalEl.setAttribute('inert', '');
+          setTimeout(() => {
+            usernameModalEl.removeAttribute('inert');
+            usernameModal.show();
+            document.getElementById('username').focus();
+            console.log('usernameModal表示: username入力欄にフォーカス');
+          }, 100);
         } catch (error) {
           console.error('匿名ログインエラー:', error);
           showError('匿名ログインに失敗しました: ' + error.message);
@@ -398,21 +373,14 @@
         console.log('loginBtnクリック: 現在のユーザー:', auth.currentUser);
         if (auth.currentUser) {
           try {
-            await push(actionsRef, {
-              type: 'logout',
-              userId: auth.currentUser.uid,
-              username: userInfo.textContent,
-              timestamp: Date.now()
-            });
             await signOut(auth);
             console.log('ログアウト成功');
-            showSuccess('ログアウトしました。');
+            showError('ログアウトしました。');
           } catch (error) {
             console.error('ログアウトエラー:', error);
             showError('ログアウトに失敗しました: ' + error.message);
           }
         } else {
-          loginModalEl.removeAttribute('inert');
           loginModal.show();
           setTimeout(() => document.getElementById('twitterLogin').focus(), 100);
           console.log('ログインモーダル表示');
@@ -422,18 +390,12 @@
       signOutBtn.addEventListener('click', async () => {
         console.log('signOutBtnクリック: ログアウト開始');
         try {
-          await push(actionsRef, {
-            type: 'logout',
-            userId: auth.currentUser.uid,
-            username: userInfo.textContent,
-            timestamp: Date.now()
-          });
           await signOut(auth);
-          unameModal.hide();
-          unameModalEl.setAttribute('inert', '');
+          usernameModal.hide();
+          usernameModalEl.setAttribute('inert', '');
           document.getElementById('login-btn').focus();
           console.log('ログアウト成功');
-          showSuccess('ログアウトしました。');
+          showError('ログアウトしました。');
         } catch (error) {
           console.error('ログアウトエラー:', error);
           showError('ログアウトに失敗しました: ' + error.message);
@@ -442,20 +404,22 @@
 
       userInfo.addEventListener('click', () => {
         if (auth.currentUser) {
-          unameModalEl.removeAttribute('inert');
-          unameModal.show();
-          setTimeout(() => unameInput.focus(), 100);
-          console.log('unameModal表示: uname入力欄にフォーカス');
+          usernameModalEl.removeAttribute('inert');
+          usernameModal.show();
+          setTimeout(() => {
+            document.getElementById('username').focus();
+            console.log('usernameModal表示: username入力欄にフォーカス');
+          }, 100);
         } else {
           showError('ログインしてください。');
         }
       });
 
       confirmName.addEventListener('click', async () => {
-        console.log('confirmNameクリック: 入力値=', unameInput.value);
-        const username = unameInput.value.trim();
+        console.log('confirmNameクリック: 入力値=', usernameInput.value);
+        const username = usernameInput.value.trim();
         if (username === '') {
-          unameInput.classList.add('is-invalid');
+          usernameInput.classList.add('is-invalid');
           console.log('ユーザー名エラー: 空文字');
           return;
         }
@@ -468,8 +432,7 @@
           console.log('ユーザー名設定試行: UID=', auth.currentUser.uid, 'username=', username);
           await set(ref(database, `users/${auth.currentUser.uid}`), {
             username,
-            provider: auth.currentUser.providerData[0]?.providerId || 'anonymous',
-            ipAddress: (await get(ref(database, `users/${auth.currentUser.uid}`))).val()?.ipAddress || 'unknown'
+            provider: auth.currentUser.providerData[0]?.providerId || 'anonymous'
           });
           await push(actionsRef, {
             type: 'setUsername',
@@ -478,8 +441,8 @@
             timestamp: Date.now()
           });
           userInfo.innerHTML = `${username} <i class="fas fa-pencil-alt ms-1"></i>`;
-          unameModal.hide();
-          unameInput.classList.remove('is-invalid');
+          usernameModal.hide();
+          usernameInput.classList.remove('is-invalid');
           console.log('ユーザー名設定成功:', username);
           showSuccess('ユーザー名を更新しました。');
         } catch (error) {
@@ -492,8 +455,10 @@
         if (auth.currentUser) {
           adminLoginModalEl.removeAttribute('inert');
           adminLoginModal.show();
-          setTimeout(() => adminPassword.focus(), 100);
-          console.log('adminLoginModal表示: adminPassword入力欄にフォーカス');
+          setTimeout(() => {
+            document.getElementById('adminPassword').focus();
+            console.log('adminLoginModal表示: adminPassword入力欄にフォーカス');
+          }, 100);
         } else {
           showError('ログインしてください。');
         }
@@ -520,7 +485,6 @@
             adminPassword.classList.remove('is-invalid');
             isAdmin = true;
             console.log('Adminログイン成功');
-            showSuccess('Adminログインしました。');
           } catch (error) {
             console.error('Adminログインエラー:', error);
             showError('Adminログインに失敗しました。');
@@ -550,11 +514,10 @@
         }
       });
 
-      onValue(usersRef, async (snapshot) => {
-        try {
-          if (snapshot.val()) {
-            activeUsers.innerHTML = '';
-            const banSnapshot = await get(ref(database, 'bannedUsers'));
+      onValue(usersRef, (snapshot) => {
+        if (snapshot.val()) {
+          activeUsers.innerHTML = '';
+          get(ref(database, 'bannedUsers')).then((banSnapshot) => {
             const bannedUsers = banSnapshot.val() || {};
             Object.entries(snapshot.val()).forEach(([uid, { username, provider, ipAddress }]) => {
               const isBanned = !!bannedUsers[uid];
@@ -571,16 +534,35 @@
                 </td>`;
               activeUsers.appendChild(tr);
             });
-            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
-          }
-        } catch (error) {
-          console.error('アクティブユーザー取得エラー:', error);
-          showError('アクティブユーザーの取得に失敗しました。');
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+              new bootstrap.Tooltip(el);
+            });
+          }).catch((error) => {
+            console.error('bannedUsers取得エラー:', error);
+            showError('BAN状態の取得に失敗しました。');
+          });
         }
       });
 
       onValue(actionsRef, (snapshot) => {
-        try {
+        userActions.innerHTML = '';
+        if (snapshot.val()) {
+          const filter = actionFilter.value;
+          Object.entries(snapshot.val()).forEach(([id, { type, username, timestamp }]) => {
+            if (filter === 'all' || type === filter) {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>${username || '匿名'}</td>
+                <td>${type}</td>
+                <td>${new Date(timestamp).toLocaleString('ja-JP')}</td>`;
+              userActions.appendChild(tr);
+            }
+          });
+        }
+      });
+
+      actionFilter.addEventListener('change', () => {
+        onValue(actionsRef, (snapshot) => {
           userActions.innerHTML = '';
           if (snapshot.val()) {
             const filter = actionFilter.value;
@@ -595,78 +577,53 @@
               }
             });
           }
-        } catch (error) {
-          console.error('アクション履歴取得エラー:', error);
-          showError('アクション履歴の取得に失敗しました。');
-        }
-      });
-
-      actionFilter.addEventListener('change', () => {
-        onValue(actionsRef, (snapshot) => {
-          try {
-            userActions.innerHTML = '';
-            if (snapshot.val()) {
-              const filter = actionFilter.value;
-              Object.entries(snapshot.val()).forEach(([id, { type, username, timestamp }]) => {
-                if (filter === 'all' || type === filter) {
-                  const tr = document.createElement('tr');
-                  tr.innerHTML = `
-                    <td>${username || '匿名'}</td>
-                    <td>${type}</td>
-                    <td>${new Date(timestamp).toLocaleString('ja-JP')}</td>`;
-                  userActions.appendChild(tr);
-                }
-              });
-            }
-          } catch (error) {
-            console.error('アクション履歴フィルターエラー:', error);
-            showError('アクション履歴のフィルタリングに失敗しました。');
-          }
         });
       });
 
       clearAllMessages.addEventListener('click', async () => {
-        if (!auth.currentUser) {
-          showError('ログインしてください。');
-          return;
-        }
-        if (!isAdmin) {
-          showError('Admin権限が必要です。');
-          return;
-        }
-        confirmActionMessage.textContent = 'すべてのメッセージをクリアしますか？';
-        confirmActionBtn.onclick = async () => {
-          try {
-            await remove(messagesRef);
-            await push(actionsRef, {
-              type: 'clearAllMessages',
-              userId: auth.currentUser.uid,
-              username: userInfo.textContent,
-              timestamp: Date.now()
-            });
-            showSuccess('全メッセージをクリアしました。');
-            console.log('全メッセージクリア成功');
-          } catch (error) {
-            console.error('全メッセージクリアエラー:', error);
-            showError('全メッセージのクリアに失敗しました。');
+        if (auth.currentUser) {
+          if (isAdmin) {
+            confirmActionMessage.textContent = 'すべてのメッセージをクリアしますか？';
+            confirmActionBtn.onclick = async () => {
+              console.log('全メッセージクリアボタンクリック');
+              try {
+                await remove(messagesRef);
+                await push(actionsRef, {
+                  type: 'clearAllMessages',
+                  userId: auth.currentUser.uid,
+                  username: userInfo.textContent,
+                  timestamp: Date.now()
+                });
+                showSuccess('全メッセージをクリアしました。');
+                console.log('全メッセージクリア成功');
+              } catch (error) {
+                console.error('全メッセージクリアエラー:', error);
+                showError('全メッセージのクリアに失敗しました。');
+              }
+              confirmActionModal.hide();
+            };
+            confirmActionModal.show();
+            setTimeout(() => confirmActionBtn.focus(), 100);
+          } else {
+            showError('Admin権限が必要です。');
           }
-          confirmActionModal.hide();
-        };
-        confirmActionModalEl.removeAttribute('inert');
-        confirmActionModal.show();
-        setTimeout(() => confirmActionBtn.focus(), 100);
+        } else {
+          showError('ログインしてください。');
+        }
       });
 
       document.addEventListener('click', async (e) => {
-        confirmActionBtn.onclick = null;
+        confirmActionBtn.onclick = null; // ハンドラクリア
         if (e.target.classList.contains('delete-message')) {
           const key = e.target.dataset.key;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
           confirmActionMessage.textContent = `このメッセージを削除しますか？`;
           confirmActionBtn.onclick = async () => {
+            console.log('メッセージ削除ボタンクリック: messageId=', key);
+            if (!isAdmin) {
+              showError('Admin権限が必要です。');
+              confirmActionModal.hide();
+              return;
+            }
             try {
               await remove(ref(database, `messages/${key}`));
               await push(actionsRef, {
@@ -684,18 +641,19 @@
             }
             confirmActionModal.hide();
           };
-          confirmActionModalEl.removeAttribute('inert');
           confirmActionModal.show();
           setTimeout(() => confirmActionBtn.focus(), 100);
         } else if (e.target.classList.contains('ban-user')) {
           const uid = e.target.dataset.uid;
           const username = e.target.dataset.username;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
           confirmActionMessage.textContent = `${username} をBANしますか？`;
           confirmActionBtn.onclick = async () => {
+            console.log('BANボタンクリック: userId=', uid);
+            if (!isAdmin) {
+              showError('Admin権限が必要です。');
+              confirmActionModal.hide();
+              return;
+            }
             try {
               await set(ref(database, `bannedUsers/${uid}`), true);
               await push(actionsRef, {
@@ -713,18 +671,19 @@
             }
             confirmActionModal.hide();
           };
-          confirmActionModalEl.removeAttribute('inert');
           confirmActionModal.show();
           setTimeout(() => confirmActionBtn.focus(), 100);
         } else if (e.target.classList.contains('unban-user')) {
           const uid = e.target.dataset.uid;
           const username = e.target.dataset.username;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
           confirmActionMessage.textContent = `${username} のBANを解除しますか？`;
           confirmActionBtn.onclick = async () => {
+            console.log('BAN解除ボタンクリック: userId=', uid);
+            if (!isAdmin) {
+              showError('Admin権限が必要です。');
+              confirmActionModal.hide();
+              return;
+            }
             try {
               await remove(ref(database, `bannedUsers/${uid}`));
               await push(actionsRef, {
@@ -742,18 +701,19 @@
             }
             confirmActionModal.hide();
           };
-          confirmActionModalEl.removeAttribute('inert');
           confirmActionModal.show();
           setTimeout(() => confirmActionBtn.focus(), 100);
         } else if (e.target.classList.contains('kick-user')) {
           const uid = e.target.dataset.uid;
           const username = e.target.dataset.username;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
           confirmActionMessage.textContent = `${username} をKICKしますか？`;
           confirmActionBtn.onclick = async () => {
+            console.log('KICKボタンクリック: userId=', uid);
+            if (!isAdmin) {
+              showError('Admin権限が必要です。');
+              confirmActionModal.hide();
+              return;
+            }
             try {
               await set(ref(database, `kickedUsers/${uid}`), { timestamp: Date.now() });
               await push(actionsRef, {
@@ -771,30 +731,24 @@
             }
             confirmActionModal.hide();
           };
-          confirmActionModalEl.removeAttribute('inert');
           confirmActionModal.show();
           setTimeout(() => confirmActionBtn.focus(), 100);
         }
       });
 
       onValue(kickedUsersRef, (snapshot) => {
-        try {
-          if (auth.currentUser && snapshot.val()?.[auth.currentUser.uid]) {
-            console.log('KICK検出: userId=', auth.currentUser.uid);
-            signOut(auth).then(() => {
-              console.log('KICKによりログアウト成功');
-              showError('管理者によりログアウトされました。');
-              set(ref(database, `kickedUsers/${auth.currentUser.uid}`), null).catch((error) => {
-                console.error('KICKフラグ削除エラー:', error);
-              });
-            }).catch((error) => {
-              console.error('KICKログアウトエラー:', error);
-              showError('ログアウトに失敗しました: ' + error.message);
+        if (auth.currentUser && snapshot.val()?.[auth.currentUser.uid]) {
+          console.log('KICK検出: userId=', auth.currentUser.uid);
+          signOut(auth).then(() => {
+            console.log('KICKによりログアウト成功');
+            showError('管理者によりログアウトされました。');
+            set(ref(database, `kickedUsers/${auth.currentUser.uid}`), null).catch((error) => {
+              console.error('KICKフラグ削除エラー:', error);
             });
-          }
-        } catch (error) {
-          console.error('KICK監視エラー:', error);
-          showError('KICK状態の監視に失敗しました。');
+          }).catch((error) => {
+            console.error('KICKログアウトエラー:', error);
+            showError('ログアウトに失敗しました: ' + error.message);
+          });
         }
       });
 
@@ -808,7 +762,7 @@
               const isOwnMessage = userId === (auth.currentUser?.uid || '');
               const isLatest = index === messages.length - 1;
               const li = document.createElement('li');
-              li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 ${isLatest ? 'latest-message' : ''} fade-in`;
+              li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 ${isLatest ? 'latest-message' : ''}`;
               const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
               li.innerHTML = `
                 <div class="message ${isOwnMessage ? 'bg-primary text-white' : 'bg-light'} p-2 rounded shadow-sm">
@@ -822,17 +776,8 @@
                   </div>
                 </div>`;
               messagesEl.appendChild(li);
-              // フェードインアニメーション
-              setTimeout(() => li.style.opacity = '1', 100);
             });
-            // スクロール制御
-            if (!isUserScrolledUp) {
-              messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
-              newMessageBtn.classList.add('d-none');
-            } else {
-              newMessageBtn.classList.remove('d-none');
-            }
-            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
+            messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
           }
         } catch (error) {
           console.error('メッセージ取得エラー:', error);
@@ -886,7 +831,7 @@
           await set(ref(database, `users/${auth.currentUser.uid}/ipAddress`), ipAddress);
           console.log('送信メッセージ:', message);
           await push(messagesRef, {
-            username: userInfo.textContent,
+            username: auth.currentUser.displayName || userInfo.textContent,
             message,
             timestamp: Date.now(),
             userId: auth.currentUser.uid,
@@ -900,10 +845,7 @@
           });
           inputEl.value = '';
           formEl.classList.remove('was-validated');
-          // 送信後即スクロール
-          isUserScrolledUp = false;
           messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
-          newMessageBtn.classList.add('d-none');
         } catch (error) {
           console.error('メッセージ送信エラー:', error);
           showError('メッセージの送信に失敗しました: ' + error.message);
@@ -919,12 +861,12 @@
       auth.onAuthStateChanged(async (user) => {
         try {
           console.log('認証状態変更:', user ? `ログイン済み (UID: ${user.uid})` : '未ログイン');
-          await updateUserUI(user);
+          updateUserUI(user);
           isAdmin = user ? (await get(ref(database, `admins/${user.uid}`)).catch(() => null))?.val() || false : false;
-          if (isAdmin) {
-            adminPanel.classList.remove('d-none');
-          } else {
+          if (!user) {
             adminPanel.classList.add('d-none');
+            usernameModal.hide();
+            loginModal.hide();
           }
         } catch (error) {
           console.error('認証状態変更エラー:', error);
@@ -933,10 +875,10 @@
       });
 
       // モーダル非表示時にinertを追加
-      unameModalEl.addEventListener('hidden.bs.modal', () => {
-        unameModalEl.setAttribute('inert', '');
+      usernameModalEl.addEventListener('hidden.bs.modal', () => {
+        usernameModalEl.setAttribute('inert', '');
         document.getElementById('login-btn').focus();
-        console.log('unameModal非表示: フォーカスをlogin-btnに移動');
+        console.log('usernameModal非表示: フォーカスをlogin-btnに移動');
       });
       adminLoginModalEl.addEventListener('hidden.bs.modal', () => {
         adminLoginModalEl.setAttribute('inert', '');

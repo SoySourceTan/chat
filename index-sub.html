@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>友達チャット</title>
+  <!-- Bootstrap 5.3.3 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <!-- Font Awesome 6.5.2 CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- カスタムCSS -->
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- ログインモーダル -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="loginModalLabel">ログイン</h5>
+          </div>
+          <div class="modal-body">
+            <button id="twitterLogin" class="btn btn-primary btn-lg"><i class="fab fa-twitter"></i> Xでログイン</button>
+            <button id="googleLogin" class="btn btn-danger btn-lg"><i class="fab fa-google"></i> Googleでログイン</button>
+            <button id="anonymousLogin" class="btn btn-secondary btn-lg"><i class="fas fa-user-secret"></i> 匿名でログイン</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">友達チャット <span id="display-name"></span></a>
+        <div class="col-md-6 d-flex align-items-center flex-wrap gap-2">
+          <input type="text" id="username" class="form-control me-2" placeholder="名前を入力（例: Taro:admin）" autocomplete="off" required inputmode="text">
+          <div class="invalid-feedback">名前を入力してください（5文字以上）。</div>
+          <button type="button" id="confirmName" class="btn btn-outline-primary me-2" disabled>確定</button>
+          <button type="button" id="emojiPicker" class="btn btn-outline-secondary me-2"><i class="fas fa-smile"></i></button>
+          <button id="signOut" class="btn btn-outline-secondary me-2 d-none">ログアウト</button>
+          <input type="text" id="search" class="form-control me-2" placeholder="メッセージを検索">
+          <input type="range" id="fontSizeSlider" class="form-range" min="12" max="20" value="16" title="フォントサイズ">
+        </div>
+      </div>
+    </nav>
+
+    <!-- Adminパネル（初期非表示） -->
+    <div id="adminPanel" class="mt-3 d-none">
+      <div class="card">
+        <div class="card-header">Adminパネル</div>
+        <div class="card-body">
+          <div class="input-group mb-3">
+            <input type="password" id="adminPassword" class="form-control" placeholder="パスワードを入力">
+            <button type="button" id="adminLogin" class="btn btn-primary">ログイン</button>
+          </div>
+          <button type="button" id="adminLogout" class="btn btn-secondary mt-2">ログアウト</button>
+          <h6 class="mt-3">アクティブユーザー</h6>
+          <div id="activeUsers" class="list-group mb-3"></div>
+          <h6>ユーザーアクション履歴</h6>
+          <select id="actionFilter" class="form-select mb-3">
+            <option value="">すべてのアクション</option>
+            <option value="connect">接続</option>
+            <option value="setUsername">ユーザー名設定</option>
+            <option value="sendMessage">メッセージ送信</option>
+            <option value="editMessage">メッセージ編集</option>
+            <option value="deleteMessage">メッセージ削除</option>
+            <option value="pinMessage">ピン留め</option>
+            <option value="unpinMessage">ピン留め解除</option>
+            <option value="adminLogin">Adminログイン</option>
+            <option value="adminLogout">Adminログアウト</option>
+          </select>
+          <div id="userActions" class="list-group"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- メインエリア -->
+    <div id="main-content" class="main-content">
+      <div class="container">
+        <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+        <ul id="messages" class="list-group"></ul>
+        <div id="pagination" class="d-flex justify-content-center mt-3">
+          <button id="prevPage" class="btn btn-outline-secondary me-2" disabled>前へ</button>
+          <span id="pageInfo" class="align-self-center mx-2"></span>
+          <button id="nextPage" class="btn btn-outline-secondary" disabled>次へ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- フッター -->
+    <footer class="bg-light fixed-bottom py-3">
+      <div class="container">
+        <form id="message-form" class="needs-validation" novalidate>
+          <div class="row g-2">
+            <div class="col-md-10">
+              <input type="text" id="m" class="form-control" placeholder="メッセージを入力" autocomplete="off" required inputmode="text">
+              <div class="invalid-feedback">メッセージを入力してください。</div>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-primary w-100" disabled>送信</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Bootstrap 5.3.3 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp, setLogLevel } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
+    import { getDatabase, ref, push, onValue, onDisconnect, set, remove, update, get } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+    import { getAuth, signInAnonymously, signInWithPopup, TwitterAuthProvider, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+
+    setLogLevel('debug');
+
+    function showError(message) {
+      const errorAlert = document.getElementById('error-alert');
+      errorAlert.textContent = message;
+      errorAlert.classList.remove('d-none');
+      setTimeout(() => errorAlert.classList.add('d-none'), 5000);
+      console.error('エラー表示:', message);
+    }
+
+    async function logUserAction(database, userId, action, details) {
+      try {
+        const actionRef = ref(database, `userActions/${userId}/${Date.now()}`);
+        await set(actionRef, {
+          action,
+          details,
+          timestamp: Date.now()
+        });
+        console.log(`アクション記録: ${action}, 詳細: ${details}`);
+      } catch (error) {
+        console.error('アクション記録エラー:', error.code, error.message);
+        showError(`アクション記録に失敗しました: ${error.message}`);
+      }
+    }
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc",
+      authDomain: "gentle-brace-458923-k9.firebaseapp.com",
+      databaseURL: "https://gentle-brace-458923-k9-default-rtdb.firebaseio.com",
+      projectId: "gentle-brace-458923-k9",
+      storageBucket: "gentle-brace-458923-k9.firebasestorage.app",
+      messagingSenderId: "426876531009",
+      appId: "1:426876531009:web:021b23c449bce5d72031c0",
+      measurementId: "G-2B5KWNHYED"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const database = getDatabase(app);
+      const auth = getAuth(app);
+      const messagesRef = ref(database, 'messages');
+      const activeUsersRef = ref(database, 'activeUsers');
+      const usernamesRef = ref(database, 'usernames');
+      const userActionsRef = ref(database, 'userActions');
+
+      const messagesEl = document.getElementById('messages');
+      const inputEl = document.getElementById('m');
+      const formEl = document.getElementById('message-form');
+      const usernameEl = document.getElementById('username');
+      const confirmNameBtn = document.getElementById('confirmName');
+      const displayNameEl = document.getElementById('display-name');
+      const submitButton = formEl.querySelector('button[type="submit"]');
+      const adminPanel = document.getElementById('adminPanel');
+      const adminPassword = document.getElementById('adminPassword');
+      const adminLogin = document.getElementById('adminLogin');
+      const adminLogout = document.getElementById('adminLogout');
+      const activeUsersEl = document.getElementById('activeUsers');
+      const userActionsEl = document.getElementById('userActions');
+      const actionFilter = document.getElementById('actionFilter');
+      const fontSizeSlider = document.getElementById('fontSizeSlider');
+      const emojiPicker = document.getElementById('emojiPicker');
+      const searchEl = document.getElementById('search');
+      const prevPageBtn = document.getElementById('prevPage');
+      const nextPageBtn = document.getElementById('nextPage');
+      const pageInfoEl = document.getElementById('pageInfo');
+      const twitterLoginBtn = document.getElementById('twitterLogin');
+      const googleLoginBtn = document.getElementById('googleLogin');
+      const anonymousLoginBtn = document.getElementById('anonymousLogin');
+      const signOutBtn = document.getElementById('signOut');
+      const loginModalEl = document.getElementById('loginModal');
+      const loginModal = new bootstrap.Modal(loginModalEl, { backdrop: 'static', keyboard: false });
+
+      if (!twitterLoginBtn || !googleLoginBtn || !anonymousLoginBtn || !signOutBtn || !loginModalEl) {
+        console.error('エラー: ログインボタンまたはモーダルが見つかりません。', {
+          twitterLoginBtn: !!twitterLoginBtn,
+          googleLoginBtn: !!googleLoginBtn,
+          anonymousLoginBtn: !!anonymousLoginBtn,
+          signOutBtn: !!signOutBtn,
+          loginModalEl: !!loginModalEl
+        });
+        showError('ログインモーダルの要素が見つかりません。ページをリロードしてください。');
+      }
+
+      let currentUsername = localStorage.getItem('chatUsername') || '';
+      let isAdmin = localStorage.getItem('isAdmin') === 'true';
+      let isAdminCandidate = false;
+      let currentPage = 1;
+      let messagesPerPage = 50;
+      let allMessages = [];
+      let authPromise = Promise.resolve();
+
+      auth.onAuthStateChanged(async (user) => {
+        const displayStatus = user ? '非表示' : '表示';
+        console.log(`認証状態変更: ${user ? `ログイン済み (UID: ${user.uid}, Provider: ${user.providerData[0]?.providerId || 'anonymous'})` : '未ログイン'}, ログインモーダル: ${displayStatus}`);
+        if (user) {
+          loginModal.hide();
+          loginModalEl.setAttribute('inert', '');
+          inputEl.focus(); // フォーカスをメッセージ入力に移動
+          signOutBtn.classList.remove('d-none');
+          console.log('ログインモーダル非表示、ログアウトボタン表示');
+          if (!currentUsername) {
+            let cleanUsername = '';
+            if (user.displayName) {
+              console.log('displayName:', user.displayName);
+              cleanUsername = user.displayName.replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, '').slice(0, 20);
+            } else if (user.email) {
+              console.log('email:', user.email);
+              cleanUsername = user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+            } else {
+              cleanUsername = `anon${Date.now()}`;
+            }
+            console.log('生成されたcleanUsername:', cleanUsername);
+            if (cleanUsername.length < 5) {
+              cleanUsername = user.email ? user.email.split('@')[0].slice(0, 20) : `user${Date.now()}`.slice(0, 20);
+              console.log('ユーザー名が短すぎる、修正:', cleanUsername);
+            }
+            let uniqueUsername = cleanUsername;
+            let counter = 1;
+            while ((await get(ref(database, `usernames/${uniqueUsername}`))).exists()) {
+              uniqueUsername = `${cleanUsername}_${counter++}`;
+            }
+            console.log('最終的なuniqueUsername:', uniqueUsername);
+            try {
+              await set(ref(database, `usernames/${uniqueUsername}`), true);
+              currentUsername = uniqueUsername;
+              localStorage.setItem('chatUsername', uniqueUsername);
+              displayNameEl.textContent = currentUsername + " | ";
+              submitButton.disabled = false;
+              usernameEl.value = uniqueUsername;
+              usernameEl.disabled = true;
+              confirmNameBtn.disabled = true;
+              logUserAction(database, user.uid, 'setUsername', `ソーシャルログイン: ${uniqueUsername}`);
+              console.log(`ユーザー名設定: ${uniqueUsername}`);
+            } catch (error) {
+              console.error('ユーザー名設定エラー:', error.code, error.message);
+              showError(`ユーザー名設定エラー: ${error.message}`);
+            }
+          }
+          const userRef = ref(database, `activeUsers/${user.uid}`);
+          try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            await set(userRef, {
+              connectedAt: Date.now(),
+              ipAddress: data.ip || 'unknown',
+              isAdmin: isAdmin || false
+            });
+            onDisconnect(userRef).remove();
+            logUserAction(database, user.uid, 'connect', `ユーザーが接続（プロバイダ: ${user.providerData[0]?.providerId || 'anonymous'}）`);
+          } catch (error) {
+            console.error('接続ユーザー登録エラー:', error);
+            showError('接続ユーザーの登録に失敗しました。');
+          }
+        } else {
+          loginModal.show();
+          loginModalEl.removeAttribute('inert');
+          signOutBtn.classList.add('d-none');
+          console.log('ログインモーダル表示、ログアウトボタン非表示');
+          currentUsername = '';
+          localStorage.removeItem('chatUsername');
+          localStorage.removeItem('isAdmin');
+          isAdmin = false;
+          isAdminCandidate = false;
+          adminPanel.classList.add('d-none');
+          submitButton.disabled = true;
+          usernameEl.disabled = false;
+          confirmNameBtn.disabled = false;
+          displayNameEl.textContent = '';
+        }
+      });
+
+      twitterLoginBtn.addEventListener('click', async () => {
+        console.log('Xログインボタンクリック: 開始');
+        const provider = new TwitterAuthProvider();
+        try {
+          authPromise = signInWithPopup(auth, provider);
+          // ポップアップブロック対策としてリダイレクトを試す場合：
+          // authPromise = signInWithRedirect(auth, provider);
+          await authPromise;
+          console.log('Xログイン: 成功');
+          showError('Xでログインしました。');
+        } catch (error) {
+          console.error('Xログインエラー:', error.code, error.message, error.credential || 'なし');
+          if (error.code === 'auth/account-exists-with-different-credential') {
+            showError(`このメールアドレス(${error.email || '不明'})は別のプロバイダで使用されています。他の方法でログインしてください。`);
+          } else if (error.code === 'auth/popup-blocked') {
+            showError('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+          } else if (error.code === 'auth/invalid-credential') {
+            showError('Twitterの認証情報が無効です。APIキー、シークレット、コールバックURLを確認してください。');
+          } else {
+            showError(`Xログインに失敗しました: ${error.message}`);
+          }
+        }
+      });
+
+      googleLoginBtn.addEventListener('click', async () => {
+        console.log('Googleログインボタンクリック: 開始');
+        const provider = new GoogleAuthProvider();
+        provider.addScope('profile email');
+        try {
+          authPromise = signInWithPopup(auth, provider);
+          await authPromise;
+          console.log('Googleログイン: 成功');
+          showError('Googleでログインしました。');
+        } catch (error) {
+          console.error('Googleログインエラー:', error.code, error.message, error.credential || 'なし');
+          if (error.code === 'auth/account-exists-with-different-credential') {
+            showError(`このメールアドレス(${error.email || '不明'})は別のプロバイダで使用されています。他の方法でログインしてください。`);
+          } else if (error.code === 'auth/popup-blocked') {
+            showError('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+          } else {
+            showError(`Googleログインに失敗しました: ${error.message}`);
+          }
+        }
+      });
+
+      anonymousLoginBtn.addEventListener('click', async () => {
+        console.log('匿名ログインボタンクリック: 開始');
+        try {
+          authPromise = signInAnonymously(auth);
+          await authPromise;
+          console.log('匿名ログイン: 成功');
+          showError('匿名でログインしました。');
+          confirmNameBtn.disabled = false;
+          usernameEl.focus();
+        } catch (error) {
+          console.error('匿名ログインエラー:', error.code, error.message);
+          showError(`匿名ログインに失敗しました: ${error.message}`);
+        }
+      });
+
+      signOutBtn.addEventListener('click', async () => {
+        console.log('ログアウトボタンクリック: 開始');
+        try {
+          await signOut(auth);
+          console.log('ログアウト: 成功');
+          showError('ログアウトしました。');
+          loginModal.show();
+        } catch (error) {
+          console.error('ログアウトエラー:', error.code, error.message);
+          showError(`ログアウトに失敗しました: ${error.message}`);
+        }
+      });
+
+      fontSizeSlider.addEventListener('input', () => {
+        messagesEl.style.fontSize = `${fontSizeSlider.value}px`;
+      });
+
+      emojiPicker.addEventListener('click', () => {
+        inputEl.focus();
+      });
+
+      searchEl.addEventListener('input', (e) => {
+        const searchText = e.target.value.toLowerCase();
+        messagesEl.querySelectorAll('li').forEach(li => {
+          li.style.display = li.textContent.toLowerCase().includes(searchText) ? '' : 'none';
+        });
+      });
+
+      actionFilter.addEventListener('change', () => {
+        const filter = actionFilter.value;
+        userActionsEl.querySelectorAll('li').forEach(li => {
+          li.style.display = filter ? li.textContent.includes(filter) ? '' : 'none' : '';
+        });
+      });
+
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          console.log('通知が許可されました');
+        }
+      });
+
+      confirmNameBtn.addEventListener('click', async () => {
+        await authPromise;
+        let username = usernameEl.value.trim();
+        if (username) {
+          if (username.length < 5) {
+            showError('ユーザー名は5文字以上にしてください。');
+            usernameEl.classList.add('is-invalid');
+            return;
+          }
+          if (username.length > 20) {
+            showError('ユーザー名は20文字以内にしてください。');
+            usernameEl.classList.add('is-invalid');
+            return;
+          }
+          const adminRegex = /:admin$/i;
+          isAdminCandidate = adminRegex.test(username);
+          const cleanUsername = username.replace(adminRegex, '').trim();
+          if (!cleanUsername) {
+            showError('有効な名前を入力してください（例: Taro:admin）。');
+            usernameEl.classList.add('is-invalid');
+            return;
+          }
+          if (cleanUsername.length < 5) {
+            showError('名前部分は5文字以上にしてください。');
+            usernameEl.classList.add('is-invalid');
+            return;
+          }
+          const usernameRef = ref(database, `usernames/${cleanUsername}`);
+          try {
+            await set(usernameRef, true);
+            currentUsername = cleanUsername;
+            localStorage.setItem('chatUsername', cleanUsername);
+            displayNameEl.textContent = currentUsername + " | ";
+            submitButton.disabled = false;
+            usernameEl.classList.remove('is-invalid');
+            inputEl.focus();
+            if (isAdminCandidate) {
+              adminPanel.classList.remove('d-none');
+            }
+            if (auth.currentUser) {
+              logUserAction(database, auth.currentUser.uid, 'setUsername', `ユーザー名: ${cleanUsername}`);
+            }
+          } catch (error) {
+            console.error('ユーザー名登録エラー:', error.code, error.message);
+            showError(`ユーザー名の登録に失敗しました: ${error.message}`);
+            usernameEl.classList.add('is-invalid');
+          }
+        } else {
+          usernameEl.classList.add('is-invalid');
+          showError('名前を入力してください（5文字以上）。');
+        }
+      });
+
+      adminLogin.addEventListener('click', async () => {
+        await authPromise;
+        if (adminPassword.value === 'Queen2025!' && isAdminCandidate) {
+          isAdmin = true;
+          localStorage.setItem('isAdmin', 'true');
+          adminPanel.classList.remove('d-none');
+          adminPassword.value = '';
+          showError('Adminパネルにログインしました。');
+          if (auth.currentUser) {
+            await set(ref(database, `activeUsers/${auth.currentUser.uid}/isAdmin`), true);
+            logUserAction(database, auth.currentUser.uid, 'adminLogin', 'Adminとしてログイン');
+          }
+        } else {
+          showError('パスワードまたはユーザー名が間違っています。');
+        }
+      });
+
+      adminLogout.addEventListener('click', async () => {
+        await authPromise;
+        isAdmin = false;
+        isAdminCandidate = false;
+        localStorage.removeItem('isAdmin');
+        adminPanel.classList.add('d-none');
+        showError('Adminパネルからログアウトしました。');
+        if (auth.currentUser) {
+          await set(ref(database, `activeUsers/${auth.currentUser.uid}/isAdmin`), false);
+          logUserAction(database, auth.currentUser.uid, 'adminLogout', 'Adminからログアウト');
+        }
+      });
+
+      formEl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await authPromise;
+        console.log('フォーム送信開始:', { inputValue: inputEl.value, currentUsername, uid: auth.currentUser?.uid });
+        if (!formEl.checkValidity()) {
+          e.stopPropagation();
+          formEl.classList.add('was-validated');
+          console.log('フォームバリデーション失敗');
+          showError('メッセージを入力してください。');
+          return;
+        }
+        if (!currentUsername) {
+          showError('名前を確定してください。');
+          console.log('エラー: currentUsernameが空');
+          return;
+        }
+        if (!auth.currentUser) {
+          showError('認証が完了していません。ページをリロードしてください。');
+          console.log('エラー: auth.currentUserがnull');
+          return;
+        }
+        const messageText = inputEl.value.trim();
+        if (messageText) {
+          if (messageText.length > 500) {
+            showError('メッセージは500文字以内にしてください。');
+            console.log('エラー: メッセージが500文字超');
+            return;
+          }
+          try {
+            console.log('メッセージ送信処理:', { username: currentUsername, uid: auth.currentUser.uid, text: messageText });
+            let ipAddress = 'unknown';
+            try {
+              const res = await fetch('https://api.ipify.org?format=json');
+              if (res.ok) {
+                const data = await res.json();
+                ipAddress = data.ip || 'unknown';
+                console.log('IP取得成功:', ipAddress);
+              } else {
+                console.error('IP取得失敗: ステータス', res.status);
+              }
+            } catch (error) {
+              console.error('IP取得エラー:', error.message);
+            }
+            await push(messagesRef, {
+              username: currentUsername,
+              text: messageText,
+              timestamp: Date.now(),
+              userId: auth.currentUser.uid,
+              ipAddress: isAdmin ? ipAddress : null,
+              pinned: false
+            });
+            inputEl.value = '';
+            formEl.classList.remove('was-validated');
+            inputEl.focus();
+            currentPage = Math.ceil((allMessages.length + 1) / messagesPerPage);
+            if (Notification.permission === 'granted') {
+              new Notification('新しいメッセージ', { body: `${currentUsername}: ${messageText}` });
+            }
+            logUserAction(database, auth.currentUser.uid, 'sendMessage', `メッセージ: ${messageText}`);
+            console.log('メッセージ送信成功');
+          } catch (error) {
+            console.error('メッセージ送信エラー:', error.code, error.message);
+            showError(`メッセージ送信に失敗しました: ${error.message}`);
+          }
+        }
+      });
+
+      inputEl.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          await authPromise;
+          console.log('エンターキー送信開始:', { inputValue: inputEl.value, currentUsername, uid: auth.currentUser?.uid });
+          if (!formEl.checkValidity()) {
+            formEl.classList.add('was-validated');
+            console.log('フォームバリデーション失敗');
+            showError('メッセージを入力してください。');
+            return;
+          }
+          if (!currentUsername) {
+            showError('名前を確定してください。');
+            console.log('エラー: currentUsernameが空');
+            return;
+          }
+          if (!auth.currentUser) {
+            showError('認証が完了していません。ページをリロードしてください。');
+            console.log('エラー: auth.currentUserがnull');
+            return;
+          }
+          const messageText = inputEl.value.trim();
+          if (messageText) {
+            if (messageText.length > 500) {
+              showError('メッセージは500文字以内にしてください。');
+              console.log('エラー: メッセージが500文字超');
+              return;
+            }
+            try {
+              console.log('エンターキー送信処理:', { username: currentUsername, uid: auth.currentUser.uid, text: messageText });
+              let ipAddress = 'unknown';
+              try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                if (res.ok) {
+                  const data = await res.json();
+                  ipAddress = data.ip || 'unknown';
+                  console.log('IP取得成功:', ipAddress);
+                } else {
+                  console.error('IP取得失敗: ステータス', res.status);
+                }
+              } catch (error) {
+                console.error('IP取得エラー:', error.message);
+              }
+              await push(messagesRef, {
+                username: currentUsername,
+                text: messageText,
+                timestamp: Date.now(),
+                userId: auth.currentUser.uid,
+                ipAddress: isAdmin ? ipAddress : null,
+                pinned: false
+              });
+              inputEl.value = '';
+              formEl.classList.remove('was-validated');
+              inputEl.focus();
+              currentPage = Math.ceil((allMessages.length + 1) / messagesPerPage);
+              if (Notification.permission === 'granted') {
+                new Notification('新しいメッセージ', { body: `${currentUsername}: ${messageText}` });
+              }
+              logUserAction(database, auth.currentUser.uid, 'sendMessage', `メッセージ: ${messageText}`);
+              console.log('エンターキー送信成功');
+            } catch (error) {
+              console.error('メッセージ送信エラー:', error.code, error.message);
+              showError(`メッセージ送信に失敗しました: ${error.message}`);
+            }
+          }
+        }
+      });
+
+      let lastMessageCount = 0;
+      function renderMessages() {
+        messagesEl.innerHTML = '';
+        const pinnedMessages = allMessages.filter(([_, msg]) => msg.pinned);
+        const normalMessages = allMessages.filter(([_, msg]) => !msg.pinned);
+        const startIdx = (currentPage - 1) * messagesPerPage;
+        const endIdx = startIdx + messagesPerPage;
+        const pageMessages = normalMessages.slice(startIdx, endIdx);
+        [...pinnedMessages, ...pageMessages].forEach(([key, { username, text, timestamp, userId, ipAddress, pinned }], index) => {
+          const li = document.createElement('li');
+          li.className = `list-group-item border-0 ${pinned ? 'bg-warning bg-opacity-25' : index % 2 === 0 ? 'bg-light' : 'bg-secondary bg-opacity-10'}`;
+          const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+          li.innerHTML = `
+            <strong>${username}</strong> | <small class="text-muted">${date}</small> ${pinned ? '<span class="badge bg-warning text-dark">ピン留め</span>' : ''}<br>
+            ${text}
+            ${isAdmin && ipAddress ? `<br><small class="text-muted">IP: ${ipAddress}</small>` : ''}
+          `;
+          if (userId === auth.currentUser?.uid) {
+            li.style.cursor = 'pointer';
+            li.addEventListener('click', async () => {
+              try {
+                await remove(ref(database, `messages/${key}`));
+                showError('メッセージを削除しました。');
+                logUserAction(database, auth.currentUser.uid, 'deleteMessage', `メッセージ: ${text}`);
+              } catch (error) {
+                console.error('メッセージ削除エラー:', error.code, error.message);
+                showError('メッセージ削除に失敗しました。');
+              }
+            });
+            li.addEventListener('dblclick', async () => {
+              const newText = prompt('メッセージを編集:', text);
+              if (newText && newText.length <= 500) {
+                try {
+                  await set(ref(database, `messages/${key}/text`), newText);
+                  showError('メッセージを編集しました。');
+                  logUserAction(database, auth.currentUser.uid, 'editMessage', `元のメッセージ: ${text}, 新しいメッセージ: ${newText}`);
+                } catch (error) {
+                  console.error('メッセージ編集エラー:', error.code, error.message);
+                  showError('メッセージ編集に失敗しました。');
+                }
+              } else if (newText) {
+                showError('メッセージは500文字以内にしてください。');
+              }
+            });
+          }
+          if (isAdmin) {
+            li.addEventListener('contextmenu', async (e) => {
+              e.preventDefault();
+              try {
+                await update(ref(database, `messages/${key}`), { pinned: !pinned });
+                showError(pinned ? 'ピン留めを解除しました。' : 'メッセージをピン留めしました。');
+                logUserAction(database, auth.currentUser.uid, pinned ? 'unpinMessage' : 'pinMessage', `メッセージ: ${text}`);
+              } catch (error) {
+                console.error('ピン留め操作エラー:', error.code, error.message);
+                showError('ピン留めの操作に失敗しました。');
+              }
+            });
+          }
+          messagesEl.appendChild(li);
+        });
+        const totalPages = Math.ceil((allMessages.length - pinnedMessages.length) / messagesPerPage) || 1;
+        currentPage = Math.min(currentPage, totalPages);
+        pageInfoEl.textContent = `ページ ${currentPage} / ${totalPages}`;
+        prevPageBtn.disabled = currentPage === 1;
+        nextPageBtn.disabled = currentPage === totalPages;
+        const isAtBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 10;
+        if (isAtBottom) {
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+      }
+
+      onValue(messagesRef, (snapshot) => {
+        try {
+          allMessages = snapshot.val() ? Object.entries(snapshot.val()) : [];
+          const newMessageCount = allMessages.length;
+          renderMessages();
+          if (newMessageCount > lastMessageCount && Notification.permission === 'granted') {
+            const latestMessage = allMessages[allMessages.length - 1][1];
+            if (latestMessage.userId !== auth.currentUser?.uid) {
+              new Notification('新しいメッセージ', { body: `${latestMessage.username}: ${latestMessage.text}` });
+              currentPage = Math.ceil((allMessages.length - allMessages.filter(([_, msg]) => msg.pinned).length) / messagesPerPage);
+              renderMessages();
+            }
+          }
+          lastMessageCount = newMessageCount;
+        } catch (error) {
+          console.error('メッセージ取得エラー:', error.code, error.message);
+          showError('メッセージの取得に失敗しました。');
+        }
+      }, { onlyOnce: false });
+
+      prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderMessages();
+        }
+      });
+
+      nextPageBtn.addEventListener('click', () => {
+        const totalPages = Math.ceil((allMessages.length - allMessages.filter(([_, msg]) => msg.pinned).length) / messagesPerPage) || 1;
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderMessages();
+        }
+      });
+
+      onValue(activeUsersRef, (snapshot) => {
+        if (isAdmin) {
+          activeUsersEl.innerHTML = '';
+          if (snapshot.val()) {
+            Object.entries(snapshot.val()).forEach(([uid, { connectedAt, ipAddress, isAdmin: adminStatus }]) => {
+              const li = document.createElement('li');
+              li.className = 'list-group-item';
+              const date = connectedAt ? new Date(connectedAt).toLocaleString('ja-JP') : '不明';
+              li.textContent = `UID: ${uid}, 接続時間: ${date}, IP: ${ipAddress || '不明'}, Admin: ${adminStatus ? 'はい' : 'いいえ'}`;
+              activeUsersEl.appendChild(li);
+            });
+          }
+        }
+        const count = snapshot.val() ? Object.keys(snapshot.val()).length : 0;
+        displayNameEl.textContent = `${currentUsername} | オンライン: ${count}人 | `;
+      });
+
+      onValue(userActionsRef, (snapshot) => {
+        if (isAdmin) {
+          userActionsEl.innerHTML = '';
+          if (snapshot.val()) {
+            Object.entries(snapshot.val()).forEach(([uid, actions]) => {
+              Object.entries(actions).forEach(([_, { action, details, timestamp }]) => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+                li.textContent = `UID: ${uid}, アクション: ${action}, 詳細: ${details}, 時間: ${date}`;
+                userActionsEl.appendChild(li);
+              });
+            });
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Firebase初期化エラー:', error.code, error.message);
+      showError('Firebaseの初期化に失敗しました。ページをリロードしてください。');
+    }
+  </script>
+</body>
+</html>
