@@ -3,7 +3,11 @@ body {
   margin: 0;
   font-family: sans-serif;
 }
-
+body {
+  padding-bottom: 70px; /* フッターの高さ分だけ下部にパディング */
+  position: relative; /* fixed bottom が効くように */
+  min-height: 100vh; /* 画面いっぱいにする */
+}
 .main-content {
   margin-top: 56px;
   padding-top: 56px;
@@ -11,6 +15,7 @@ body {
 
 #messages {
   flex-grow: 1;
+  height: calc(100vh - 130px); /* ナビバーとパディングとフッターの高さ */
   overflow-y: auto;
   max-height: calc(100vh - 56px - 50px);
   padding: 15px;
@@ -18,6 +23,7 @@ body {
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column; /* 上から新しい順を維持 */
+  overflow-x: hidden;
   scrollbar-width: auto;
   scrollbar-color: #aab7cf #dee2e6;
 }
