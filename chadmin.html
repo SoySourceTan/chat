@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>友達チャット - Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+</head>
+<body>
+  <div class="modal fade" id="adminPasswordModal" tabindex="-1" aria-labelledby="adminPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="adminPasswordModalLabel">Adminパスワード</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="password" id="adminPassword" class="form-control" placeholder="パスワードを入力" required>
+          <div class="invalid-feedback">パスワードを入力してください。</div>
+          <button id="confirmAdminPassword" class="btn btn-primary w-100 mt-2">認証</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="confirmActionModal" tabindex="-1" aria-labelledby="confirmActionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmActionModalLabel">アクション確認</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="confirmActionMessage"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" id="confirmActionBtn" class="btn btn-primary">実行</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">友達チャット - Admin</a>
+      <div class="ms-auto d-flex align-items-center">
+        <span id="user-info" class="cursor-pointer">ゲスト <i class="fas fa-pencil-alt ms-1"></i></span>
+        <button id="adminLogout" class="btn btn-danger btn-sm ms-2">Adminログアウト</button>
+        <a href="/chat/" class="btn btn-outline-primary ms-2">チャットに戻る</a>
+      </div>
+    </div>
+  </nav>
+
+  <div id="adminPanel" class="container d-none mt-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h3 class="mb-0">Adminパネル</h3>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-4">
+            <h4 class="card-title">アクティブユーザー</h4>
+            <div class="table-responsive">
+              <table class="table table-hover table-bordered">
+                <thead class="table-light">
+                  <tr>
+                    <th>ユーザー名</th>
+                    <th>プロバイダ</th>
+                    <th>IPアドレス</th>
+                    <th>アクション</th>
+                  </tr>
+                </thead>
+                <tbody id="activeUsers"></tbody>
+              </table>
+            </div>
+            <button id="clearAllMessages" class="btn btn-danger w-100 mt-2" data-bs-toggle="tooltip" title="すべてのメッセージをクリア"><i class="fas fa-trash-alt"></i> 全メッセージクリア</button>
+          </div>
+          <div class="col-md-6 mb-4">
+            <h4 class="card-title">ユーザーアクション履歴</h4>
+            <div class="mb-2">
+              <select id="actionFilter" class="form-select">
+                <option value="all">すべてのアクション</option>
+                <option value="connect">接続</option>
+                <option value="setUsername">ユーザー名設定</option>
+                <option value="sendMessage">メッセージ送信</option>
+                <option value="adminLogin">Adminログイン</option>
+                <option value="adminLogout">Adminログアウト</option>
+                <option value="clearAllMessages">全メッセージクリア</option>
+                <option value="deleteMessage">メッセージ削除</option>
+                <option value="banUser">ユーザーBAN</option>
+                <option value="unbanUser">ユーザーBAN解除</option>
+                <option value="kickUser">ユーザーKICK</option>
+              </select>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover table-bordered">
+                <thead class="table-light">
+                  <tr>
+                    <th>ユーザー名</th>
+                    <th>アクション</th>
+                    <th>日時</th>
+                  </tr>
+                </thead>
+                <tbody id="userActions"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
+    import { getDatabase, ref, push, onValue, set, remove, get } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc",
+      authDomain: "gentle-brace-458923-k9.firebaseapp.com",
+      databaseURL: "https://gentle-brace-458923-k9-default-rtdb.firebaseio.com",
+      projectId: "gentle-brace-458923-k9",
+      storageBucket: "gentle-brace-458923-k9.firebasestorage.app",
+      messagingSenderId: "426876531009",
+      appId: "1:426876531009:web:021b23c449bce5d72031c0",
+      measurementId: "G-2B5KWNHYED"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const database = getDatabase(app);
+      const auth = getAuth(app);
+      console.log('Firebase初期化成功');
+      const usersRef = ref(database, 'users');
+      const actionsRef = ref(database, 'actions');
+      const bannedUsersRef = ref(database, 'bannedUsers');
+      const kickedUsersRef = ref(database, 'kickedUsers');
+
+      const adminPasswordModalEl = document.getElementById('adminPasswordModal');
+      const adminPasswordModal = new bootstrap.Modal(adminPasswordModalEl);
+      const adminPassword = document.getElementById('adminPassword');
+      const confirmAdminPassword = document.getElementById('confirmAdminPassword');
+      const adminPanel = document.getElementById('adminPanel');
+      const adminLogout = document.getElementById('adminLogout');
+      const activeUsers = document.getElementById('activeUsers');
+      const actionFilter = document.getElementById('actionFilter');
+      const userActions = document.getElementById('userActions');
+      const clearAllMessages = document.getElementById('clearAllMessages');
+      const confirmActionModalEl = document.getElementById('confirmActionModal');
+      const confirmActionModal = new bootstrap.Modal(confirmActionModalEl);
+      const confirmActionMessage = document.getElementById('confirmActionMessage');
+      const confirmActionBtn = document.getElementById('confirmActionBtn');
+      const errorAlert = document.getElementById('error-alert');
+      const userInfo = document.getElementById('user-info');
+
+      let isAdmin = false;
+      const CHADPASS_URL = window.location.hostname === 'localhost' ? 
+        'chadpass.json' : 
+        'https://trextacy.com/chat-admin/chadpass.json';
+
+      async function hashPassword(password) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      function showError(message) {
+        errorAlert.textContent = message;
+        errorAlert.classList.remove('d-none');
+        setTimeout(() => errorAlert.classList.add('d-none'), 3000);
+      }
+
+      function showSuccess(message) {
+        const successAlert = document.createElement('div');
+        successAlert.className = 'alert alert-success';
+        successAlert.setAttribute('role', 'alert');
+        successAlert.textContent = message;
+        document.body.appendChild(successAlert);
+        setTimeout(() => successAlert.remove(), 3000);
+      }
+
+      async function verifyAdminPassword() {
+        const password = adminPassword.value.trim();
+        if (!password) {
+          adminPassword.classList.add('is-invalid');
+          showError('パスワードを入力してください。');
+          return;
+        }
+        try {
+          const hashedPassword = await hashPassword(password);
+          console.log('Hashed input password:', hashedPassword);
+          const response = await fetch(CHADPASS_URL, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+          });
+          console.log('Fetch response status:', response.status);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const storedData = await response.json();
+          console.log('Stored password data:', storedData);
+          if (storedData.password === hashedPassword) {
+            isAdmin = true;
+            adminPanel.classList.remove('d-none');
+            adminPasswordModal.hide();
+            adminPasswordModalEl.setAttribute('inert', '');
+            showSuccess('Admin認証成功');
+            console.log('Admin認証成功');
+            await push(actionsRef, {
+              type: 'adminLogin',
+              userId: auth.currentUser.uid,
+              username: userInfo.textContent,
+              timestamp: Date.now()
+            });
+          } else {
+            adminPassword.classList.add('is-invalid');
+            showError('パスワードが正しくありません。');
+            console.log('Admin認証失敗: パスワード不一致', {
+              inputHash: hashedPassword,
+              storedHash: storedData.password
+            });
+          }
+        } catch (error) {
+          console.error('Admin認証エラー:', error);
+          showError(`Admin認証に失敗しました: ${error.message}`);
+        }
+      }
+
+      async function updateUserUI(user) {
+        try {
+          if (user) {
+            const userData = await get(ref(database, `users/${user.uid}`));
+            const userDataVal = userData.val();
+            const username = userDataVal?.username || user.displayName || 'ゲスト';
+            userInfo.innerHTML = `${username} <i class="fas fa-pencil-alt ms-1"></i>`;
+            adminPasswordModalEl.removeAttribute('inert');
+            adminPasswordModal.show();
+            setTimeout(() => adminPassword.focus(), 100);
+          } else {
+            userInfo.innerHTML = 'ゲスト <i class="fas fa-pencil-alt ms-1"></i>';
+            adminPanel.classList.add('d-none');
+            isAdmin = false;
+            window.location.href = '/chat/';
+          }
+        } catch (error) {
+          console.error('ユーザーUI更新エラー:', error);
+          showError('ユーザー情報の更新に失敗しました。');
+        }
+      }
+
+      confirmAdminPassword.addEventListener('click', verifyAdminPassword);
+
+      adminPassword.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          verifyAdminPassword();
+        }
+      });
+
+      adminLogout.addEventListener('click', async () => {
+        try {
+          isAdmin = false;
+          adminPanel.classList.add('d-none');
+          showSuccess('Adminログアウトしました。');
+          console.log('Adminログアウト成功');
+          await push(actionsRef, {
+            type: 'adminLogout',
+            userId: auth.currentUser.uid,
+            username: userInfo.textContent,
+            timestamp: Date.now()
+          });
+          adminPasswordModalEl.removeAttribute('inert');
+          adminPasswordModal.show();
+          adminPassword.value = '';
+          setTimeout(() => adminPassword.focus(), 100);
+        } catch (error) {
+          console.error('Adminログアウトエラー:', error);
+          showError('Adminログアウトに失敗しました。');
+        }
+      });
+
+      auth.onAuthStateChanged(async (user) => {
+        try {
+          console.log('認証状態変更:', user ? `ログイン済み (UID: ${user.uid})` : '未ログイン');
+          await updateUserUI(user);
+        } catch (error) {
+          console.error('認証状態変更エラー:', error);
+          showError('認証状態の更新に失敗しました: ' + error.message);
+        }
+      });
+
+      onValue(usersRef, async (snapshot) => {
+        try {
+          if (snapshot.val()) {
+            activeUsers.innerHTML = '';
+            const banSnapshot = await get(ref(database, 'bannedUsers'));
+            const bannedUsers = banSnapshot.val() || {};
+            Object.entries(snapshot.val()).forEach(([uid, { username, provider, ipAddress }]) => {
+              const isBanned = !!bannedUsers[uid];
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>${username || '匿名'} ${isBanned ? '<i class="fas fa-ban text-danger ms-1" title="BAN済み"></i>' : ''}</td>
+                <td>${provider || 'unknown'}</td>
+                <td>${ipAddress || 'unknown'}</td>
+                <td>
+                  ${isBanned ? 
+                    `<button class="btn btn-success btn-sm unban-user" data-uid="${uid}" data-username="${username || '匿名'}" data-bs-toggle="tooltip" title="BANを解除"><i class="fas fa-unlock"></i></button>` : 
+                    `<button class="btn btn-warning btn-sm ban-user" data-uid="${uid}" data-username="${username || '匿名'}" data-bs-toggle="tooltip" title="ユーザーをBAN"><i class="fas fa-ban"></i></button>`}
+                  <button class="btn btn-secondary btn-sm kick-user" data-uid="${uid}" data-username="${username || '匿名'}" data-bs-toggle="tooltip" title="ユーザーをKICK"><i class="fas fa-sign-out-alt"></i></button>
+                </td>`;
+              activeUsers.appendChild(tr);
+            });
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
+          }
+        } catch (error) {
+          console.error('アクティブユーザー取得エラー:', error);
+          showError('アクティブユーザーの取得に失敗しました。');
+        }
+      });
+
+      onValue(actionsRef, (snapshot) => {
+        try {
+          userActions.innerHTML = '';
+          if (snapshot.val()) {
+            const filter = actionFilter.value;
+            Object.entries(snapshot.val()).forEach(([id, { type, username, timestamp }]) => {
+              if (filter === 'all' || type === filter) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                  <td>${username || '匿名'}</td>
+                  <td>${type}</td>
+                  <td>${new Date(timestamp).toLocaleString('ja-JP')}</td>`;
+                userActions.appendChild(tr);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('アクション履歴取得エラー:', error);
+          showError('アクション履歴の取得に失敗しました。');
+        }
+      });
+
+      actionFilter.addEventListener('change', () => {
+        onValue(actionsRef, (snapshot) => {
+          try {
+            userActions.innerHTML = '';
+            if (snapshot.val()) {
+              const filter = actionFilter.value;
+              Object.entries(snapshot.val()).forEach(([id, { type, username, timestamp }]) => {
+                if (filter === 'all' || type === filter) {
+                  const tr = document.createElement('tr');
+                  tr.innerHTML = `
+                    <td>${username || '匿名'}</td>
+                    <td>${type}</td>
+                    <td>${new Date(timestamp).toLocaleString('ja-JP')}</td>`;
+                  userActions.appendChild(tr);
+                }
+              });
+            }
+          } catch (error) {
+            console.error('アクション履歴フィルターエラー:', error);
+            showError('アクション履歴のフィルタリングに失敗しました。');
+          }
+        });
+      });
+
+      clearAllMessages.addEventListener('click', async () => {
+        if (!auth.currentUser) {
+          showError('ログインしてください。');
+          return;
+        }
+        if (!isAdmin) {
+          showError('Admin権限が必要です。');
+          return;
+        }
+        confirmActionMessage.textContent = 'すべてのメッセージをクリアしますか？';
+        confirmActionBtn.onclick = async () => {
+          try {
+            await remove(ref(database, 'messages'));
+            await push(actionsRef, {
+              type: 'clearAllMessages',
+              userId: auth.currentUser.uid,
+              username: userInfo.textContent,
+              timestamp: Date.now()
+            });
+            showSuccess('全メッセージをクリアしました。');
+            console.log('全メッセージクリア成功');
+          } catch (error) {
+            console.error('全メッセージクリアエラー:', error);
+            showError('全メッセージのクリアに失敗しました。');
+          }
+          confirmActionModal.hide();
+        };
+        confirmActionModalEl.removeAttribute('inert');
+        confirmActionModal.show();
+        setTimeout(() => confirmActionBtn.focus(), 100);
+      });
+
+      document.addEventListener('click', async (e) => {
+        confirmActionBtn.onclick = null;
+        if (e.target.classList.contains('ban-user')) {
+          const uid = e.target.dataset.uid;
+          const username = e.target.dataset.username;
+          if (!isAdmin) {
+            showError('Admin権限が必要です。');
+            return;
+          }
+          confirmActionMessage.textContent = `${username} をBANしますか？`;
+          confirmActionBtn.onclick = async () => {
+            try {
+              await set(ref(database, `bannedUsers/${uid}`), true);
+              await push(actionsRef, {
+                type: 'banUser',
+                userId: auth.currentUser.uid,
+                targetUserId: uid,
+                username: userInfo.textContent,
+                timestamp: Date.now()
+              });
+              showSuccess(`${username} をBANしました。`);
+              console.log('BAN成功: userId=', uid);
+            } catch (error) {
+              console.error('BANエラー:', error);
+              showError('BANに失敗しました: ' + error.message);
+            }
+            confirmActionModal.hide();
+          };
+          confirmActionModalEl.removeAttribute('inert');
+          confirmActionModal.show();
+          setTimeout(() => confirmActionBtn.focus(), 100);
+        } else if (e.target.classList.contains('unban-user')) {
+          const uid = e.target.dataset.uid;
+          const username = e.target.dataset.username;
+          if (!isAdmin) {
+            showError('Admin権限が必要です。');
+            return;
+          }
+          confirmActionMessage.textContent = `${username} のBANを解除しますか？`;
+          confirmActionBtn.onclick = async () => {
+            try {
+              await remove(ref(database, `bannedUsers/${uid}`));
+              await push(actionsRef, {
+                type: 'unbanUser',
+                userId: auth.currentUser.uid,
+                targetUserId: uid,
+                username: userInfo.textContent,
+                timestamp: Date.now()
+              });
+              showSuccess(`${username} のBANを解除しました。`);
+              console.log('BAN解除成功: userId=', uid);
+            } catch (error) {
+              console.error('BAN解除エラー:', error);
+              showError('BAN解除に失敗しました: ' + error.message);
+            }
+            confirmActionModal.hide();
+          };
+          confirmActionModalEl.removeAttribute('inert');
+          confirmActionModal.show();
+          setTimeout(() => confirmActionBtn.focus(), 100);
+        } else if (e.target.classList.contains('kick-user')) {
+          const uid = e.target.dataset.uid;
+          const username = e.target.dataset.username;
+          if (!isAdmin) {
+            showError('Admin権限が必要です。');
+            return;
+          }
+          confirmActionMessage.textContent = `${username} をKICKしますか？`;
+          confirmActionBtn.onclick = async () => {
+            try {
+              await set(ref(database, `kickedUsers/${uid}`), { timestamp: Date.now() });
+              await push(actionsRef, {
+                type: 'kickUser',
+                userId: auth.currentUser.uid,
+                targetUserId: uid,
+                username: userInfo.textContent,
+                timestamp: Date.now()
+              });
+              showSuccess(`${username} をKICKしました。`);
+              console.log('KICK成功: userId=', uid);
+            } catch (error) {
+              console.error('KICKエラー:', error);
+              showError('KICKに失敗しました: ' + error.message);
+            }
+            confirmActionModal.hide();
+          };
+          confirmActionModalEl.removeAttribute('inert');
+          confirmActionModal.show();
+          setTimeout(() => confirmActionBtn.focus(), 100);
+        }
+      });
+
+      onValue(kickedUsersRef, (snapshot) => {
+        try {
+          if (auth.currentUser && snapshot.val()?.[auth.currentUser.uid]) {
+            console.log('KICK検出: userId=', auth.currentUser.uid);
+            showError('管理者によりログアウトされました。');
+            window.location.href = '/chat/';
+          }
+        } catch (error) {
+          console.error('KICK監視エラー:', error);
+          showError('KICK状態の監視に失敗しました。');
+        }
+      });
+
+      adminPasswordModalEl.addEventListener('hidden.bs.modal', () => {
+        adminPasswordModalEl.setAttribute('inert', '');
+        if (!isAdmin) {
+          window.location.href = '/chat/';
+        }
+      });
+
+      window.onload = () => {
+        console.log('ページロード: Adminパスワードモーダル表示');
+        if (auth.currentUser) {
+          adminPasswordModalEl.removeAttribute('inert');
+          adminPasswordModal.show();
+          setTimeout(() => adminPassword.focus(), 100);
+        }
+      };
+    } catch (error) {
+      console.error('Firebase初期化エラー:', error);
+      showError('Firebaseの初期化に失敗しました。');
+    }
+  </script>
+</body>
+</html>
