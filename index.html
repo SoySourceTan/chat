@@ -97,7 +97,7 @@
   <!-- スクリプト -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script type="module">
- import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 
@@ -226,8 +226,8 @@ try {
         if (lastTimestamp) {
           const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
           const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-          olderMessagesArray.forEach(async ([key, { username, message, timestamp, userId, ipAddress }]) => {
-            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) return; // 重複防止
+          for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
+            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複防止
             const isOwnMessage = userId === (auth.currentUser?.uid || '');
             const userData = await get(ref(database, `users/${userId}`));
             const provider = userData.val()?.provider || 'anonymous';
@@ -241,7 +241,7 @@ try {
             li.setAttribute('data-timestamp', timestamp);
             const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
             li.innerHTML = `
-              <div class="message ${isOwnMessage ? 'text-gray' : 'bg-light'} p-3 rounded shadow-sm">
+              <div class="message ${isOwnMessage ? 'bg-primary text-white' : 'bg-light'} p-3 rounded shadow-sm">
                 <div class="message-header d-flex align-items-center">
                   <div class="avatar me-2 ${provider === 'twitter.com' ? 'bg-dark' : provider === 'google.com' ? 'bg-danger' : 'bg-secondary'}">${username ? username.charAt(0).toUpperCase() : '?'}</div>
                   <i class="${iconClass} me-2 provider-icon"></i>
@@ -254,7 +254,7 @@ try {
               </div>`;
             messagesEl.append(li);
             setTimeout(() => li.classList.add('show'), 10);
-          });
+          }
           console.log('過去メッセージロード完了: メッセージ数=', olderMessagesArray.length);
         }
       } catch (error) {
@@ -516,10 +516,11 @@ try {
   });
 
   // 初期ロード（最新10件）
-  get(query(messagesRef, orderByChild('timestamp'), limitToLast(10))).then(async (snapshot) => {
+  async function loadInitialMessages() {
     try {
-      const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-      messages.forEach(async ([key, { username, message, timestamp, userId, ipAddress }]) => {
+      const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
+      const snapshot = await get(initialMessagesQuery);
+      for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
         console.log(`メッセージ: key=${key}, timestamp=${timestamp}, username=${username}`);
         const isOwnMessage = userId === (auth.currentUser?.uid || '');
         const isLatest = key === messages[0][0];
@@ -548,13 +549,14 @@ try {
           </div>`;
         messagesEl.prepend(li);
         setTimeout(() => li.classList.add('show'), 10);
-      });
+      }
       console.log('初期メッセージロード完了: メッセージ数=', messages.length);
-    } catch (error) {
-      console.error('初期メッセージ取得エラー:', error);
-      showError('メッセージの取得に失敗しました。');
+    } catch (e) {
+      console.error("初期メッセージ読み込みエラー", e);
+      showError("メッセージの読み込みに失敗しました");
     }
-  });
+  }
+  loadInitialMessages();
 
   // 新しいメッセージのリアルタイム追加
   onChildAdded(messagesRef, async (snapshot) => {
@@ -630,6 +632,9 @@ try {
     newMessageBtn.classList.add('d-none');
     console.log('newMessageBtnクリック: 最上部にスクロール');
   });
+
+  // 初期メッセージ読み込み
+  loadInitialMessages();
 
   window.onload = () => {
     console.log('ページロード: スクロール位置を維持');
