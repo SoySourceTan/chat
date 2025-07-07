@@ -1,0 +1,28 @@
+
+
+「Authentication」→「Users」で、自分のアカウント（X または Google ログイン）の UID をコピー（例：abc123xyz789）。
+
+5FjF5bzJ1YNyso9NWZJm0wP4nb43
+
+
+
+uid:5FjF5bzJ1YNyso9NWZJm0wP4nb43
+
+
+
+
+
+googleLogin.addEventListener('click', async () => {
+    if (isLoggingIn) return;
+    isLoggingIn = true;
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithRedirect(auth, provider); // PopupをRedirectに変更
+        // 注: リダイレクト後の処理は auth.onAuthStateChanged で扱う
+    } catch (error) {
+        console.error('Googleログインエラー:', error);
+        showError('Googleログインに失敗しました: ' + error.message);
+    } finally {
+        isLoggingIn = false;
+    }
+});
