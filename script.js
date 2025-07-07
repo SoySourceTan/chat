@@ -48,6 +48,7 @@ try {
   const newMessageBtn = document.getElementById('newMessageBtn');
   const toggleModeBtn = document.getElementById('toggleModeBtn');
   const loadingIndicator = document.getElementById('loading-indicator');
+  const progressOverlay = document.getElementById('progress-overlay'); // グローバルスコープに定義
 
   let isSending = false;
   let isLoggingIn = false;
@@ -57,7 +58,7 @@ try {
   let lastTimestamp = null;
   let isCompactMode = false;
   let lastActivity = Date.now();
-  const userCache = new Map(); // ユーザー情報のキャッシュ
+  const userCache = new Map();
 
   function showError(message) {
     errorAlert.textContent = message;
@@ -100,8 +101,8 @@ try {
         `<span class="online-user" title="${user.username}">${user.username.charAt(0).toUpperCase()}</span>`
       ).join('');
     } catch (error) {
-      console.error('オンラインユーザー取得エラー:', error);
-      showError('オンラインユーザーの取得に失敗しました。');
+      console.warn('オンラインユーザー取得エラー（権限の問題の可能性）:', error);
+      onlineUsersEl.innerHTML = ''; // エラー時は空表示
     }
   }
 
@@ -132,6 +133,10 @@ try {
           console.warn('オンラインステータス更新エラー:', error);
         }
         updateStatusIndicator();
+        if (!user.isAnonymous) {
+          await updateOnlineUsers(); // 匿名ユーザーはスキップ
+        }
+        await loadInitialMessages(); // ★変更: ログイン後にメッセージを読み込む
       } else {
         userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
         loginBtn.textContent = 'ログイン';
@@ -139,8 +144,10 @@ try {
         loginModalEl.removeAttribute('inert');
         loginModal.show();
         setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
+        if (progressOverlay) {
+          progressOverlay.classList.add('d-none'); // 未ログイン時にプログレスバーを非表示
+        }
       }
-      await updateOnlineUsers();
     } catch (error) {
       console.error('ユーザーUI更新エラー:', error);
       showError('ユーザー情報の更新に失敗しました。');
@@ -473,7 +480,7 @@ try {
         ipAddress: userData.ipAddress || 'github'
       });
       try {
-        await set(ref(database, `onlineUsers/${auth.currentUser.uid}`), {
+        await set(ref(database, `onlineUsers/${user.uid}`), {
           username,
           timestamp: Date.now()
         });
@@ -560,9 +567,16 @@ try {
   });
 
   async function loadInitialMessages() {
+    if (!auth.currentUser) { // ★変更: 認証済みユーザーのみメッセージ読み込み
+      console.log('未ログインのためメッセージ読み込みをスキップ');
+      return;
+    }
+    if (!progressOverlay) {
+      console.warn('progress-overlay要素が見つかりません。index.html に <div id=\"progress-overlay\"> が含まれているか確認してください。');
+      return;
+    }
     try {
-      loadingIndicator.textContent = '最新の10件のメッセージを読み込み中...';
-      loadingIndicator.style.display = 'block';
+      progressOverlay.classList.remove('d-none');
       const startTime = performance.now();
       const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
       const snapshot = await get(initialMessagesQuery);
@@ -617,12 +631,13 @@ try {
       console.error('初期メッセージ読み込みエラー:', error);
       showError('メッセージの読み込みに失敗しました。');
     } finally {
-      loadingIndicator.textContent = '読み込み中...';
-      loadingIndicator.style.display = 'none';
+      if (progressOverlay) {
+        progressOverlay.classList.add('d-none');
+      } else {
+        console.warn('progress-overlayが見つかりません。非表示処理をスキップ。');
+      }
     }
   }
-
-  loadInitialMessages();
 
   onChildAdded(messagesRef, async (snapshot) => {
     try {
@@ -667,7 +682,9 @@ try {
   });
 
   onValue(onlineUsersRef, () => {
-    updateOnlineUsers();
+    if (!auth.currentUser || !auth.currentUser.isAnonymous) {
+      updateOnlineUsers();
+    }
   });
 
   auth.onAuthStateChanged(async (user) => {
@@ -702,6 +719,7 @@ try {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
       new bootstrap.Tooltip(el);
     });
+    // ★変更: 初回ロード時の loadInitialMessages を削除（認証後に呼び出し）
   };
 } catch (error) {
   console.error('Firebase初期化エラー:', {
