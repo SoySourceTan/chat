@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+import { initNotifications, notifyNewMessage } from './notify.js'; // ★追加
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc",
@@ -48,7 +49,7 @@ try {
   const newMessageBtn = document.getElementById('newMessageBtn');
   const toggleModeBtn = document.getElementById('toggleModeBtn');
   const loadingIndicator = document.getElementById('loading-indicator');
-  const progressOverlay = document.getElementById('progress-overlay'); // グローバルスコープに定義
+  const progressOverlay = document.getElementById('progress-overlay');
 
   let isSending = false;
   let isLoggingIn = false;
@@ -102,7 +103,7 @@ try {
       ).join('');
     } catch (error) {
       console.warn('オンラインユーザー取得エラー（権限の問題の可能性）:', error);
-      onlineUsersEl.innerHTML = ''; // エラー時は空表示
+      onlineUsersEl.innerHTML = '';
     }
   }
 
@@ -134,9 +135,9 @@ try {
         }
         updateStatusIndicator();
         if (!user.isAnonymous) {
-          await updateOnlineUsers(); // 匿名ユーザーはスキップ
+          await updateOnlineUsers();
         }
-        await loadInitialMessages(); // ★変更: ログイン後にメッセージを読み込む
+        await loadInitialMessages();
       } else {
         userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
         loginBtn.textContent = 'ログイン';
@@ -145,7 +146,7 @@ try {
         loginModal.show();
         setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
         if (progressOverlay) {
-          progressOverlay.classList.add('d-none'); // 未ログイン時にプログレスバーを非表示
+          progressOverlay.classList.add('d-none');
         }
       }
     } catch (error) {
@@ -280,6 +281,7 @@ try {
                 <div class="message-header d-flex align-items-center">
                   <i class="${iconClass} me-2 provider-icon"></i>
                   <strong>${username || '匿名'}</strong>
+                  < Olmstead
                   <small class="text-muted ms-2">${date}</small>
                 </div>
                 <div class="message-body">
@@ -480,7 +482,7 @@ try {
         ipAddress: userData.ipAddress || 'github'
       });
       try {
-        await set(ref(database, `onlineUsers/${user.uid}`), {
+        await set(ref(database, `onlineUsers/${auth.currentUser.uid}`), {
           username,
           timestamp: Date.now()
         });
@@ -567,7 +569,7 @@ try {
   });
 
   async function loadInitialMessages() {
-    if (!auth.currentUser) { // ★変更: 認証済みユーザーのみメッセージ読み込み
+    if (!auth.currentUser) {
       console.log('未ログインのためメッセージ読み込みをスキップ');
       return;
     }
@@ -675,6 +677,7 @@ try {
       } else {
         newMessageBtn.classList.remove('d-none');
       }
+      notifyNewMessage({ username, message }); // ★追加
     } catch (error) {
       console.error('新メッセージ追加エラー:', error);
       showError('メッセージの取得に失敗しました。');
@@ -719,7 +722,7 @@ try {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
       new bootstrap.Tooltip(el);
     });
-    // ★変更: 初回ロード時の loadInitialMessages を削除（認証後に呼び出し）
+    initNotifications(); // ★追加
   };
 } catch (error) {
   console.error('Firebase初期化エラー:', {
