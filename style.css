@@ -8,10 +8,6 @@ body {
   position: relative; /* fixed bottom が効くように */
   min-height: 100vh; /* 画面いっぱいにする */
 }
-.main-content {
-  margin-top: 56px;
-  padding-top: 56px;
-}
 
 #messages {
   flex-grow: 1;

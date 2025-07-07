@@ -29,7 +29,7 @@
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
     <div class="d-flex justify-content-center">
       <button id="newMessageBtn" class="btn btn-primary btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
-        <i class="fas fa-arrow-down"></i>
+        <i class="fas fa-arrow-up"></i>
       </button>
     </div>
     <div class="messages-container flex-grow-1">
@@ -140,6 +140,9 @@ try {
   const loginModal = new bootstrap.Modal(loginModalEl);
   const unameInput = document.getElementById('uname');
   const confirmName = document.getElementById('confirmName');
+
+let isSending = false; // 送信中フラグ
+
   const signOutBtn = document.getElementById('signOut');
   const newMessageBtn = document.getElementById('newMessageBtn');
   const toggleModeBtn = document.getElementById('toggleModeBtn');
@@ -189,7 +192,7 @@ try {
         loginModal.show();
         setTimeout(() => document.getElementById('twitterLogin').focus(), 100);
       }
-    } catch (error) {
+    } catch (error) { // 0.5秒後に送信フラグをリセット
       console.error('ユーザーUI更新エラー:', error);
       showError('ユーザー情報の更新に失敗しました。');
     }
@@ -206,11 +209,11 @@ try {
   });
 
   inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && isEnterSendMode) {
+    if (e.key === 'Enter' && ((!e.shiftKey && isEnterSendMode) || (e.shiftKey && !isEnterSendMode))) {
       e.preventDefault();
       formEl.dispatchEvent(new Event('submit'));
-    } else if (e.key === 'Enter' && e.shiftKey && isEnterSendMode) {
-      e.preventDefault();
+    } else if (e.key === 'Enter' && e.shiftKey && isEnterSendMode || (e.key === 'Enter' && !e.shiftKey && !isEnterSendMode)) {
+           e.preventDefault();
       inputEl.value += '\n';
       inputEl.scrollTop = inputEl.scrollHeight;
     }
@@ -480,6 +483,16 @@ try {
       showError('メッセージを入力してください。');
       return;
     }
+
+
+     // 送信間隔チェック
+    if (isSending) {
+      console.warn('メッセージ送信連打防止');
+      return;
+    }
+
+    isSending = true;
+
     if (message.length > 500) {
       showError('メッセージは500文字以内にしてください。');
       return;
@@ -505,11 +518,13 @@ try {
       formEl.classList.remove('was-validated');
       isUserScrolledUp = false;
       messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => isSending = false, 500); // 送信フラグをリセット
       newMessageBtn.classList.add('d-none');
       console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
       showError('メッセージの送信に失敗しました: ' + error.message);
+    } finally { setTimeout(() => isSending = false, 500);
     }
   });
 
