@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-bs-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>友達チャット</title>
+  <title>Forrest Aura</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="style.css">
@@ -12,176 +12,93 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 </head>
-<body>
-  <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="loginModalLabel">ログイン</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <button id="twitterLogin" class="btn btn-primary w-100 mb-2"><i class="fab fa-x-twitter"></i> Xでログイン</button>
-          <button id="googleLogin" class="btn btn-primary w-100 mb-2"><i class="fab fa-google"></i> Googleでログイン</button>
-          <button id="anonymousLogin" class="btn btn-secondary w-100"><i class="fas fa-user-secret"></i> 匿名でログイン</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="unameModal" tabindex="-1" aria-labelledby="unameModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="unameModalLabel">ユーザー名設定</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <input type="text" id="uname" class="form-control" placeholder="名前を入力してください" required>
-          <div class="invalid-feedback">名前を入力してください。</div>
-          <button id="confirmName" class="btn btn-primary w-100 mt-2">確定</button>
-          <button id="signOut" class="btn btn-danger w-100 mt-2">ログアウト</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="adminLoginModal" tabindex="-1" aria-labelledby="adminLoginModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="adminLoginModalLabel">Adminログイン</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p>Admin権限を有効にするには、外部認証ページに移動します。</p>
-          <button id="confirmAdmin" class="btn btn-primary w-100 mt-2">認証ページへ</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="confirmActionModal" tabindex="-1" aria-labelledby="confirmActionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="confirmActionModalLabel">アクション確認</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p id="confirmActionMessage"></p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-          <button type="button" id="confirmActionBtn" class="btn btn-primary">実行</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+<body class="d-flex flex-column vh-100">
+  <!-- ナビゲーションバー -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top" style="z-index: 1030;">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">友達チャット</a>
+      <a class="navbar-brand" href="#">Forrest Aura</a>
       <div class="ms-auto d-flex align-items-center">
-        <span id="user-info" class="cursor-pointer">ゲスト <i class="fas fa-pencil-alt ms-1"></i></span>
+        <span id="user-info" class="cursor-pointer" tabindex="0" aria-label="ユーザー名編集">ゲスト <i class="fas fa-pencil-alt ms-1"></i></span>
         <button id="login-btn" class="btn btn-outline-primary ms-2">ログイン</button>
       </div>
     </div>
   </nav>
 
-  <div id="adminPanel" class="container d-none mt-4">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h3 class="mb-0">Adminパネル</h3>
-        <button id="adminLogout" class="btn btn-danger btn-sm" data-bs-toggle="tooltip" title="Adminログアウト"><i class="fas fa-sign-out-alt"></i></button>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-6 mb-4">
-            <h4 class="card-title">アクティブユーザー</h4>
-            <div class="table-responsive">
-              <table class="table table-hover table-bordered">
-                <thead class="table-light">
-                  <tr>
-                    <th>ユーザー名</th>
-                    <th>プロバイダ</th>
-                    <th>IPアドレス</th>
-                    <th>アクション</th>
-                  </tr>
-                </thead>
-                <tbody id="activeUsers"></tbody>
-              </table>
-            </div>
-            <button id="clearAllMessages" class="btn btn-danger w-100 mt-2" data-bs-toggle="tooltip" title="すべてのメッセージをクリア"><i class="fas fa-trash-alt"></i> 全メッセージクリア</button>
+  <!-- メインコンテンツ -->
+  <main class="flex-grow-1 d-flex flex-column overflow-hidden">
+    <div class="container">
+      <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+      <button id="newMessageBtn" class="btn btn-primary btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
+        <i class="fas fa-arrow-up"></i>
+      </button>
+      <ul id="messages" class="list-group flex-grow-1 pt-3" role="list"></ul>
+    </div>
+  </main>
+
+  <!-- フッター（メッセージ入力エリア） -->
+  <footer class="bg-light py-2 fixed-bottom" style="z-index: 1050;">
+    <div class="container">
+      <form id="messageForm" class="needs-validation w-100" novalidate>
+        <div class="row g-2 justify-content-center align-items-center">
+          <div class="col-md-10 d-flex align-items-center">
+            <button type="button" id="toggleModeBtn" class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="tooltip" data-bs-placement="top" title="送信モード" aria-label="送信モードに切り替え">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+            <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required aria-label="メッセージ入力"></textarea>
+            <div class="invalid-feedback">メッセージを入力してください。</div>
           </div>
-          <div class="col-md-6 mb-4">
-            <h4 class="card-title">ユーザーアクション履歴</h4>
-            <div class="mb-2">
-              <select id="actionFilter" class="form-select">
-                <option value="all">すべてのアクション</option>
-                <option value="connect">接続</option>
-                <option value="setUsername">ユーザー名設定</option>
-                <option value="sendMessage">メッセージ送信</option>
-                <option value="adminLogin">Adminログイン</option>
-                <option value="adminLogout">Adminログアウト</option>
-                <option value="clearAllMessages">全メッセージクリア</option>
-                <option value="deleteMessage">メッセージ削除</option>
-                <option value="banUser">ユーザーBAN</option>
-                <option value="unbanUser">ユーザーBAN解除</option>
-                <option value="kickUser">ユーザーKICK</option>
-              </select>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-hover table-bordered">
-                <thead class="table-light">
-                  <tr>
-                    <th>ユーザー名</th>
-                    <th>アクション</th>
-                    <th>日時</th>
-                  </tr>
-                </thead>
-                <tbody id="userActions"></tbody>
-              </table>
-            </div>
+          <div class="col-md-2">
+            <button type="submit" id="submit-btn" class="btn btn-primary btn-sm w-100">送信</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </footer>
+
+  <!-- ログインモーダル -->
+  <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="loginModalLabel">ログイン</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-grid gap-2">
+            <button id="twitterLogin" class="btn btn-outline-dark"><i class="fab fa-x-twitter me-2"></i>Xでログイン</button>
+            <button id="googleLogin" class="btn btn-outline-danger"><i class="fab fa-google me-2"></i>Googleでログイン</button>
+            <button id="anonymousLogin" class="btn btn-outline-secondary"><i class="fa-solid fa-user-secret me-2"></i>匿名でログイン</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="main-content">
-    <div class="container">
-      <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
-      <button id="newMessageBtn" class="btn btn-primary btn-sm d-none" style="position: fixed; bottom: 120px; right: 20px; z-index: 1000;">
-        <i class="fas fa-arrow-down"></i> 新着メッセージ
-      </button>
-      <ul id="messages" class="list-group"></ul>
+  <!-- ユーザー名設定モーダル -->
+  <div class="modal fade" id="unameModal" tabindex="-1" aria-labelledby="unameModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="unameModalLabel">ユーザー名設定</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="uname" class="form-control mb-3" placeholder="名前を入力してください" aria-label="ユーザー名" required>
+          <div class="invalid-feedback">名前を入力してください。</div>
+          <div class="d-grid gap-2">
+            <button id="confirmName" class="btn btn-primary">確定</button>
+            <button id="signOut" class="btn btn-outline-danger">ログアウト</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <footer class="bg-light fixed-bottom py-1" style="z-index: 1050;">
-    <div class="container">
-      <div class="d-flex justify-content-between align-items-center">
-        <span id="admin-trigger" class="cursor-pointer">DAEMON</span>
-        <form id="messageForm" class="needs-validation w-100" novalidate>
-          <div class="row g-2 justify-content-center align-items-center">
-            <div class="col-md-10">
-              <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required></textarea>
-              <div class="invalid-feedback">メッセージを入力してください。</div>
-            </div>
-            <div class="col-md-2">
-              <button type="submit" id="submit-btn" class="btn btn-primary btn-sm w-100">送信</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  </footer>
-
+  <!-- スクリプト -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
-    import { getDatabase, ref, push, onValue, set, remove, get, limitToLast } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+    import { getDatabase, ref, push, onValue, set, get, query, orderByChild, limitToLast } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
     import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 
     const firebaseConfig = {
@@ -202,10 +119,8 @@
       console.log('Firebase初期化成功');
       const messagesRef = ref(database, 'messages');
       const usersRef = ref(database, 'users');
-      const adminsRef = ref(database, 'admins');
       const actionsRef = ref(database, 'actions');
       const bannedUsersRef = ref(database, 'bannedUsers');
-      const kickedUsersRef = ref(database, 'kickedUsers');
 
       const formEl = document.getElementById('messageForm');
       const messagesEl = document.getElementById('messages');
@@ -223,25 +138,12 @@
       const unameInput = document.getElementById('uname');
       const confirmName = document.getElementById('confirmName');
       const signOutBtn = document.getElementById('signOut');
-      const adminTrigger = document.getElementById('admin-trigger');
-      const adminLoginModalEl = document.getElementById('adminLoginModal');
-      const adminLoginModal = new bootstrap.Modal(adminLoginModalEl);
-      const confirmAdmin = document.getElementById('confirmAdmin');
-      const adminPanel = document.getElementById('adminPanel');
-      const adminLogout = document.getElementById('adminLogout');
-      const activeUsers = document.getElementById('activeUsers');
-      const actionFilter = document.getElementById('actionFilter');
-      const userActions = document.getElementById('userActions');
-      const clearAllMessages = document.getElementById('clearAllMessages');
-      const confirmActionModalEl = document.getElementById('confirmActionModal');
-      const confirmActionModal = new bootstrap.Modal(confirmActionModalEl);
-      const confirmActionMessage = document.getElementById('confirmActionMessage');
-      const confirmActionBtn = document.getElementById('confirmActionBtn');
       const newMessageBtn = document.getElementById('newMessageBtn');
+      const toggleModeBtn = document.getElementById('toggleModeBtn');
 
-      let isAdmin = false;
       let isLoggingIn = false;
       let isUserScrolledUp = false;
+      let isEnterSendMode = true;
 
       function showError(message) {
         errorAlert.textContent = message;
@@ -277,12 +179,10 @@
           } else {
             userInfo.innerHTML = 'ゲスト <i class="fas fa-pencil-alt ms-1"></i>';
             loginBtn.textContent = 'ログイン';
-            adminPanel.classList.add('d-none');
             unameModalEl.setAttribute('inert', '');
             loginModalEl.removeAttribute('inert');
             loginModal.show();
             setTimeout(() => document.getElementById('twitterLogin').focus(), 100);
-            isAdmin = false;
           }
         } catch (error) {
           console.error('ユーザーUI更新エラー:', error);
@@ -290,23 +190,38 @@
         }
       }
 
-      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-        new bootstrap.Tooltip(el);
+      toggleModeBtn.addEventListener('click', () => {
+        isEnterSendMode = !isEnterSendMode;
+        toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
+        toggleModeBtn.setAttribute('data-bs-title', isEnterSendMode ? '送信モード' : '改行モード');
+        toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
+        new bootstrap.Tooltip(toggleModeBtn).show();
+        setTimeout(() => bootstrap.Tooltip.getInstance(toggleModeBtn).hide(), 1000);
+        console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
+      });
+
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && isEnterSendMode) {
+          e.preventDefault();
+          formEl.dispatchEvent(new Event('submit'));
+        } else if (e.key === 'Enter' && e.shiftKey && isEnterSendMode) {
+          e.preventDefault();
+          inputEl.value += '\n';
+          inputEl.scrollTop = inputEl.scrollHeight;
+        }
       });
 
       messagesEl.addEventListener('scroll', () => {
-        const isAtBottom = Math.abs(messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 10;
-        isUserScrolledUp = !isAtBottom;
+        isUserScrolledUp = messagesEl.scrollTop > 10;
         newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
+        console.log('スクロール位置:', messagesEl.scrollTop);
       });
 
       newMessageBtn.addEventListener('click', () => {
-        const lastMessage = messagesEl.lastElementChild;
-        if (lastMessage) {
-          lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
+        messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
         isUserScrolledUp = false;
         newMessageBtn.classList.add('d-none');
+        console.log('newMessageBtnクリック: 最上部にスクロール');
       });
 
       twitterLogin.addEventListener('click', async () => {
@@ -499,397 +414,6 @@
         }
       });
 
-      confirmAdmin.addEventListener('click', async () => {
-        if (!auth.currentUser) {
-          showError('ログインしてください。');
-          return;
-        }
-        try {
-          const uid = auth.currentUser.uid;
-          window.location.href = `https://trextacy.com/chat-admin/admin_login.php?uid=${uid}`;
-        } catch (error) {
-          console.error('Adminログインエラー:', error);
-          showError('Adminログインに失敗しました: ' + error.message);
-        }
-      });
-
-async function verifyAdminToken() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('admin_token');
-  const uid = urlParams.get('uid');
-  if (token && uid && auth.currentUser && auth.currentUser.uid === uid) {
-    try {
-      const response = await fetch(`https://trextacy.com/chat-admin/verify_token.php?token=${token}&uid=${uid}`);
-      const result = await response.json();
-      if (result.success) {
-        adminPanel.classList.remove('d-none');
-        adminLoginModal.hide();
-        adminLoginModalEl.setAttribute('inert', '');
-        isAdmin = true;
-        showSuccess('Adminログインしました。');
-        window.history.replaceState(null, '', window.location.pathname);
-      } else {
-        showError(result.error || '無効なトークンです。');
-      }
-    } catch (error) {
-      console.error('トークン検証エラー:', error);
-      showError('Admin認証に失敗しました: ' + error.message);
-    }
-  }
-}
-
-      adminLogout.addEventListener('click', async () => {
-        try {
-          await set(ref(database, `admins/${auth.currentUser.uid}`), null);
-          await push(actionsRef, {
-            type: 'adminLogout',
-            userId: auth.currentUser.uid,
-            username: userInfo.textContent,
-            timestamp: Date.now()
-          });
-          adminPanel.classList.add('d-none');
-          isAdmin = false;
-          showSuccess('Adminログアウトしました。');
-          console.log('Adminログアウト成功');
-        } catch (error) {
-          console.error('Adminログアウトエラー:', error);
-          showError('Adminログアウトに失敗しました。');
-        }
-      });
-
-      auth.onAuthStateChanged(async (user) => {
-        try {
-          console.log('認証状態変更:', user ? `ログイン済み (UID: ${user.uid})` : '未ログイン');
-          await updateUserUI(user);
-          if (user) {
-            const adminSnapshot = await get(ref(database, `admins/${user.uid}`));
-            isAdmin = adminSnapshot.exists() && adminSnapshot.val().active;
-            if (isAdmin) {
-              adminPanel.classList.remove('d-none');
-            } else {
-              adminPanel.classList.add('d-none');
-              await verifyAdminToken();
-            }
-          } else {
-            adminPanel.classList.add('d-none');
-            isAdmin = false;
-          }
-        } catch (error) {
-          console.error('認証状態変更エラー:', error);
-          showError('認証状態の更新に失敗しました: ' + error.message);
-        }
-      });
-
-      adminTrigger.addEventListener('click', () => {
-        if (!auth.currentUser) {
-          showError('ログインしてください。');
-          return;
-        }
-        if (isAdmin) {
-          adminPanel.classList.toggle('d-none');
-        } else {
-          adminLoginModalEl.removeAttribute('inert');
-          adminLoginModal.show();
-          setTimeout(() => document.getElementById('confirmAdmin').focus(), 100);
-        }
-      });
-
-      onValue(usersRef, async (snapshot) => {
-        try {
-          if (snapshot.val()) {
-            activeUsers.innerHTML = '';
-            const banSnapshot = await get(ref(database, 'bannedUsers'));
-            const bannedUsers = banSnapshot.val() || {};
-            Object.entries(snapshot.val()).forEach(([uid, { username, provider, ipAddress }]) => {
-              const isBanned = !!bannedUsers[uid];
-              const tr = document.createElement('tr');
-              tr.innerHTML = `
-                <td>${username || '匿名'} ${isBanned ? '<i class="fas fa-ban text-danger ms-1" title="BAN済み"></i>' : ''}</td>
-                <td>${provider || 'unknown'}</td>
-                <td>${ipAddress || 'unknown'}</td>
-                <td>
-                  ${isBanned ? 
-                    `<button class="btn btn-success btn-sm unban-user" data-uid="${uid}" data-username="${username || '匿名'}" data-bs-toggle="tooltip" title="BANを解除"><i class="fas fa-unlock"></i></button>` : 
-                    `<button class="btn btn-warning btn-sm ban-user" data-uid="${uid}" data-username="${username || '匿名'}" data-bs-toggle="tooltip" title="ユーザーをBAN"><i class="fas fa-ban"></i></button>`}
-                  <button class="btn btn-secondary btn-sm kick-user" data-uid="${uid}" data-username="${username || '匿名'}" data-bs-toggle="tooltip" title="ユーザーをKICK"><i class="fas fa-sign-out-alt"></i></button>
-                </td>`;
-              activeUsers.appendChild(tr);
-            });
-            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
-          }
-        } catch (error) {
-          console.error('アクティブユーザー取得エラー:', error);
-          showError('アクティブユーザーの取得に失敗しました。');
-        }
-      });
-
-      onValue(actionsRef, (snapshot) => {
-        try {
-          userActions.innerHTML = '';
-          if (snapshot.val()) {
-            const filter = actionFilter.value;
-            Object.entries(snapshot.val()).forEach(([id, { type, username, timestamp }]) => {
-              if (filter === 'all' || type === filter) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                  <td>${username || '匿名'}</td>
-                  <td>${type}</td>
-                  <td>${new Date(timestamp).toLocaleString('ja-JP')}</td>`;
-                userActions.appendChild(tr);
-              }
-            });
-          }
-        } catch (error) {
-          console.error('アクション履歴取得エラー:', error);
-          showError('アクション履歴の取得に失敗しました。');
-        }
-      });
-
-      actionFilter.addEventListener('change', () => {
-        onValue(actionsRef, (snapshot) => {
-          try {
-            userActions.innerHTML = '';
-            if (snapshot.val()) {
-              const filter = actionFilter.value;
-              Object.entries(snapshot.val()).forEach(([id, { type, username, timestamp }]) => {
-                if (filter === 'all' || type === filter) {
-                  const tr = document.createElement('tr');
-                  tr.innerHTML = `
-                    <td>${username || '匿名'}</td>
-                    <td>${type}</td>
-                    <td>${new Date(timestamp).toLocaleString('ja-JP')}</td>`;
-                  userActions.appendChild(tr);
-                }
-              });
-            }
-          } catch (error) {
-            console.error('アクション履歴フィルターエラー:', error);
-            showError('アクション履歴のフィルタリングに失敗しました。');
-          }
-        });
-      });
-
-      clearAllMessages.addEventListener('click', async () => {
-        if (!auth.currentUser) {
-          showError('ログインしてください。');
-          return;
-        }
-        if (!isAdmin) {
-          showError('Admin権限が必要です。');
-          return;
-        }
-        confirmActionMessage.textContent = 'すべてのメッセージをクリアしますか？';
-        confirmActionBtn.onclick = async () => {
-          try {
-            await remove(messagesRef);
-            await push(actionsRef, {
-              type: 'clearAllMessages',
-              userId: auth.currentUser.uid,
-              username: userInfo.textContent,
-              timestamp: Date.now()
-            });
-            showSuccess('全メッセージをクリアしました。');
-            console.log('全メッセージクリア成功');
-          } catch (error) {
-            console.error('全メッセージクリアエラー:', error);
-            showError('全メッセージのクリアに失敗しました。');
-          }
-          confirmActionModal.hide();
-        };
-        confirmActionModalEl.removeAttribute('inert');
-        confirmActionModal.show();
-        setTimeout(() => confirmActionBtn.focus(), 100);
-      });
-
-      document.addEventListener('click', async (e) => {
-        confirmActionBtn.onclick = null;
-        if (e.target.classList.contains('delete-message')) {
-          const key = e.target.dataset.key;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
-          confirmActionMessage.textContent = `このメッセージを削除しますか？`;
-          confirmActionBtn.onclick = async () => {
-            try {
-              await remove(ref(database, `messages/${key}`));
-              await push(actionsRef, {
-                type: 'deleteMessage',
-                userId: auth.currentUser.uid,
-                messageId: key,
-                username: userInfo.textContent,
-                timestamp: Date.now()
-              });
-              showSuccess('メッセージを削除しました。');
-              console.log('メッセージ削除成功: messageId=', key);
-            } catch (error) {
-              console.error('メッセージ削除エラー:', error);
-              showError('メッセージ削除に失敗しました: ' + error.message);
-            }
-            confirmActionModal.hide();
-          };
-          confirmActionModalEl.removeAttribute('inert');
-          confirmActionModal.show();
-          setTimeout(() => confirmActionBtn.focus(), 100);
-        } else if (e.target.classList.contains('ban-user')) {
-          const uid = e.target.dataset.uid;
-          const username = e.target.dataset.username;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
-          confirmActionMessage.textContent = `${username} をBANしますか？`;
-          confirmActionBtn.onclick = async () => {
-            try {
-              await set(ref(database, `bannedUsers/${uid}`), true);
-              await push(actionsRef, {
-                type: 'banUser',
-                userId: auth.currentUser.uid,
-                targetUserId: uid,
-                username: userInfo.textContent,
-                timestamp: Date.now()
-              });
-              showSuccess(`${username} をBANしました。`);
-              console.log('BAN成功: userId=', uid);
-            } catch (error) {
-              console.error('BANエラー:', error);
-              showError('BANに失敗しました: ' + error.message);
-            }
-            confirmActionModal.hide();
-          };
-          confirmActionModalEl.removeAttribute('inert');
-          confirmActionModal.show();
-          setTimeout(() => confirmActionBtn.focus(), 100);
-        } else if (e.target.classList.contains('unban-user')) {
-          const uid = e.target.dataset.uid;
-          const username = e.target.dataset.username;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
-          confirmActionMessage.textContent = `${username} のBANを解除しますか？`;
-          confirmActionBtn.onclick = async () => {
-            try {
-              await remove(ref(database, `bannedUsers/${uid}`));
-              await push(actionsRef, {
-                type: 'unbanUser',
-                userId: auth.currentUser.uid,
-                targetUserId: uid,
-                username: userInfo.textContent,
-                timestamp: Date.now()
-              });
-              showSuccess(`${username} のBANを解除しました。`);
-              console.log('BAN解除成功: userId=', uid);
-            } catch (error) {
-              console.error('BAN解除エラー:', error);
-              showError('BAN解除に失敗しました: ' + error.message);
-            }
-            confirmActionModal.hide();
-          };
-          confirmActionModalEl.removeAttribute('inert');
-          confirmActionModal.show();
-          setTimeout(() => confirmActionBtn.focus(), 100);
-        } else if (e.target.classList.contains('kick-user')) {
-          const uid = e.target.dataset.uid;
-          const username = e.target.dataset.username;
-          if (!isAdmin) {
-            showError('Admin権限が必要です。');
-            return;
-          }
-          confirmActionMessage.textContent = `${username} をKICKしますか？`;
-          confirmActionBtn.onclick = async () => {
-            try {
-              await set(ref(database, `kickedUsers/${uid}`), { timestamp: Date.now() });
-              await push(actionsRef, {
-                type: 'kickUser',
-                userId: auth.currentUser.uid,
-                targetUserId: uid,
-                username: userInfo.textContent,
-                timestamp: Date.now()
-              });
-              showSuccess(`${username} をKICKしました。`);
-              console.log('KICK成功: userId=', uid);
-            } catch (error) {
-              console.error('KICKエラー:', error);
-              showError('KICKに失敗しました: ' + error.message);
-            }
-            confirmActionModal.hide();
-          };
-          confirmActionModalEl.removeAttribute('inert');
-          confirmActionModal.show();
-          setTimeout(() => confirmActionBtn.focus(), 100);
-        }
-      });
-
-      onValue(kickedUsersRef, (snapshot) => {
-        try {
-          if (auth.currentUser && snapshot.val()?.[auth.currentUser.uid]) {
-            console.log('KICK検出: userId=', auth.currentUser.uid);
-            signOut(auth).then(() => {
-              console.log('KICKによりログアウト成功');
-              showError('管理者によりログアウトされました。');
-              set(ref(database, `kickedUsers/${auth.currentUser.uid}`), null).catch((error) => {
-                console.error('KICKフラグ削除エラー:', error);
-              });
-            }).catch((error) => {
-              console.error('KICKログアウトエラー:', error);
-              showError('ログアウトに失敗しました: ' + error.message);
-            });
-          }
-        } catch (error) {
-          console.error('KICK監視エラー:', error);
-          showError('KICK状態の監視に失敗しました。');
-        }
-      });
-
-      onValue(ref(database, 'messages', limitToLast(50)), async (snapshot) => {
-        try {
-          console.log('データ取得: メッセージ数', snapshot.val() ? Object.keys(snapshot.val()).length : 0, 'isAdmin=', isAdmin);
-          messagesEl.innerHTML = '';
-          if (snapshot.val()) {
-            const messages = Object.entries(snapshot.val());
-            for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
-              const isOwnMessage = userId === (auth.currentUser?.uid || '');
-              const isLatest = key === messages[messages.length - 1][0];
-              const userData = await get(ref(database, `users/${userId}`));
-              const provider = userData.val()?.provider || 'anonymous';
-              const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
-                               provider === 'google.com' ? 'fa-brands fa-google' :
-                               'fa-solid fa-user-secret';
-              const li = document.createElement('li');
-              li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 ${isLatest ? 'latest-message' : ''} fade-in`;
-              const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-              li.innerHTML = `
-                <div class="message ${isOwnMessage ? 'bg-primary text-white' : 'bg-light'} p-2 rounded shadow-sm">
-                  <div class="message-header">
-                    <i class="${iconClass} me-2 provider-icon"></i>
-                    <strong>${username || '匿名'}</strong> <small class="text-muted">${date}</small>
-                    ${isAdmin ? `<button class="btn btn-danger btn-sm ms-2 delete-message" data-key="${key}" data-bs-toggle="tooltip" title="メッセージを削除">削除</button>` : ''}
-                  </div>
-                  <div class="message-body">
-                    ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-                  </div>
-                </div>`;
-              messagesEl.appendChild(li);
-              setTimeout(() => li.style.opacity = '1', 100);
-            }
-            if (!isUserScrolledUp) {
-              const lastMessage = messagesEl.lastElementChild;
-              if (lastMessage) {
-                lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
-              }
-              newMessageBtn.classList.add('d-none');
-            } else {
-              newMessageBtn.classList.remove('d-none');
-            }
-            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
-          }
-        } catch (error) {
-          console.error('メッセージ取得エラー:', error);
-          showError('メッセージの取得に失敗しました。');
-        }
-      });
-
       formEl.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!formEl.checkValidity()) {
@@ -917,10 +441,12 @@ async function verifyAdminToken() {
         }
         try {
           const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val();
+          const timestamp = Date.now();
+          console.log('メッセージ送信: timestamp=', timestamp);
           await push(messagesRef, {
             username: userInfo.textContent,
             message,
-            timestamp: Date.now(),
+            timestamp,
             userId: auth.currentUser.uid,
             ipAddress: userData?.ipAddress || 'github'
           });
@@ -928,16 +454,14 @@ async function verifyAdminToken() {
             type: 'sendMessage',
             userId: auth.currentUser.uid,
             username: userInfo.textContent,
-            timestamp: Date.now()
+            timestamp
           });
           inputEl.value = '';
           formEl.classList.remove('was-validated');
           isUserScrolledUp = false;
-          const lastMessage = messagesEl.lastElementChild;
-          if (lastMessage) {
-            lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }
+          messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
           newMessageBtn.classList.add('d-none');
+          console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
         } catch (error) {
           console.error('メッセージ送信エラー:', error);
           showError('メッセージの送信に失敗しました: ' + error.message);
@@ -949,44 +473,95 @@ async function verifyAdminToken() {
         inputEl.style.height = `${Math.min(inputEl.scrollHeight, 120)}px`;
       });
 
+      onValue(query(messagesRef, orderByChild('timestamp'), limitToLast(10)), async (snapshot) => {
+     try {
+          const startTime = performance.now();
+          console.log('データ取得開始: メッセージ数', snapshot.val() ? Object.keys(snapshot.val()).length : 0);
+          messagesEl.innerHTML = '';
+          const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
+          for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
+            console.log(`メッセージ: key=${key}, timestamp=${timestamp}, username=${username}`);
+            const isOwnMessage = userId === (auth.currentUser?.uid || '');
+            const isLatest = key === messages[0][0];
+            const userData = await get(ref(database, `users/${userId}`));
+            const provider = userData.val()?.provider || 'anonymous';
+            const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
+                             provider === 'google.com' ? 'fa-brands fa-google' :
+                             'fa-solid fa-user-secret';
+            const li = document.createElement('li');
+            li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+            li.setAttribute('data-message-id', key);
+            li.setAttribute('role', 'listitem');
+            const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+            li.innerHTML = `
+              <div class="message ${isOwnMessage ? 'bg-primary text-white' : 'bg-light'} p-3 rounded shadow-sm">
+                <div class="message-header d-flex align-items-center">
+                  <div class="avatar me-2 ${provider === 'twitter.com' ? 'bg-dark' : provider === 'google.com' ? 'bg-danger' : 'bg-secondary'}">${username ? username.charAt(0).toUpperCase() : '?'}</div>
+                 <i class="${iconClass} me-2 provider-icon"></i>
+                  <strong>${username || '匿名'}</strong>
+                  <small class="text-muted ms-2">${date}</small>
+                </div>
+                <div class="message-body">
+                  ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+                </div>
+              </div>`;
+            messagesEl.prepend(li);
+           setTimeout(() => li.style.opacity = '1', 100);
+          }
+          if (!isUserScrolledUp) {
+            messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+            newMessageBtn.classList.add('d-none');
+            console.log('メッセージ表示後: スクロール位置=', messagesEl.scrollTop);
+          } else {
+            newMessageBtn.classList.remove('d-none');
+          }
+          document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
+         console.log(`データ取得完了: 時間=${performance.now() - startTime}ms`);
+        } catch (error) {
+          console.error('メッセージ取得エラー:', error);
+          showError('メッセージの取得に失敗しました。');
+        }
+      });
+
+
+
+
+
+
+      auth.onAuthStateChanged(async (user) => {
+        try {
+          console.log('認証状態変更:', user ? `ログイン済み (UID: ${user.uid})` : '未ログイン');
+          await updateUserUI(user);
+        } catch (error) {
+          console.error('認証状態変更エラー:', error);
+          showError('認証状態の更新に失敗しました: ' + error.message);
+        }
+      });
+
       unameModalEl.addEventListener('hidden.bs.modal', () => {
         unameModalEl.setAttribute('inert', '');
         document.getElementById('login-btn').focus();
         console.log('unameModal非表示: フォーカスをlogin-btnに移動');
       });
-      adminLoginModalEl.addEventListener('hidden.bs.modal', () => {
-        adminLoginModalEl.setAttribute('inert', '');
-        document.getElementById('login-btn').focus();
-        console.log('adminLoginModal非表示: フォーカスをlogin-btnに移動');
-      });
+
       loginModalEl.addEventListener('hidden.bs.modal', () => {
         loginModalEl.setAttribute('inert', '');
         document.getElementById('login-btn').focus();
         console.log('loginModal非表示: フォーカスをlogin-btnに移動');
       });
-      confirmActionModalEl.addEventListener('hidden.bs.modal', () => {
-        confirmActionModalEl.setAttribute('inert', '');
-        confirmActionBtn.onclick = null;
-        document.getElementById('login-btn').focus();
-        console.log('confirmActionModal非表示: フォーカスをlogin-btnに移動');
-      });
 
       window.onload = () => {
-        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+        messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
         console.log('ページロード: 最新メッセージにスクロール');
-        verifyAdminToken();
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
       };
-
-      if (Notification.permission !== 'granted') {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            console.log('通知が許可されました');
-          }
-        });
-      }
     } catch (error) {
-      console.error('Firebase初期化エラー:', error);
-      showError('Firebaseの初期化に失敗しました。');
+      console.error('Firebase初期化エラー:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      showError(`Firebaseの初期化に失敗しました: ${error.message}`);
     }
   </script>
 </body>
