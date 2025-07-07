@@ -7,10 +7,59 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="/favicon.ico" type="全メッセージクリアをしても消えませんでしたimage/x-icon">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <style>
+    .status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    .status-active {
+      background-color: #28a745;
+    }
+    .status-away {
+      background-color: #6c757d;
+    }
+    .list-group-item:nth-child(odd) {
+      background-color: #f8f9fa;
+    }
+    .list-group-item:nth-child(even) {
+      background-color: #ffffff;
+    }
+    .compact-mode .list-group-item {
+      padding: 0.5rem 1rem;
+    }
+    .compact-mode .message {
+      padding: 0.5rem !important;
+      font-size: 0.9rem;
+    }
+    .font-size-small {
+      font-size: 12px;
+    }
+    .font-size-medium {
+      font-size: 16px;
+    }
+    .font-size-large {
+      font-size: 20px;
+    }
+    .online-user {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: #6c757d;
+      color: white;
+      font-size: 0.8rem;
+      margin-left: 5px;
+    }
+  </style>
 </head>
 <body class="d-flex flex-column vh-100">
   <!-- ナビゲーションバー -->
@@ -18,7 +67,18 @@
     <div class="container-fluid">
       <a class="navbar-brand" href="#">Forrest Aura</a>
       <div class="ms-auto d-flex align-items-center">
-        <span id="user-info" class="cursor-pointer" tabindex="0" aria-label="ユーザー名編集">ゲスト <i class="fas fa-pencil-alt ms-1"></i></span>
+        <div id="online-users" class="me-2"></div>
+        <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
+          <i class="fas fa-compress"></i>
+        </button>
+        <div class="btn-group me-2" role="group" aria-label="フォントサイズ選択">
+          <button id="fontSizeS" class="btn btn-outline-secondary btn-sm">S</button>
+          <button id="fontSizeM" class="btn btn-outline-secondary btn-sm active">M</button>
+          <button id="fontSizeL" class="btn btn-outline-secondary btn-sm">L</button>
+        </div>
+        <span id="user-info" class="cursor-pointer" tabindex="0" aria-label="ユーザー名編集">
+          <span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>
+        </span>
         <button id="login-btn" class="btn btn-outline-primary ms-2">ログイン</button>
       </div>
     </div>
@@ -27,18 +87,16 @@
   <!-- メインコンテンツ -->
   <main class="container main-content mt-5 mb-5 d-flex flex-column">
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+    <div class="messages-container flex-grow-1">
+      <ul id="messages" class="list-group font-size-medium" role="list">
+      </ul>
+    </div>
+  </main>
     <div class="d-flex justify-content-center">
       <button id="newMessageBtn" class="btn btn-primary btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
         <i class="fas fa-arrow-up"></i>
       </button>
     </div>
-    <div class="messages-container flex-grow-1">
-      <ul id="messages" class="list-group" role="list">
-      </ul>
-    </div>
-    </div>
-  </main>
-
   <footer class="bg-light py-2 fixed-bottom" style="z-index: 1050;">
     <div class="container">
       <form id="messageForm" class="needs-validation w-100" novalidate>
@@ -58,7 +116,7 @@
     </div>
   </footer>
 
-<!-- ログインモーダル -->
+  <!-- ログインモーダル -->
   <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -77,7 +135,7 @@
     </div>
   </div>
 
-<!-- ユーザー名設定モーダル -->
+  <!-- ユーザー名設定モーダル -->
   <div class="modal fade" id="unameModal" tabindex="-1" aria-labelledby="unameModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -97,11 +155,11 @@
     </div>
   </div>
 
-<!-- スクリプト -->
+  <!-- スクリプト -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
-import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 
 const firebaseConfig = {
@@ -124,6 +182,7 @@ try {
   const usersRef = ref(database, 'users');
   const actionsRef = ref(database, 'actions');
   const bannedUsersRef = ref(database, 'bannedUsers');
+  const onlineUsersRef = ref(database, 'onlineUsers');
 
   const formEl = document.getElementById('messageForm');
   const messagesEl = document.getElementById('messages');
@@ -140,18 +199,23 @@ try {
   const loginModal = new bootstrap.Modal(loginModalEl);
   const unameInput = document.getElementById('uname');
   const confirmName = document.getElementById('confirmName');
-
-let isSending = false; // 送信中フラグ
-
+  const onlineUsersEl = document.getElementById('online-users');
+  const compactModeBtn = document.getElementById('compactModeBtn');
+  const fontSizeS = document.getElementById('fontSizeS');
+  const fontSizeM = document.getElementById('fontSizeM');
+  const fontSizeL = document.getElementById('fontSizeL');
   const signOutBtn = document.getElementById('signOut');
   const newMessageBtn = document.getElementById('newMessageBtn');
   const toggleModeBtn = document.getElementById('toggleModeBtn');
 
+  let isSending = false;
   let isLoggingIn = false;
   let isUserScrolledUp = false;
   let isEnterSendMode = true;
   let isLoading = false;
   let lastTimestamp = null;
+  let lastActivity = Date.now();
+  let isCompactMode = false;
 
   function showError(message) {
     errorAlert.textContent = message;
@@ -168,52 +232,144 @@ let isSending = false; // 送信中フラグ
     setTimeout(() => successAlert.remove(), 3000);
   }
 
+  function updateStatusIndicator() {
+    const statusDot = userInfo.querySelector('.status-dot');
+    if (statusDot) {
+      const now = Date.now();
+      statusDot.classList.toggle('status-active', now - lastActivity < 5 * 60 * 1000);
+      statusDot.classList.toggle('status-away', now - lastActivity >= 5 * 60 * 1000);
+    }
+  }
+
+  async function updateOnlineUsers() {
+    try {
+      const snapshot = await get(onlineUsersRef);
+      const users = snapshot.val() ? Object.values(snapshot.val()) : [];
+      onlineUsersEl.innerHTML = users.map(user => 
+        `<span class="online-user" title="${user.username}">${user.username.charAt(0).toUpperCase()}</span>`
+      ).join('');
+    } catch (error) {
+      console.error('オンラインユーザー取得エラー:', error);
+      showError('オンラインユーザーの取得に失敗しました。');
+    }
+  }
+
   async function updateUserUI(user) {
     try {
       if (user) {
         const userData = await get(ref(database, `users/${user.uid}`));
-        const userDataVal = userData.val();
-        const username = userDataVal?.username || user.displayName || 'ゲスト';
-        userInfo.innerHTML = `${username} <i class="fas fa-pencil-alt ms-1"></i>`;
+        const userDataVal = userData.val() || {};
+        const username = userDataVal.username || user.displayName || 'ゲスト';
+        userInfo.innerHTML = `<span class="status-dot status-active"></span>${username} <i class="fas fa-pencil-alt ms-1"></i>`;
         loginBtn.textContent = 'ログアウト';
         loginModal.hide();
         loginModalEl.setAttribute('inert', '');
-        if ((user.isAnonymous || !userDataVal?.username) && !isLoggingIn) {
-          unameInput.value = userDataVal?.username || '';
+        if ((user.isAnonymous || !userDataVal.username) && !isLoggingIn) {
+          unameInput.value = userDataVal.username || '';
           unameModalEl.removeAttribute('inert');
           unameModal.show();
           setTimeout(() => unameInput.focus(), 100);
         }
+        lastActivity = Date.now();
+        await set(ref(database, `onlineUsers/${user.uid}`), {
+          username,
+          timestamp: Date.now()
+        });
+        onDisconnect(ref(database, `onlineUsers/${user.uid}`)).remove();
+        updateStatusIndicator();
       } else {
-        userInfo.innerHTML = 'ゲスト <i class="fas fa-pencil-alt ms-1"></i>';
+        userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
         loginBtn.textContent = 'ログイン';
         unameModalEl.setAttribute('inert', '');
         loginModalEl.removeAttribute('inert');
         loginModal.show();
-        setTimeout(() => document.getElementById('twitterLogin').focus(), 100);
+        setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
       }
-    } catch (error) { // 0.5秒後に送信フラグをリセット
+      await updateOnlineUsers();
+    } catch (error) {
       console.error('ユーザーUI更新エラー:', error);
       showError('ユーザー情報の更新に失敗しました。');
     }
   }
 
+  ['click', 'keydown', 'mousemove'].forEach(event => {
+    document.addEventListener(event, () => {
+      lastActivity = Date.now();
+      updateStatusIndicator();
+    });
+  });
+
+  setInterval(updateStatusIndicator, 60000);
+
+  // ツールチップを管理するための関数
+  function disposeTooltip(element) {
+    const tooltip = bootstrap.Tooltip.getInstance(element);
+    if (tooltip) {
+      tooltip.dispose();
+    }
+  }
+
+  function showTooltip(element, title) {
+    disposeTooltip(element);
+    new bootstrap.Tooltip(element, { title });
+    const tooltip = bootstrap.Tooltip.getInstance(element);
+    tooltip.show();
+    setTimeout(() => {
+      tooltip.hide();
+    }, 1000);
+  }
+
+  compactModeBtn.addEventListener('click', () => {
+    isCompactMode = !isCompactMode;
+    messagesEl.classList.toggle('compact-mode', isCompactMode);
+    compactModeBtn.innerHTML = isCompactMode ? '<i class="fas fa-expand"></i>' : '<i class="fas fa-compress"></i>';
+    const newTitle = isCompactMode ? '通常モード' : 'コンパクトモード';
+    compactModeBtn.setAttribute('aria-label', isCompactMode ? '通常モードに切り替え' : 'コンパクトモードに切り替え');
+    compactModeBtn.setAttribute('title', newTitle);
+    showTooltip(compactModeBtn, newTitle);
+  });
+
+  fontSizeS.addEventListener('click', () => {
+    messagesEl.classList.remove('font-size-medium', 'font-size-large');
+    messagesEl.classList.add('font-size-small');
+    fontSizeS.classList.add('active');
+    fontSizeM.classList.remove('active');
+    fontSizeL.classList.remove('active');
+  });
+
+  fontSizeM.addEventListener('click', () => {
+    messagesEl.classList.remove('font-size-small', 'font-size-large');
+    messagesEl.classList.add('font-size-medium');
+    fontSizeM.classList.add('active');
+    fontSizeS.classList.remove('active');
+    fontSizeL.classList.remove('active');
+  });
+
+  fontSizeL.addEventListener('click', () => {
+    messagesEl.classList.remove('font-size-small', 'font-size-medium');
+    messagesEl.classList.add('font-size-large');
+    fontSizeL.classList.add('active');
+    fontSizeS.classList.remove('active');
+    fontSizeM.classList.remove('active');
+  });
+
   toggleModeBtn.addEventListener('click', () => {
     isEnterSendMode = !isEnterSendMode;
     toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
-    toggleModeBtn.setAttribute('data-bs-title', isEnterSendMode ? '送信モード' : '改行モード');
+    const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
+    toggleModeBtn.setAttribute('data-bs-title', newTitle);
     toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
-    new bootstrap.Tooltip(toggleModeBtn).show();
-    setTimeout(() => bootstrap.Tooltip.getInstance(toggleModeBtn).hide(), 1000);
+    showTooltip(toggleModeBtn, newTitle);
     console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
   });
 
   inputEl.addEventListener('keydown', (e) => {
+    if (e.isComposing) return;
     if (e.key === 'Enter' && ((!e.shiftKey && isEnterSendMode) || (e.shiftKey && !isEnterSendMode))) {
       e.preventDefault();
       formEl.dispatchEvent(new Event('submit'));
-    } else if (e.key === 'Enter' && e.shiftKey && isEnterSendMode || (e.key === 'Enter' && !e.shiftKey && !isEnterSendMode)) {
-           e.preventDefault();
+    } else if (e.key === 'Enter' && ((e.shiftKey && isEnterSendMode) || (!e.shiftKey && !isEnterSendMode))) {
+      e.preventDefault();
       inputEl.value += '\n';
       inputEl.scrollTop = inputEl.scrollHeight;
     }
@@ -223,7 +379,6 @@ let isSending = false; // 送信中フラグ
     const scrollBottom = messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop;
     isUserScrolledUp = messagesEl.scrollTop > 10;
     newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-    console.log('スクロール位置:', messagesEl.scrollTop, 'scrollBottom:', scrollBottom);
     if (scrollBottom < 100 && !isLoading) {
       isLoading = true;
       try {
@@ -233,23 +388,21 @@ let isSending = false; // 送信中フラグ
           const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
           const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
           for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
-            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複防止
-            const isOwnMessage = userId === (auth.currentUser?.uid || '');
+            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
             const userData = await get(ref(database, `users/${userId}`));
             const provider = userData.val()?.provider || 'anonymous';
             const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
                              provider === 'google.com' ? 'fa-brands fa-google' :
                              'fa-solid fa-user-secret';
             const li = document.createElement('li');
-            li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 fade-in`;
+            li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in`;
             li.setAttribute('data-message-id', key);
             li.setAttribute('role', 'listitem');
             li.setAttribute('data-timestamp', timestamp);
             const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
             li.innerHTML = `
-              <div class="message ${isOwnMessage ? 'bg-primary text-white' : 'bg-light'} p-3 rounded shadow-sm">
+              <div class="message bg-transparent p-3">
                 <div class="message-header d-flex align-items-center">
-            <div class="avatar me-2 ${provider === 'twitter.com' ? 'bg-dark' : provider === 'google.com' ? 'bg-danger' : 'bg-secondary'}">${username ? username.charAt(0).toUpperCase() : '?'}</div>
                   <i class="${iconClass} me-2 provider-icon"></i>
                   <strong>${username || '匿名'}</strong>
                   <small class="text-muted ms-2">${date}</small>
@@ -258,7 +411,7 @@ let isSending = false; // 送信中フラグ
                   ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
                 </div>
               </div>`;
-            messagesEl.append(li);
+            messagesEl.appendChild(li);
             setTimeout(() => li.classList.add('show'), 10);
           }
           console.log('過去メッセージロード完了: メッセージ数=', olderMessagesArray.length);
@@ -275,13 +428,13 @@ let isSending = false; // 送信中フラグ
   twitterLogin.addEventListener('click', async () => {
     if (isLoggingIn) return;
     isLoggingIn = true;
-    const provider = new TwitterAuthProvider();
     try {
+      const provider = new TwitterAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       const providerId = result.providerId || 'twitter.com';
-      const existingUserData = (await get(ref(database, `users/${user.uid}`))).val();
-      const username = existingUserData?.username || user.displayName || `user${Date.now()}`;
+      const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
+      const username = existingUserData.username || user.displayName || `user${Date.now()}`;
       await set(ref(database, `users/${user.uid}`), {
         username,
         provider: providerId,
@@ -307,13 +460,13 @@ let isSending = false; // 送信中フラグ
   googleLogin.addEventListener('click', async () => {
     if (isLoggingIn) return;
     isLoggingIn = true;
-    const provider = new GoogleAuthProvider();
     try {
+      const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       const providerId = result.providerId || 'google.com';
-      const existingUserData = (await get(ref(database, `users/${user.uid}`))).val();
-      const username = existingUserData?.username || user.displayName || `user${Date.now()}`;
+      const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
+      const username = existingUserData.username || user.displayName || `user${Date.now()}`;
       await set(ref(database, `users/${user.uid}`), {
         username,
         provider: providerId,
@@ -366,15 +519,15 @@ let isSending = false; // 送信中フラグ
   });
 
   loginBtn.addEventListener('click', async () => {
-    console.log('loginBtnクリック: 現在のユーザー:', auth.currentUser);
     if (auth.currentUser) {
       try {
         await push(actionsRef, {
           type: 'logout',
           userId: auth.currentUser.uid,
-          username: userInfo.textContent,
+          username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
           timestamp: Date.now()
         });
+        await remove(ref(database, `onlineUsers/${auth.currentUser.uid}`));
         await signOut(auth);
         console.log('ログアウト成功');
         showSuccess('ログアウトしました。');
@@ -385,20 +538,20 @@ let isSending = false; // 送信中フラグ
     } else {
       loginModalEl.removeAttribute('inert');
       loginModal.show();
-      setTimeout(() => document.getElementById('twitterLogin').focus(), 100);
+      setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
       console.log('ログインモーダル表示');
     }
   });
 
   signOutBtn.addEventListener('click', async () => {
-    console.log('signOutBtnクリック: ログアウト開始');
     try {
       await push(actionsRef, {
         type: 'logout',
         userId: auth.currentUser.uid,
-        username: userInfo.textContent,
+        username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
         timestamp: Date.now()
       });
+      await remove(ref(database, `onlineUsers/${auth.currentUser.uid}`));
       await signOut(auth);
       unameModal.hide();
       unameModalEl.setAttribute('inert', '');
@@ -413,19 +566,23 @@ let isSending = false; // 送信中フラグ
 
   userInfo.addEventListener('click', async () => {
     if (auth.currentUser) {
-      const userData = await get(ref(database, `users/${auth.currentUser.uid}`));
-      unameInput.value = userData.val()?.username || '';
-      unameModalEl.removeAttribute('inert');
-      unameModal.show();
-      setTimeout(() => unameInput.focus(), 100);
-      console.log('unameModal表示: uname入力欄にフォーカス');
+      try {
+        const userData = await get(ref(database, `users/${auth.currentUser.uid}`));
+        unameInput.value = userData.val()?.username || '';
+        unameModalEl.removeAttribute('inert');
+        unameModal.show();
+        setTimeout(() => unameInput.focus(), 100);
+        console.log('unameModal表示: uname入力欄にフォーカス');
+      } catch (error) {
+        console.error('ユーザー名取得エラー:', error);
+        showError('ユーザー名の取得に失敗しました。');
+      }
     } else {
       showError('ログインしてください。');
     }
   });
 
   confirmName.addEventListener('click', async () => {
-    console.log('confirmNameクリック: 入力値=', unameInput.value);
     const username = unameInput.value.trim();
     if (username === '') {
       unameInput.classList.add('is-invalid');
@@ -438,12 +595,15 @@ let isSending = false; // 送信中フラグ
       return;
     }
     try {
-      console.log('ユーザー名設定試行: UID=', auth.currentUser.uid, 'username=', username);
-      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val();
+      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
       await set(ref(database, `users/${auth.currentUser.uid}`), {
         username,
-        provider: userData?.provider || 'anonymous',
-        ipAddress: userData?.ipAddress || 'github'
+        provider: userData.provider || 'anonymous',
+        ipAddress: userData.ipAddress || 'github'
+      });
+      await set(ref(database, `onlineUsers/${auth.currentUser.uid}`), {
+        username,
+        timestamp: Date.now()
       });
       await push(actionsRef, {
         type: 'setUsername',
@@ -451,7 +611,7 @@ let isSending = false; // 送信中フラグ
         username,
         timestamp: Date.now()
       });
-      userInfo.innerHTML = `${username} <i class="fas fa-pencil-alt ms-1"></i>`;
+      userInfo.innerHTML = `<span class="status-dot status-active"></span>${username} <i class="fas fa-pencil-alt ms-1"></i>`;
       unameModal.hide();
       unameInput.classList.remove('is-invalid');
       console.log('ユーザー名設定成功:', username);
@@ -483,48 +643,39 @@ let isSending = false; // 送信中フラグ
       showError('メッセージを入力してください。');
       return;
     }
-
-
-     // 送信間隔チェック
     if (isSending) {
       console.warn('メッセージ送信連打防止');
       return;
     }
-
     isSending = true;
-
-    if (message.length > 500) {
-      showError('メッセージは500文字以内にしてください。');
-      return;
-    }
     try {
-      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val();
+      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
       const timestamp = Date.now();
-      console.log('メッセージ送信: timestamp=', timestamp);
       await push(messagesRef, {
-        username: userInfo.textContent,
+        username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
         message,
         timestamp,
         userId: auth.currentUser.uid,
-        ipAddress: userData?.ipAddress || 'github'
+        ipAddress: userData.ipAddress || 'github'
       });
       await push(actionsRef, {
         type: 'sendMessage',
         userId: auth.currentUser.uid,
-        username: userInfo.textContent,
+        username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
         timestamp
       });
       inputEl.value = '';
+      inputEl.focus();
       formEl.classList.remove('was-validated');
       isUserScrolledUp = false;
       messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-      setTimeout(() => isSending = false, 500); // 送信フラグをリセット
       newMessageBtn.classList.add('d-none');
       console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
       showError('メッセージの送信に失敗しました: ' + error.message);
-    } finally { setTimeout(() => isSending = false, 500);
+    } finally {
+      isSending = false;
     }
   });
 
@@ -533,30 +684,27 @@ let isSending = false; // 送信中フラグ
     inputEl.style.height = `${Math.min(inputEl.scrollHeight, 120)}px`;
   });
 
-  // 初期ロード（最新10件）
   async function loadInitialMessages() {
     try {
       const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
       const snapshot = await get(initialMessagesQuery);
+      const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
       for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
-        console.log(`メッセージ: key=${key}, timestamp=${timestamp}, username=${username}`);
-        const isOwnMessage = userId === (auth.currentUser?.uid || '');
-        const isLatest = key === messages[0][0];
+        const isLatest = key === messages[messages.length - 1]?.[0];
         const userData = await get(ref(database, `users/${userId}`));
         const provider = userData.val()?.provider || 'anonymous';
         const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
                          provider === 'google.com' ? 'fa-brands fa-google' :
                          'fa-solid fa-user-secret';
         const li = document.createElement('li');
-        li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+        li.className = `list-group-item d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
         li.setAttribute('data-message-id', key);
         li.setAttribute('role', 'listitem');
         li.setAttribute('data-timestamp', timestamp);
         const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
         li.innerHTML = `
-          <div class="message ${isOwnMessage ? 'bg-primary text-white' : 'bg-light'} p-3 rounded shadow-sm">
+          <div class="message bg-transparent p-3">
             <div class="message-header d-flex align-items-center">
-              <div class="avatar me-2 ${provider === 'twitter.com' ? 'bg-dark' : provider === 'google.com' ? 'bg-danger' : 'bg-secondary'}">${username ? username.charAt(0).toUpperCase() : '?'}</div>
               <i class="${iconClass} me-2 provider-icon"></i>
               <strong>${username || '匿名'}</strong>
               <small class="text-muted ms-2">${date}</small>
@@ -569,36 +717,33 @@ let isSending = false; // 送信中フラグ
         setTimeout(() => li.classList.add('show'), 10);
       }
       console.log('初期メッセージロード完了: メッセージ数=', messages.length);
-    } catch (e) {
-      console.error("初期メッセージ読み込みエラー", e);
-      showError("メッセージの読み込みに失敗しました");
+    } catch (error) {
+      console.error('初期メッセージ読み込みエラー:', error);
+      showError('メッセージの読み込みに失敗しました。');
     }
   }
+
   loadInitialMessages();
 
-  // 新しいメッセージのリアルタイム追加
   onChildAdded(messagesRef, async (snapshot) => {
     try {
       const { username, message, timestamp, userId, ipAddress } = snapshot.val();
       const key = snapshot.key;
-      if (messagesEl.querySelector(`[data-message-id="${key}"]`)) return; // 重複防止
-      console.log(`新メッセージ追加: key=${key}, timestamp=${timestamp}, username=${username}`);
-      const isOwnMessage = userId === (auth.currentUser?.uid || '');
+      if (messagesEl.querySelector(`[data-message-id="${key}"]`)) return;
       const userData = await get(ref(database, `users/${userId}`));
       const provider = userData.val()?.provider || 'anonymous';
       const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
                        provider === 'google.com' ? 'fa-brands fa-google' :
                        'fa-solid fa-user-secret';
       const li = document.createElement('li');
-      li.className = `list-group-item d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'} align-items-start border-0 fade-in latest-message pulse`;
+      li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse`;
       li.setAttribute('data-message-id', key);
       li.setAttribute('role', 'listitem');
       li.setAttribute('data-timestamp', timestamp);
       const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
       li.innerHTML = `
-        <div class="message ${isOwnMessage ? 'text-gray' : 'bg-light'} p-3 rounded shadow-sm">
+        <div class="message bg-transparent p-3">
           <div class="message-header d-flex align-items-center">
-            <div class="avatar me-2 ${provider === 'twitter.com' ? 'bg-dark' : provider === 'google.com' ? 'bg-danger' : 'bg-secondary'}">${username ? username.charAt(0).toUpperCase() : '?'}</div>
             <i class="${iconClass} me-2 provider-icon"></i>
             <strong>${username || '匿名'}</strong>
             <small class="text-muted ms-2">${date}</small>
@@ -612,7 +757,6 @@ let isSending = false; // 送信中フラグ
       if (!isUserScrolledUp) {
         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
         newMessageBtn.classList.add('d-none');
-        console.log('新メッセージ追加後: スクロール位置=', messagesEl.scrollTop);
       } else {
         newMessageBtn.classList.remove('d-none');
       }
@@ -622,9 +766,12 @@ let isSending = false; // 送信中フラグ
     }
   });
 
+  onValue(onlineUsersRef, () => {
+    updateOnlineUsers();
+  });
+
   auth.onAuthStateChanged(async (user) => {
     try {
-      console.log('認証状態変更:', user ? `ログイン済み (UID: ${user.uid})` : '未ログイン');
       await updateUserUI(user);
     } catch (error) {
       console.error('認証状態変更エラー:', error);
@@ -634,13 +781,13 @@ let isSending = false; // 送信中フラグ
 
   unameModalEl.addEventListener('hidden.bs.modal', () => {
     unameModalEl.setAttribute('inert', '');
-    document.getElementById('login-btn').focus();
+    document.getElementById('login-btn')?.focus();
     console.log('unameModal非表示: フォーカスをlogin-btnに移動');
   });
 
   loginModalEl.addEventListener('hidden.bs.modal', () => {
     loginModalEl.setAttribute('inert', '');
-    document.getElementById('login-btn').focus();
+    document.getElementById('login-btn')?.focus();
     console.log('loginModal非表示: フォーカスをlogin-btnに移動');
   });
 
@@ -651,12 +798,10 @@ let isSending = false; // 送信中フラグ
     console.log('newMessageBtnクリック: 最上部にスクロール');
   });
 
-  // 初期メッセージ読み込み
-  loadInitialMessages();
-
   window.onload = () => {
-    console.log('ページロード: スクロール位置を維持');
-    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+      new bootstrap.Tooltip(el);
+    });
   };
 } catch (error) {
   console.error('Firebase初期化エラー:', {
