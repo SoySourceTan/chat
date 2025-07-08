@@ -268,71 +268,81 @@ const progressOverlay = document.getElementById('progress-overlay');
   });
 
   // メッセージスクロール処理
-  messagesEl.addEventListener('scroll', async () => {
-    const scrollBottom = messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop;
-    isUserScrolledUp = messagesEl.scrollTop > 10;
+// 既存のリスナーを削除（念のため）
+messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
+
+// 新しいスクロールイベントリスナー
+window.addEventListener('scroll', async () => {
+    const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+    console.log('Scroll Event:', {
+        scrollBottom,
+        scrollHeight: document.documentElement.scrollHeight,
+        clientHeight: window.innerHeight,
+        scrollTop: window.scrollY
+    });
+    isUserScrolledUp = window.scrollY > 10;
     newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
     if (scrollBottom < 100 && !isLoading) {
-      isLoading = true;
-      loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
-      loadingIndicator.style.display = 'block';
-      try {
-        const startTime = performance.now();
-        const messages = messagesEl.querySelectorAll('[data-timestamp]');
-        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
-        if (lastTimestamp) {
-          const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-          const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-          const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
-          const userDataPromises = userIds.map(async userId => {
-            if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
-            const snapshot = await get(ref(database, `users/${userId}`));
-            const data = snapshot.val() || {};
-            userCache.set(userId, data);
-            return { userId, data };
-          });
-          const userDataArray = await Promise.all(userDataPromises);
-          console.log(`過去メッセージユーザー情報取得時間: ${(performance.now() - startTime).toFixed(2)}ms, ユーザー数: ${userIds.length}`);
-          const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-          for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
-            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-            const provider = userDataMap[userId]?.provider || 'anonymous';
-            const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
-                             provider === 'google.com' ? 'fa-brands fa-google' :
-                             'fa-solid fa-user-secret';
-            const li = document.createElement('li');
-            li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in`;
-            li.setAttribute('data-message-id', key);
-            li.setAttribute('role', 'listitem');
-            li.setAttribute('data-timestamp', timestamp);
-            const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-            li.innerHTML = `
-              <div class="message bg-transparent p-3">
-                <div class="message-header d-flex align-items-center">
-                  <i class="${iconClass} me-2 provider-icon"></i>
-                  <strong>${username || '匿名'}</strong>
-                  <small class="text-muted ms-2">${date}</small>
-                </div>
-                <div class="message-body">
-                  ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-                </div>
-              </div>`;
-            messagesEl.appendChild(li);
-            setTimeout(() => li.classList.add('show'), 10);
-          }
-          console.log(`過去メッセージロード完了: メッセージ数=${olderMessagesArray.length}, 総処理時間: ${(performance.now() - startTime).toFixed(2)}ms`);
-          showToast(`過去の${olderMessagesArray.length}件のメッセージを読み込みました`);
+        console.log('ローディング開始');
+        isLoading = true;
+        loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
+        loadingIndicator.style.display = 'block';
+        try {
+            const startTime = performance.now();
+            const messages = messagesEl.querySelectorAll('[data-timestamp]');
+            lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
+            if (lastTimestamp) {
+                const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+                const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
+                const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
+                const userDataPromises = userIds.map(async userId => {
+                    if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
+                    const snapshot = await get(ref(database, `users/${userId}`));
+                    const data = snapshot.val() || {};
+                    userCache.set(userId, data);
+                    return { userId, data };
+                });
+                const userDataArray = await Promise.all(userDataPromises);
+                const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+                for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
+                    if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+                    const provider = userDataMap[userId]?.provider || 'anonymous';
+                    const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
+                                     provider === 'google.com' ? 'fa-brands fa-google' :
+                                     'fa-solid fa-user-secret';
+                    const li = document.createElement('li');
+                    li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in`;
+                    li.setAttribute('data-message-id', key);
+                    li.setAttribute('role', 'listitem');
+                    li.setAttribute('data-timestamp', timestamp);
+                    const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '';
+                    li.innerHTML = `
+                        <div class="message bg-transparent p-3">
+                            <div class="message-header d-flex align-items-center">
+                                <i class="${iconClass} me-2 provider-icon"></i>
+                                <strong>${username || 'ANONYMOUS'}</strong>
+                                <small class="text-muted ms-2">${date}</small>
+                            </div>
+                            <div class="message-body">
+                                ${message ? message.replace(/\n/g, '<br>') : 'NO_MESSAGE'}
+                            </div>
+                        </div>`;
+                    messagesEl.appendChild(li);
+                    setTimeout(() => li.classList.add('show'), 10);
+                }
+                console.log(`過去メッセージロード完了: メッセージ数=${olderMessagesArray.length}, ${(performance.now() - startTime)}ms`);
+                showToast(`過去の${olderMessagesArray.length}件のメッセージを読み込みました`);
+            }
+        } catch (error) {
+            console.error('過去メッセージ取得エラー:', error);
+            showError('過去のメッセージが取得できませんでした。');
+        } finally {
+            isLoading = false;
+            loadingIndicator.textContent = 'ロード中...';
+            loadingIndicator.style.display = 'none';
         }
-      } catch (error) {
-        console.error('過去メッセージ取得エラー:', error);
-        showError('過去メッセージの取得に失敗しました。');
-      } finally {
-        isLoading = false;
-        loadingIndicator.textContent = '読み込み中...';
-        loadingIndicator.style.display = 'none';
-      }
     }
-  });
+});
 
   // Twitterログイン
   twitterLogin.addEventListener('click', async () => {
@@ -697,7 +707,7 @@ const progressOverlay = document.getElementById('progress-overlay');
       const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
       const snapshot = await get(initialMessagesQuery);
       const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
-      console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
+console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
       
       const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
       const userDataPromises = userIds.map(async userId => {
@@ -846,13 +856,12 @@ const progressOverlay = document.getElementById('progress-overlay');
   });
 
   // 新着メッセージボタン
-  newMessageBtn.addEventListener('click', () => {
-    messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+newMessageBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     isUserScrolledUp = false;
     newMessageBtn.classList.add('d-none');
-    console.log('newMessageBtnクリック: 最上部にスクロール');
-  });
-
+    console.log('newMessageBtnクリック: ページの最上部にスクロール');
+});
   // フォーム初期化（クローンを削除）
   window.onload = () => {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {

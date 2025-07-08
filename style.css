@@ -1,25 +1,32 @@
 body {
-  padding: 0;
-  margin: 0;
-  font-family: sans-serif;
-  padding-bottom: 70px; /* フッターの高さ分だけ下部にパディング */
-  position: relative; /* fixed bottom が効くように */
-  min-height: 100vh; /* 画面いっぱいにする */
+    padding: 0;
+    margin: 0;
+    font-family: sans-serif;
+    padding-bottom: 70px; /* フッター分 */
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* ブラウザのスクロールバーを明示 */
+}
+
+main {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 #messages {
-  flex-grow: 1;
-  height: calc(100vh - 130px); /* ナビバーとパディングとフッターの高さ */
-  overflow-y: auto;
-  max-height: calc(100vh - 56px - 50px);
-  padding: 15px;
-  margin-top: 1rem;
-  scroll-behavior: smooth;
-  display: flex;
-  flex-direction: column; /* 上から新しい順を維持 */
-  overflow-x: hidden;
-  scrollbar-width: auto;
-  scrollbar-color: #aab7cf #dee2e6;
+    flex-grow: 1;
+    padding: 15px;
+    margin-top: 1rem;
+    scroll-behavior: smooth;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden; /* 横スクロールは維持 */
+    scrollbar-width: auto;
+    scrollbar-color: #aab7cf #dee2e6;
+    /* height, max-height, overflow-y: auto を削除 */
 }
 
 #messages::-webkit-scrollbar {

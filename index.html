@@ -123,9 +123,6 @@
   <main class="container main-content mt-5 mb-5 d-flex flex-column">
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
     <div class="d-flex justify-content-center">
-      <button id="newMessageBtn" class="btn btn-primary btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
-        <i class="fas fa-arrow-up"></i>
-      </button>
     </div>
     <div class="messages-container flex-grow-1">
       <ul id="messages" class="list-group font-size-medium" role="list">
@@ -197,7 +194,11 @@
     <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 100%"></div>
   </div>
 </div>
-  <!-- スクリプト -->
+
+      <button id="newMessageBtn" class="btn btn-primary btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
+        <i class="fas fa-arrow-up"></i>
+      </button>
+<!-- スクリプト -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script type="module" src="script.js"></script>
     <script type="module" src="notify.js"></script>
