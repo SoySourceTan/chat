@@ -119,19 +119,25 @@ const progressOverlay = document.getElementById('progress-overlay');
   }
 
   // オンラインユーザー更新
-  async function updateOnlineUsers() {
-    try {
-      const snapshot = await get(onlineUsersRef);
-      const users = snapshot.val() ? Object.values(snapshot.val()) : [];
-      onlineUsersEl.innerHTML = users.map(user => 
-        `<span class="online-user" title="${user.username}">${user.username.charAt(0).toUpperCase()}</span>`
-      ).join('');
-      console.log('オンラインユーザー更新: ユーザー数=', users.length);
-    } catch (error) {
-      console.warn('オンラインユーザー取得エラー:', error);
-      onlineUsersEl.innerHTML = '';
-    }
+async function updateOnlineUsers() {
+  try {
+    const snapshot = await get(onlineUsersRef);
+    const users = snapshot.val() ? Object.values(snapshot.val()) : [];
+    onlineUsersEl.innerHTML = users.map(user => {
+      const userData = userCache.get(user.userId) || {};
+      const photoURL = userData.photoURL;
+      if (photoURL) {
+        return `<span class="online-user" title="${user.username}"><img src="${photoURL}" alt="${user.username}のプロフィール画像"></span>`;
+      } else {
+        return `<span class="online-user" title="${user.username}">${user.username.charAt(0).toUpperCase()}</span>`;
+      }
+    }).join('');
+    console.log('オンラインユーザー更新: ユーザー数=', users.length);
+  } catch (error) {
+    console.warn('オンラインユーザー取得エラー:', error);
+    onlineUsersEl.innerHTML = '';
   }
+}
 
   // ユーザーUI更新
   async function updateUserUI(user) {
@@ -273,93 +279,95 @@ messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
 
 // 新しいスクロールイベントリスナー
 window.addEventListener('scroll', async () => {
-    const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
-    console.log('Scroll Event:', {
-        scrollBottom,
-        scrollHeight: document.documentElement.scrollHeight,
-        clientHeight: window.innerHeight,
-        scrollTop: window.scrollY
-    });
-    isUserScrolledUp = window.scrollY > 10;
-    newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-    if (scrollBottom < 100 && !isLoading) {
-        console.log('ローディング開始');
-        isLoading = true;
-        loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
-        loadingIndicator.style.display = 'block';
-        try {
-            const startTime = performance.now();
-            const messages = messagesEl.querySelectorAll('[data-timestamp]');
-            lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
-            if (lastTimestamp) {
-                const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-                const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-                const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
-                const userDataPromises = userIds.map(async userId => {
-                    if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
-                    const snapshot = await get(ref(database, `users/${userId}`));
-                    const data = snapshot.val() || {};
-                    userCache.set(userId, data);
-                    return { userId, data };
-                });
-                const userDataArray = await Promise.all(userDataPromises);
-                const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-                for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
-                    if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-                    const provider = userDataMap[userId]?.provider || 'anonymous';
-                    const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
-                                     provider === 'google.com' ? 'fa-brands fa-google' :
-                                     'fa-solid fa-user-secret';
-                    const li = document.createElement('li');
-                    li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
-                    li.setAttribute('data-message-id', key);
-                    li.setAttribute('role', 'listitem');
-                    li.setAttribute('data-timestamp', timestamp);
-                    const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '';
-                    li.innerHTML = `
-                        <div class="message bg-transparent p-3">
-                            <div class="message-header d-flex align-items-center">
-                                <i class="${iconClass} me-2 provider-icon"></i>
-                                <strong>${username || 'ANONYMOUS'}</strong>
-                                <small class="text-muted ms-2">${date}</small>
-                            </div>
-                            <div class="message-body">
-                                ${message ? message.replace(/\n/g, '<br>') : 'NO_MESSAGE'}
-                            </div>
-                        </div>`;
-                    messagesEl.appendChild(li);
-                    setTimeout(() => li.classList.add('show'), 10);
-                }
-                console.log(`過去メッセージロード完了: メッセージ数=${olderMessagesArray.length}, ${(performance.now() - startTime)}ms`);
-                showToast(`過去の${olderMessagesArray.length}件のメッセージを読み込みました`);
-            }
-        } catch (error) {
-            console.error('過去メッセージ取得エラー:', error);
-            showError('過去のメッセージが取得できませんでした。');
-        } finally {
-            isLoading = false;
-            loadingIndicator.textContent = 'ロード中...';
-            loadingIndicator.style.display = 'none';
+  const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+  console.log('Scroll Event:', {
+    scrollBottom,
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: window.innerHeight,
+    scrollTop: window.scrollY
+  });
+  isUserScrolledUp = window.scrollY > 10;
+  newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
+  if (scrollBottom < 100 && !isLoading) {
+    console.log('ローディング開始');
+    isLoading = true;
+    loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
+    loadingIndicator.style.display = 'block';
+    try {
+      const startTime = performance.now();
+      const messages = messagesEl.querySelectorAll('[data-timestamp]');
+      lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
+      if (lastTimestamp) {
+        const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+        const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
+        const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
+        const userDataPromises = userIds.map(async userId => {
+          if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
+          const snapshot = await get(ref(database, `users/${userId}`));
+          const data = snapshot.val() || {};
+          userCache.set(userId, data);
+          return { userId, data };
+        });
+        const userDataArray = await Promise.all(userDataPromises);
+        const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+        for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
+          if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+          const photoURL = userDataMap[userId]?.photoURL;
+          const li = document.createElement('li');
+          li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
+          li.setAttribute('data-message-id', key);
+          li.setAttribute('role', 'listitem');
+          li.setAttribute('data-timestamp', timestamp);
+          const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+          li.innerHTML = `
+            <div class="message bg-transparent p-3 row w-100">
+              <div class="col-auto profile-icon">
+                ${photoURL ? 
+                  `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+                  `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+              </div>
+              <div class="col-auto message-header d-flex align-items-center">
+                <strong>${username || '匿名'}</strong>
+                <small class="text-muted ms-2">${date}</small>
+              </div>
+              <div class="col-12 message-body mt-2">
+                ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+              </div>
+            </div>`;
+          messagesEl.appendChild(li);
+          setTimeout(() => li.classList.add('show'), 10);
         }
+        console.log(`過去メッセージロード完了: メッセージ数=${olderMessagesArray.length}, ${(performance.now() - startTime)}ms`);
+        showToast(`過去の${olderMessagesArray.length}件のメッセージを読み込みました`);
+      }
+    } catch (error) {
+      console.error('過去メッセージ取得エラー:', error);
+      showError('過去のメッセージが取得できませんでした。');
+    } finally {
+      isLoading = false;
+      loadingIndicator.textContent = 'ロード中...';
+      loadingIndicator.style.display = 'none';
     }
+  }
 });
 
-  // Twitterログイン
-  twitterLogin.addEventListener('click', async () => {
-    if (isLoggingIn) return;
-    isLoggingIn = true;
-    try {
-      const provider = new TwitterAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const providerId = result.providerId || 'twitter.com';
-      const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-      const username = existingUserData.username || user.displayName || `user${Date.now()}`;
-      await set(ref(database, `users/${user.uid}`), {
-        username,
-        provider: providerId,
-        ipAddress: 'github'
-      });
+// Twitterログイン
+twitterLogin.addEventListener('click', async () => {
+  if (isLoggingIn) return;
+  isLoggingIn = true;
+  try {
+    const provider = new TwitterAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    const providerId = result.providerId || 'twitter.com';
+    const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
+    const username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    await set(ref(database, `users/${user.uid}`), {
+      username,
+      provider: providerId,
+      ipAddress: 'github',
+      photoURL: user.photoURL || null // プロフィール画像を保存
+    });
       await push(actionsRef, {
         type: 'connect',
         userId: user.uid,
@@ -376,22 +384,23 @@ window.addEventListener('scroll', async () => {
     }
   });
 
-  // Googleログイン
-  googleLogin.addEventListener('click', async () => {
-    if (isLoggingIn) return;
-    isLoggingIn = true;
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const providerId = result.providerId || 'google.com';
-      const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-      const username = existingUserData.username || user.displayName || `user${Date.now()}`;
-      await set(ref(database, `users/${user.uid}`), {
-        username,
-        provider: providerId,
-        ipAddress: 'github'
-      });
+// Googleログイン
+googleLogin.addEventListener('click', async () => {
+  if (isLoggingIn) return;
+  isLoggingIn = true;
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    const providerId = result.providerId || 'google.com';
+    const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
+    const username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    await set(ref(database, `users/${user.uid}`), {
+      username,
+      provider: providerId,
+      ipAddress: 'github',
+      photoURL: user.photoURL || null // プロフィール画像を保存
+    });
       await push(actionsRef, {
         type: 'connect',
         userId: user.uid,
@@ -408,34 +417,35 @@ window.addEventListener('scroll', async () => {
     }
   });
 
-  // 匿名ログイン
-  anonymousLogin.addEventListener('click', async () => {
-    if (isLoggingIn) return;
-    isLoggingIn = true;
-    try {
-      const result = await signInAnonymously(auth);
-      const user = result.user;
-      const uniqueUsername = `anon${Date.now()}`;
-      await set(ref(database, `users/${user.uid}`), {
-        username: uniqueUsername,
-        provider: 'anonymous',
-        ipAddress: 'github'
-      });
-      await push(actionsRef, {
-        type: 'connect',
-        userId: user.uid,
-        username: uniqueUsername,
-        timestamp: Date.now()
-      });
-      console.log('匿名ログイン成功');
-      showSuccess('匿名でログインしました。');
-    } catch (error) {
-      console.error('匿名ログインエラー:', error);
-      showError('匿名ログインに失敗しました: ' + error.message);
-    } finally {
-      isLoggingIn = false;
-    }
-  });
+// 匿名ログイン
+anonymousLogin.addEventListener('click', async () => {
+  if (isLoggingIn) return;
+  isLoggingIn = true;
+  try {
+    const result = await signInAnonymously(auth);
+    const user = result.user;
+    const uniqueUsername = `anon${Date.now()}`;
+    await set(ref(database, `users/${user.uid}`), {
+      username: uniqueUsername,
+      provider: 'anonymous',
+      ipAddress: 'github',
+      photoURL: null
+    });
+    await push(actionsRef, {
+      type: 'connect',
+      userId: user.uid,
+      username: uniqueUsername,
+      timestamp: Date.now()
+    });
+    console.log('匿名ログイン成功');
+    showSuccess('匿名でログインしました。');
+  } catch (error) {
+    console.error('匿名ログインエラー:', error);
+    showError('匿名ログインに失敗しました: ' + error.message);
+  } finally {
+    isLoggingIn = false;
+  }
+});
 
   // ログアウト
   loginBtn.addEventListener('click', async () => {
@@ -607,33 +617,33 @@ window.addEventListener('scroll', async () => {
       }
       isSending = true;
       console.log('メッセージ送信処理開始: message=', message);
-      try {
-        const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-        const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
-        const timestamp = Date.now();
-        // ローカルで即時表示
-        const tempMessageId = `temp-${timestamp}`;
-        const li = document.createElement('li');
-        li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
-        li.setAttribute('data-message-id', tempMessageId);
-        li.setAttribute('role', 'listitem');
-        li.setAttribute('data-timestamp', timestamp);
-        const date = new Date(timestamp).toLocaleString('ja-JP');
-        const iconClass = userData.provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
-                         userData.provider === 'google.com' ? 'fa-brands fa-google' :
-                         'fa-solid fa-user-secret';
-        li.innerHTML = `
-          <div class="message bg-transparent p-3">
-            <div class="message-header d-flex align-items-center">
-              <i class="${iconClass} me-2 provider-icon"></i>
-              <strong>${username}</strong>
-              <small class="text-muted ms-2">${date}</small>
-            </div>
-            <div class="message-body">
-              ${message.replace(/\n/g, '<br>')}
-            </div>
-          </div>`;
-        messagesEl.prepend(li);
+try {
+    const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+    const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
+    const timestamp = Date.now();
+    const tempMessageId = `temp-${timestamp}`;
+    const li = document.createElement('li');
+    li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+    li.setAttribute('data-message-id', tempMessageId);
+    li.setAttribute('role', 'listitem');
+    li.setAttribute('data-timestamp', timestamp);
+    const date = new Date(timestamp).toLocaleString('ja-JP');
+    li.innerHTML = `
+      <div class="message bg-transparent p-3 row w-100">
+        <div class="col-auto profile-icon">
+          ${userData.photoURL ? 
+            `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+        </div>
+        <div class="col-auto message-header d-flex align-items-center">
+          <strong>${username}</strong>
+          <small class="text-muted ms-2">${date}</small>
+        </div>
+        <div class="col-12 message-body mt-2">
+          ${message.replace(/\n/g, '<br>')}
+        </div>
+      </div>`;
+    messagesEl.prepend(li);
         setTimeout(() => li.classList.add('show'), 10);
         console.log('ローカルメッセージ表示: tempMessageId=', tempMessageId);
         // Firebaseに送信
@@ -723,32 +733,34 @@ console.log(`初期メッセージ取得時間: ${(performance.now() - startTime
       messagesEl.innerHTML = '';
       latestInitialTimestamp = messages.length ? Math.max(...messages.map(([_, msg]) => msg.timestamp)) : null;
       const renderStartTime = performance.now();
-      for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
-        const isLatest = key === messages[messages.length - 1]?.[0];
-        const provider = userDataMap[userId]?.provider || 'anonymous';
-        const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
-                         provider === 'google.com' ? 'fa-brands fa-google' :
-                         'fa-solid fa-user-secret';
-        const li = document.createElement('li');
-        li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
-        li.setAttribute('data-message-id', key);
-        li.setAttribute('role', 'listitem');
-        li.setAttribute('data-timestamp', timestamp);
-        const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-        li.innerHTML = `
-          <div class="message bg-transparent p-3">
-            <div class="message-header d-flex align-items-center">
-              <i class="${iconClass} me-2 provider-icon"></i>
-              <strong>${username || '匿名'}</strong>
-              <small class="text-muted ms-2">${date}</small>
-            </div>
-            <div class="message-body">
-              ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-            </div>
-          </div>`;
-        messagesEl.prepend(li);
-        setTimeout(() => li.classList.add('show'), 10);
-      }
+for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
+    const isLatest = key === messages[messages.length - 1]?.[0];
+    const provider = userDataMap[userId]?.provider || 'anonymous';
+    const photoURL = userDataMap[userId]?.photoURL;
+    const li = document.createElement('li');
+    li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+    li.setAttribute('data-message-id', key);
+    li.setAttribute('role', 'listitem');
+    li.setAttribute('data-timestamp', timestamp);
+    const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+    li.innerHTML = `
+      <div class="message bg-transparent p-3 row w-100">
+        <div class="col-auto profile-icon">
+          ${photoURL ? 
+            `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+        </div>
+        <div class="col-auto message-header d-flex align-items-center">
+          <strong>${username || '匿名'}</strong>
+          <small class="text-muted ms-2">${date}</small>
+        </div>
+        <div class="col-12 message-body mt-2">
+          ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+        </div>
+      </div>`;
+    messagesEl.prepend(li);
+    setTimeout(() => li.classList.add('show'), 10);
+  }
       console.log(`初期メッセージ描画完了: メッセージ数=${messages.length}, 描画時間: ${(performance.now() - renderStartTime).toFixed(2)}ms, 総処理時間: ${(performance.now() - startTime).toFixed(2)}ms`);
       showToast(`最新の${messages.length}件のメッセージを読み込みました`);
       messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
@@ -762,66 +774,66 @@ console.log(`初期メッセージ取得時間: ${(performance.now() - startTime
 
   // 新しいメッセージの監視
   let messageListener = null;
-  function setupMessageListener() {
-    if (messageListener) {
-      messageListener(); // 既存のリスナーを解除
-    }
-    messageListener = onChildAdded(messagesRef, async (snapshot) => {
-      try {
-        const { username, message, timestamp, userId, ipAddress } = snapshot.val();
-        const key = snapshot.key;
-        if (timestamp <= latestInitialTimestamp) {
-          console.log('初期ロード済みのメッセージをスキップ: key=', key, 'timestamp=', timestamp);
-          return;
-        }
-        if (messagesEl.querySelector(`[data-message-id="${key}"]`) || 
-            messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`)) {
-          console.log('重複メッセージ検出: key=', key, 'timestamp=', timestamp);
-          return;
-        }
-        const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
-        userCache.set(userId, userData);
-        if (userCache.size > 1000) userCache.clear();
-        const provider = userData.provider || 'anonymous';
-        const iconClass = provider === 'twitter.com' ? 'fa-brands fa-x-twitter' :
-                         provider === 'google.com' ? 'fa-brands fa-google' :
-                         'fa-solid fa-user-secret';
-        const li = document.createElement('li');
-        li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
-        li.setAttribute('data-message-id', key);
-        li.setAttribute('role', 'listitem');
-        li.setAttribute('data-timestamp', timestamp);
-        const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-        li.innerHTML = `
-          <div class="message bg-transparent p-3">
-            <div class="message-header d-flex align-items-center">
-              <i class="${iconClass} me-2 provider-icon"></i>
-              <strong>${username || '匿名'}</strong>
-              <small class="text-muted ms-2">${date}</small>
-            </div>
-            <div class="message-body">
-              ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-            </div>
-          </div>`;
-        messagesEl.prepend(li);
-        setTimeout(() => li.classList.add('show'), 10);
-        // 通知を表示（自分のメッセージ以外）
-        if (auth.currentUser?.uid !== userId) {
-          notifyNewMessage({ username, message });
-          console.log('新メッセージ通知送信: username=', username, 'message=', message);
-        }
-        if (!isUserScrolledUp) {
-          messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-          newMessageBtn.classList.add('d-none');
-        } else {
-          newMessageBtn.classList.remove('d-none');
-        }
-      } catch (error) {
-        console.error('新メッセージ追加エラー:', error);
-        showError('メッセージの取得に失敗しました。');
-      }
-    });
+ function setupMessageListener() {
+  if (messageListener) {
+    messageListener(); // 既存のリスナーを解除
   }
+  messageListener = onChildAdded(messagesRef, async (snapshot) => {
+    try {
+      const { username, message, timestamp, userId, ipAddress } = snapshot.val();
+      const key = snapshot.key;
+      if (timestamp <= latestInitialTimestamp) {
+        console.log('初期ロード済みのメッセージをスキップ: key=', key, 'timestamp=', timestamp);
+        return;
+      }
+      if (messagesEl.querySelector(`[data-message-id="${key}"]`) || 
+          messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`)) {
+        console.log('重複メッセージ検出: key=', key, 'timestamp=', timestamp);
+        return;
+      }
+      const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
+      userCache.set(userId, userData);
+      if (userCache.size > 100) userCache.clear();
+      const photoURL = userData.photoURL;
+      const li = document.createElement('li');
+      li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+      li.setAttribute('data-message-id', key);
+      li.setAttribute('role', 'listitem');
+      li.setAttribute('data-timestamp', timestamp);
+      const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+      li.innerHTML = `
+        <div class="message bg-transparent p-3 row w-100">
+          <div class="col-auto profile-icon">
+            ${photoURL ? 
+              `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+              `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+          </div>
+          <div class="col-auto message-header d-flex align-items-center">
+            <strong>${username || '匿名'}</strong>
+            <small class="text-muted ms-2">${date}</small>
+          </div>
+          <div class="col-12 message-body mt-2">
+            ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+          </div>
+        </div>`;
+      messagesEl.prepend(li);
+      setTimeout(() => li.classList.add('show'), 10);
+      if (auth.currentUser?.uid !== userId) {
+        notifyNewMessage({ username, message });
+        console.log('新メッセージ通知送信: username=', username, 'message=', message);
+      }
+      if (!isUserScrolledUp) {
+        messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+        newMessageBtn.classList.add('d-none');
+      } else {
+        newMessageBtn.classList.remove('d-none');
+      }
+    } catch (error) {
+      console.error('新メッセージ追加エラー:', error);
+      showError('メッセージの取得に失敗しました。');
+    }
+  });
+}
 
   // 認証状態監視
   auth.onAuthStateChanged(async (user) => {
@@ -884,3 +896,4 @@ newMessageBtn.addEventListener('click', () => {
   });
   showError(`Firebaseの初期化に失敗しました: ${error.message}`);
 }
+
