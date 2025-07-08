@@ -18,7 +18,6 @@ main {
 
 #messages {
     flex-grow: 1;
-    padding: 15px;
     margin-top: 1rem;
     scroll-behavior: smooth;
     display: flex;

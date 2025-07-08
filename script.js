@@ -314,7 +314,7 @@ window.addEventListener('scroll', async () => {
           if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
           const photoURL = userDataMap[userId]?.photoURL;
           const li = document.createElement('li');
-          li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
+          li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
           li.setAttribute('data-message-id', key);
           li.setAttribute('role', 'listitem');
           li.setAttribute('data-timestamp', timestamp);
@@ -623,7 +623,7 @@ try {
     const timestamp = Date.now();
     const tempMessageId = `temp-${timestamp}`;
     const li = document.createElement('li');
-    li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+    li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
     li.setAttribute('data-message-id', tempMessageId);
     li.setAttribute('role', 'listitem');
     li.setAttribute('data-timestamp', timestamp);
@@ -738,7 +738,7 @@ for (const [key, { username, message, timestamp, userId, ipAddress }] of message
     const provider = userDataMap[userId]?.provider || 'anonymous';
     const photoURL = userDataMap[userId]?.photoURL;
     const li = document.createElement('li');
-    li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+    li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
     li.setAttribute('data-message-id', key);
     li.setAttribute('role', 'listitem');
     li.setAttribute('data-timestamp', timestamp);
@@ -796,7 +796,7 @@ for (const [key, { username, message, timestamp, userId, ipAddress }] of message
       if (userCache.size > 100) userCache.clear();
       const photoURL = userData.photoURL;
       const li = document.createElement('li');
-      li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+      li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
       li.setAttribute('data-message-id', key);
       li.setAttribute('role', 'listitem');
       li.setAttribute('data-timestamp', timestamp);
