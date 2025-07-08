@@ -255,3 +255,27 @@ body {
 .progress-bar {
   transition: width 0.3s ease-in-out;
 }
+#typing-indicator {
+  padding: 0.5rem 1rem;
+  font-style: italic;
+}
+#error-alert {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  background-color: #dc3545;
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s ease-in-out;
+}
+
+#error-alert.d-none {
+  opacity: 0;
+  pointer-events: none;
+}
