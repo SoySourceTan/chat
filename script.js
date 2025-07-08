@@ -311,7 +311,7 @@ window.addEventListener('scroll', async () => {
                                      provider === 'google.com' ? 'fa-brands fa-google' :
                                      'fa-solid fa-user-secret';
                     const li = document.createElement('li');
-                    li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in`;
+                    li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
                     li.setAttribute('data-message-id', key);
                     li.setAttribute('role', 'listitem');
                     li.setAttribute('data-timestamp', timestamp);
@@ -614,7 +614,7 @@ window.addEventListener('scroll', async () => {
         // ローカルで即時表示
         const tempMessageId = `temp-${timestamp}`;
         const li = document.createElement('li');
-        li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse`;
+        li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
         li.setAttribute('data-message-id', tempMessageId);
         li.setAttribute('role', 'listitem');
         li.setAttribute('data-timestamp', timestamp);
@@ -730,7 +730,7 @@ console.log(`初期メッセージ取得時間: ${(performance.now() - startTime
                          provider === 'google.com' ? 'fa-brands fa-google' :
                          'fa-solid fa-user-secret';
         const li = document.createElement('li');
-        li.className = `list-group-item d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+        li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
         li.setAttribute('data-message-id', key);
         li.setAttribute('role', 'listitem');
         li.setAttribute('data-timestamp', timestamp);
@@ -787,7 +787,7 @@ console.log(`初期メッセージ取得時間: ${(performance.now() - startTime
                          provider === 'google.com' ? 'fa-brands fa-google' :
                          'fa-solid fa-user-secret';
         const li = document.createElement('li');
-        li.className = `list-group-item d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse`;
+        li.className = `list-group-item border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
         li.setAttribute('data-message-id', key);
         li.setAttribute('role', 'listitem');
         li.setAttribute('data-timestamp', timestamp);
