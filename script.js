@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+import { initNotifications, notifyNewMessage } from './notify.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc",
@@ -20,6 +21,10 @@ try {
   const auth = getAuth(app);
   console.log('Firebase初期化成功');
   
+  // 通知初期化
+  initNotifications();
+  console.log('通知システム初期化');
+
   // データベース参照
   const messagesRef = ref(database, 'messages');
   const usersRef = ref(database, 'users');
@@ -75,6 +80,7 @@ try {
       errorAlert.classList.add('d-none');
       errorAlert.removeAttribute('role');
     }, 6000);
+    console.log('エラーメッセージ表示:', message);
   }
 
   // 成功メッセージ表示
@@ -86,6 +92,7 @@ try {
     successAlert.textContent = message;
     document.body.appendChild(successAlert);
     setTimeout(() => successAlert.remove(), 3000);
+    console.log('成功メッセージ表示:', message);
   }
 
   // トースト通知
@@ -97,6 +104,7 @@ try {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+    console.log('トースト通知表示:', message);
   }
 
   // ステータスインジケーター更新
@@ -117,6 +125,7 @@ try {
       onlineUsersEl.innerHTML = users.map(user => 
         `<span class="online-user" title="${user.username}">${user.username.charAt(0).toUpperCase()}</span>`
       ).join('');
+      console.log('オンラインユーザー更新: ユーザー数=', users.length);
     } catch (error) {
       console.warn('オンラインユーザー取得エラー:', error);
       onlineUsersEl.innerHTML = '';
@@ -773,6 +782,11 @@ try {
         </div>`;
       messagesEl.prepend(li);
       setTimeout(() => li.classList.add('show'), 10);
+      // 通知を表示（自分のメッセージ以外）
+      if (auth.currentUser?.uid !== userId) {
+        notifyNewMessage({ username, message });
+        console.log('新メッセージ通知送信: username=', username, 'message=', message);
+      }
       if (!isUserScrolledUp) {
         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
         newMessageBtn.classList.add('d-none');
