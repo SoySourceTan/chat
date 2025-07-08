@@ -50,17 +50,6 @@ main {
   hyphens: auto;
 }
 
-.avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background-color: #df3093;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-}
-
 .fade-in {
   opacity: 0;
   transform: translateY(10px);
@@ -322,7 +311,7 @@ main {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: #FFE4E1; /* キュアプリズムのピンク */
+  background-color: #df3093; /* キュアプリズムのピンク */
   display: flex;
   align-items: center;
   justify-content: center;

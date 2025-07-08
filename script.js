@@ -326,7 +326,7 @@ window.addEventListener('scroll', async () => {
                   `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
                   `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
               </div>
-              <div class="col-auto message-header d-flex align-items-center">
+              <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                 <strong>${username || '匿名'}</strong>
                 <small class="text-muted ms-2">${date}</small>
               </div>
@@ -635,7 +635,7 @@ try {
             `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
             `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
         </div>
-        <div class="col-auto message-header d-flex align-items-center">
+        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
           <strong>${username}</strong>
           <small class="text-muted ms-2">${date}</small>
         </div>
@@ -750,7 +750,7 @@ for (const [key, { username, message, timestamp, userId, ipAddress }] of message
             `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
             `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
         </div>
-        <div class="col-auto message-header d-flex align-items-center">
+        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
           <strong>${username || '匿名'}</strong>
           <small class="text-muted ms-2">${date}</small>
         </div>
@@ -808,7 +808,7 @@ for (const [key, { username, message, timestamp, userId, ipAddress }] of message
               `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
               `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
           </div>
-          <div class="col-auto message-header d-flex align-items-center">
+          <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
             <strong>${username || '匿名'}</strong>
             <small class="text-muted ms-2">${date}</small>
           </div>
