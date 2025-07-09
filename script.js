@@ -2,6 +2,19 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { initNotifications, notifyNewMessage } from './notify.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
+
+// IPアドレス取得関数
+async function getClientIp() {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.error('IP取得エラー:', error);
+    return 'unknown';
+  }
+}
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc",
@@ -123,22 +136,31 @@ async function updateOnlineUsers() {
   try {
     const snapshot = await get(onlineUsersRef);
     const users = snapshot.val() ? Object.values(snapshot.val()) : [];
-    onlineUsersEl.innerHTML = users.map(user => {
-      const userData = userCache.get(user.userId) || {};
-      const photoURL = userData.photoURL;
-      if (photoURL) {
-        return `<span class="online-user" title="${user.username}"><img src="${photoURL}" alt="${user.username}のプロフィール画像"></span>`;
-      } else {
-        return `<span class="online-user" title="${user.username}">${user.username.charAt(0).toUpperCase()}</span>`;
+    const userDataPromises = users.map(async user => {
+      let userData = userCache.has(user.userId) ? userCache.get(user.userId) : null;
+      if (!userData) {
+        const snapshot = await get(ref(database, `users/${user.userId}`));
+        userData = snapshot.val() || {};
+        userCache.set(user.userId, userData);
       }
+      return { userId: user.userId, data: userData, username: user.username };
+    });
+    const userDataArray = await Promise.all(userDataPromises);
+    onlineUsersEl.innerHTML = userDataArray.map(({ userId, data, username }) => {
+      const photoURL = data.photoURL || null;
+      const displayUsername = username || '匿名';
+      console.log(`userId: ${userId}, photoURL: ${photoURL}`); // デバッグログ
+      return `<span class="online-user" title="${displayUsername}">
+        ${photoURL ? 
+          `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">` :
+          `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
+      </span>`;
     }).join('');
-    console.log('オンラインユーザー更新: ユーザー数=', users.length);
   } catch (error) {
     console.warn('オンラインユーザー取得エラー:', error);
     onlineUsersEl.innerHTML = '';
   }
 }
-
   // ユーザーUI更新
   async function updateUserUI(user) {
     try {
@@ -338,11 +360,11 @@ window.addEventListener('scroll', async () => {
           const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
           li.innerHTML = `
             <div class="message bg-transparent p-3 row w-100">
-              <div class="col-auto profile-icon">
-                ${photoURL ? 
-                  `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
-                  `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-              </div>
+<div class="col-auto profile-icon">
+  ${photoURL ? 
+    `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+    `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+</div>
               <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                 <strong>${username || '匿名'}</strong>
                 <small class="text-muted ms-2">${date}</small>
@@ -368,6 +390,19 @@ window.addEventListener('scroll', async () => {
   }
 });
 
+// クライアント側でIPアドレスを取得
+async function getClientIp() {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.error('IP取得エラー:', error);
+    return null;
+  }
+}
+
+
 // Twitterログイン
 twitterLogin.addEventListener('click', async () => {
   if (isLoggingIn) return;
@@ -376,30 +411,49 @@ twitterLogin.addEventListener('click', async () => {
     const provider = new TwitterAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
+    console.log('Twitter user info:', { 
+      uid: user.uid, 
+      displayName: user.displayName, 
+      photoURL: user.photoURL, 
+      email: user.email, 
+      emailVerified: user.emailVerified, 
+      providerData: user.providerData 
+    }); // デバッグ
     const providerId = result.providerId || 'twitter.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
     const username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    const ipAddress = await getClientIp();
     await set(ref(database, `users/${user.uid}`), {
       username,
       provider: providerId,
-      ipAddress: 'github',
-      photoURL: user.photoURL || null // プロフィール画像を保存
+      ipAddress,
+      photoURL: user.photoURL || null,
+      email: user.email || null,
+      emailVerified: user.emailVerified || false,
+      providerData: user.providerData.map(data => ({
+        providerId: data.providerId,
+        uid: data.uid,
+        displayName: data.displayName,
+        photoURL: data.photoURL,
+        email: data.email
+      }))
     });
-      await push(actionsRef, {
-        type: 'connect',
-        userId: user.uid,
-        username,
-        timestamp: Date.now()
-      });
-      console.log('Xログイン成功:', user.displayName);
-      showSuccess('Xでログインしました。');
-    } catch (error) {
-      console.error('Xログインエラー:', error);
-      showError('Xログインに失敗しました: ' + error.message);
-    } finally {
-      isLoggingIn = false;
-    }
-  });
+    console.log('Twitter user data saved:', { username, photoURL: user.photoURL, email: user.email, ipAddress }); // デバッグ
+    await push(actionsRef, {
+      type: 'connect',
+      userId: user.uid,
+      username,
+      timestamp: Date.now()
+    });
+    console.log('Twitterログイン成功:', user.displayName);
+    showSuccess('Twitterでログインしました。');
+  } catch (error) {
+    console.error('Twitterログインエラー:', { code: error.code, message: error.message });
+    showError('Twitterログインに失敗しました: ' + error.message);
+  } finally {
+    isLoggingIn = false;
+  }
+});
 
 // Googleログイン
 googleLogin.addEventListener('click', async () => {
@@ -409,30 +463,49 @@ googleLogin.addEventListener('click', async () => {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
+    console.log('Google user info:', { 
+      uid: user.uid, 
+      displayName: user.displayName, 
+      photoURL: user.photoURL, 
+      email: user.email, 
+      emailVerified: user.emailVerified, 
+      providerData: user.providerData 
+    }); // デバッグ
     const providerId = result.providerId || 'google.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
     const username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    const ipAddress = await getClientIp();
     await set(ref(database, `users/${user.uid}`), {
       username,
       provider: providerId,
-      ipAddress: 'github',
-      photoURL: user.photoURL || null // プロフィール画像を保存
+      ipAddress,
+      photoURL: user.photoURL || null,
+      email: user.email || null,
+      emailVerified: user.emailVerified || false,
+      providerData: user.providerData.map(data => ({
+        providerId: data.providerId,
+        uid: data.uid,
+        displayName: data.displayName,
+        photoURL: data.photoURL,
+        email: data.email
+      }))
     });
-      await push(actionsRef, {
-        type: 'connect',
-        userId: user.uid,
-        username,
-        timestamp: Date.now()
-      });
-      console.log('Googleログイン成功:', user.displayName);
-      showSuccess('Googleでログインしました。');
-    } catch (error) {
-      console.error('Googleログインエラー:', error);
-      showError('Googleログインに失敗しました: ' + error.message);
-    } finally {
-      isLoggingIn = false;
-    }
-  });
+    console.log('Google user data saved:', { username, photoURL: user.photoURL, email: user.email, ipAddress }); // デバッグ
+    await push(actionsRef, {
+      type: 'connect',
+      userId: user.uid,
+      username,
+      timestamp: Date.now()
+    });
+    console.log('Googleログイン成功:', user.displayName);
+    showSuccess('Googleでログインしました。');
+  } catch (error) {
+    console.error('Googleログインエラー:', { code: error.code, message: error.message });
+    showError('Googleログインに失敗しました: ' + error.message);
+  } finally {
+    isLoggingIn = false;
+  }
+});
 
 // 匿名ログイン
 anonymousLogin.addEventListener('click', async () => {
@@ -442,12 +515,17 @@ anonymousLogin.addEventListener('click', async () => {
     const result = await signInAnonymously(auth);
     const user = result.user;
     const uniqueUsername = `anon${Date.now()}`;
+    const ipAddress = await getClientIp();
     await set(ref(database, `users/${user.uid}`), {
       username: uniqueUsername,
       provider: 'anonymous',
-      ipAddress: 'github',
-      photoURL: null
+      ipAddress,
+      photoURL: null,
+      email: null,
+      emailVerified: false,
+      providerData: []
     });
+    console.log('Anonymous user data saved:', { username: uniqueUsername, ipAddress }); // デバッグ
     await push(actionsRef, {
       type: 'connect',
       userId: user.uid,
@@ -457,7 +535,7 @@ anonymousLogin.addEventListener('click', async () => {
     console.log('匿名ログイン成功');
     showSuccess('匿名でログインしました。');
   } catch (error) {
-    console.error('匿名ログインエラー:', error);
+    console.error('匿名ログインエラー:', { code: error.code, message: error.message });
     showError('匿名ログインに失敗しました: ' + error.message);
   } finally {
     isLoggingIn = false;
@@ -913,4 +991,3 @@ newMessageBtn.addEventListener('click', () => {
   });
   showError(`Firebaseの初期化に失敗しました: ${error.message}`);
 }
-
