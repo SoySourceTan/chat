@@ -394,3 +394,23 @@ main {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   border: 1px solid #fff;
 }
+.message-body a {
+  color: #007bff;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.message-body a:hover {
+  color: #0056b3;
+  text-decoration: none;
+}
+.message-body pre {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 10px;
+  overflow-x: auto;
+}
+.message-body code {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}

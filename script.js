@@ -743,125 +743,139 @@ anonymousLogin.addEventListener('click', async () => {
   });
 
   // メッセージ送信
-  if (!formEl) {
-    console.error('formElが見つかりません。ID="messageForm"の要素を確認してください。');
-  } else {
-    console.log('formElを初期化: ID=messageForm');
-    formEl.removeEventListener('submit', formEl._submitHandler); // 既存リスナーをクリア
-    formEl._submitHandler = async (e) => {
-      e.preventDefault();
-      console.log('フォーム送信開始');
-      if (!formEl.checkValidity()) {
-        e.stopPropagation();
-        formEl.classList.add('was-validated');
-        console.log('バリデーション失敗');
-        return;
+if (!formEl) {
+  console.error('formElが見つかりません。ID="messageForm"の要素を確認してください。');
+} else {
+  console.log('formElを初期化: ID=messageForm');
+  formEl.removeEventListener('submit', formEl._submitHandler);
+  formEl._submitHandler = async (e) => {
+    e.preventDefault();
+    console.log('フォーム送信開始');
+    if (!formEl.checkValidity()) {
+      e.stopPropagation();
+      formEl.classList.add('was-validated');
+      console.log('バリデーション失敗');
+      return;
+    }
+    if (!auth.currentUser) {
+      showError('ログインしてください。');
+      console.log('送信失敗: 未ログイン');
+      return;
+    }
+    const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
+    if (banned) {
+      showError('あなたはBANされています。メッセージを送信できません。');
+      console.log('送信失敗: ユーザーがBANされています');
+      return;
+    }
+    const message = inputEl.value.trim();
+    if (message.length === 0) {
+      showError('メッセージを入力してください。');
+      console.log('送信失敗: 空メッセージ');
+      return;
+    }
+    if (isSending) {
+      console.warn('メッセージ送信連打防止');
+      return;
+    }
+    isSending = true;
+    console.log('メッセージ送信処理開始: message=', message);
+    try {
+      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+      const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
+      const timestamp = Date.now();
+      const tempMessageId = `temp-${timestamp}`;
+      const li = document.createElement('li');
+      li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+      li.setAttribute('data-message-id', tempMessageId);
+      li.setAttribute('role', 'listitem');
+      li.setAttribute('data-timestamp', timestamp);
+      const date = new Date(timestamp).toLocaleString('ja-JP');
+      // コードブロックとURLを処理
+      const codeRegex = /```(\w+)?\s*([\s\S]*?)\s*```/g;
+      const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+      let formattedMessage = message;
+      const codePlaceholder = '___CODE_BLOCK___';
+      const codeBlocks = [];
+      // コードブロックを検出して保護
+      formattedMessage = formattedMessage.replace(codeRegex, (_, lang, code) => {
+        const cleanCode = code.replace(/\n$/, ''); // 末尾の改行を削除
+        codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ''}>${cleanCode}</code></pre>`);
+        return codePlaceholder + (codeBlocks.length - 1);
+      });
+      // 改行とURLリンク化
+      formattedMessage = formattedMessage
+        .replace(/\n/g, '<br>')
+        .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+      // コードブロックを復元
+      formattedMessage = formattedMessage.replace(new RegExp(`${codePlaceholder}(\\d+)`, 'g'), (_, index) => codeBlocks[index]);
+      // サニタイズ
+      formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
+      li.innerHTML = `
+        <div class="message bg-transparent p-3 row w-100">
+          <div class="col-auto profile-icon">
+            ${userData.photoURL ? 
+              `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+              `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+          </div>
+          <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+            <strong>${username}</strong>
+            <small class="text-muted ms-2">${date}</small>
+          </div>
+          <div class="col-12 message-body mt-2">
+            ${formattedMessage}
+          </div>
+        </div>`;
+      messagesEl.prepend(li);
+      setTimeout(() => li.classList.add('show'), 10);
+      console.log('ローカルメッセージ表示: tempMessageId=', tempMessageId, 'formattedMessage=', formattedMessage);
+      // Firebaseに送信（生のメッセージ）
+      const messageRef = await push(messagesRef, {
+        username,
+        message,
+        timestamp,
+        userId: auth.currentUser.uid,
+        ipAddress: userData.ipAddress || 'github'
+      });
+      console.log('Firebaseメッセージ送信成功: key=', messageRef.key);
+      const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
+      if (tempMessage) {
+        tempMessage.setAttribute('data-message-id', messageRef.key);
+        console.log('ローカルメッセージID更新: newId=', messageRef.key);
+      } else {
+        console.warn('ローカルメッセージが見つかりません: tempMessageId=', tempMessageId);
       }
-      if (!auth.currentUser) {
-        showError('ログインしてください。');
-        console.log('送信失敗: 未ログイン');
-        return;
-      }
-      const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
-      if (banned) {
-        showError('あなたはBANされています。メッセージを送信できません。');
-        console.log('送信失敗: ユーザーがBANされています');
-        return;
-      }
-      const message = inputEl.value.trim();
-      if (message.length === 0) {
-        showError('メッセージを入力してください。');
-        console.log('送信失敗: 空メッセージ');
-        return;
-      }
-      if (/[.#$/\[\]]/.test(message)) {
-        showError('メッセージに使用できない文字（. # $ / [ ]）が含まれています。');
-        console.log('送信失敗: 無効な文字');
-        return;
-      }
-      if (isSending) {
-        console.warn('メッセージ送信連打防止');
-        return;
-      }
-      isSending = true;
-      console.log('メッセージ送信処理開始: message=', message);
-try {
-    const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-    const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
-    const timestamp = Date.now();
-    const tempMessageId = `temp-${timestamp}`;
-    const li = document.createElement('li');
-    li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
-    li.setAttribute('data-message-id', tempMessageId);
-    li.setAttribute('role', 'listitem');
-    li.setAttribute('data-timestamp', timestamp);
-    const date = new Date(timestamp).toLocaleString('ja-JP');
-    li.innerHTML = `
-      <div class="message bg-transparent p-3 row w-100">
-        <div class="col-auto profile-icon">
-          ${userData.photoURL ? 
-            `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
-            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-        </div>
-        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-          <strong>${username}</strong>
-          <small class="text-muted ms-2">${date}</small>
-        </div>
-        <div class="col-12 message-body mt-2">
-          ${message.replace(/\n/g, '<br>')}
-        </div>
-      </div>`;
-    messagesEl.prepend(li);
-        setTimeout(() => li.classList.add('show'), 10);
-        console.log('ローカルメッセージ表示: tempMessageId=', tempMessageId);
-        // Firebaseに送信
-        const messageRef = await push(messagesRef, {
-          username,
-          message,
-          timestamp,
-          userId: auth.currentUser.uid,
-          ipAddress: userData.ipAddress || 'github'
-        });
-        console.log('Firebaseメッセージ送信成功: key=', messageRef.key);
-        // ローカルメッセージのIDを更新
-        const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
-        if (tempMessage) {
-          tempMessage.setAttribute('data-message-id', messageRef.key);
-          console.log('ローカルメッセージID更新: newId=', messageRef.key);
-        } else {
-          console.warn('ローカルメッセージが見つかりません: tempMessageId=', tempMessageId);
-        }
-        await push(actionsRef, {
-          type: 'sendMessage',
-          userId: auth.currentUser.uid,
-          username,
-          timestamp
-        });
-        inputEl.value = '';
-        inputEl.focus();
-        formEl.classList.remove('was-validated');
-        isUserScrolledUp = false;
-        messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-        newMessageBtn.classList.add('d-none');
-        console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
-        await updateOnlineUsers();
-      } catch (error) {
-        console.error('メッセージ送信エラー:', {
-          message: error.message,
-          code: error.code,
-          stack: error.stack
-        });
-        showError(`メッセージの送信に失敗しました: ${error.message}`);
-        const tempMessage = messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`);
-        if (tempMessage) tempMessage.remove();
-     } finally {
-        isSending = false;
-        console.log('メッセージ送信処理終了');
-      }
-    };
-    formEl.addEventListener('submit', formEl._submitHandler);
-    console.log('formElにsubmitリスナーを設定');
-  }
+      await push(actionsRef, {
+        type: 'sendMessage',
+        userId: auth.currentUser.uid,
+        username,
+        timestamp
+      });
+      inputEl.value = '';
+      inputEl.focus();
+      formEl.classList.remove('was-validated');
+      isUserScrolledUp = false;
+      messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+      newMessageBtn.classList.add('d-none');
+      console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
+      await updateOnlineUsers();
+    } catch (error) {
+      console.error('メッセージ送信エラー:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      showError(`メッセージの送信に失敗しました: ${error.message}`);
+      const tempMessage = messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`);
+      if (tempMessage) tempMessage.remove();
+    } finally {
+      isSending = false;
+      console.log('メッセージ送信処理終了');
+    }
+  };
+  formEl.addEventListener('submit', formEl._submitHandler);
+  console.log('formElにsubmitリスナーを設定');
+}
 
   // テキストエリアの自動リサイズ
   inputEl.addEventListener('input', () => {
@@ -886,72 +900,82 @@ async function loadInitialMessages() {
     const snapshot = await get(initialMessagesQuery);
     const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
     console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
-      
-      const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
-      const userDataPromises = userIds.map(async userId => {
-        if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
-        const snapshot = await get(ref(database, `users/${userId}`));
-        const data = snapshot.val() || {};
-        userCache.set(userId, data);
-        return { userId, data };
-      });
-      const userDataArray = await Promise.all(userDataPromises);
-      const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-      
-      messagesEl.innerHTML = '';
-      latestInitialTimestamp = messages.length ? Math.max(...messages.map(([_, msg]) => msg.timestamp)) : null;
-      const renderStartTime = performance.now();
-for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
-    const isLatest = key === messages[messages.length - 1]?.[0];
-    const provider = userDataMap[userId]?.provider || 'anonymous';
-    const photoURL = userDataMap[userId]?.photoURL;
-    const li = document.createElement('li');
-    li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
-    li.setAttribute('data-message-id', key);
-    li.setAttribute('role', 'listitem');
-    li.setAttribute('data-timestamp', timestamp);
-    const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-    li.innerHTML = `
-      <div class="message bg-transparent p-3 row w-100">
-        <div class="col-auto profile-icon">
-          ${photoURL ? 
-            `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
-            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-        </div>
-        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-          <strong>${username || '匿名'}</strong>
-          <small class="text-muted ms-2">${date}</small>
-        </div>
-        <div class="col-12 message-body mt-2">
-          ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-        </div>
-      </div>`;
-    messagesEl.prepend(li);
-    setTimeout(() => li.classList.add('show'), 10);
-  }
-      console.log(`初期メッセージ描画完了: メッセージ数=${messages.length}, 描画時間: ${(performance.now() - renderStartTime).toFixed(2)}ms, 総処理時間: ${(performance.now() - startTime).toFixed(2)}ms`);
-      showToast(`最新の${messages.length}件のメッセージを読み込みました`);
-      messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error) {
-      console.error('初期メッセージ読み込みエラー:', error);
-      showError('メッセージの読み込みに失敗しました。');
-    } finally {
-      if (progressOverlay) progressOverlay.classList.add('d-none');
+    
+    const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
+    const userDataPromises = userIds.map(async userId => {
+      if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
+      const snapshot = await get(ref(database, `users/${userId}`));
+      const data = snapshot.val() || {};
+      userCache.set(userId, data);
+      return { userId, data };
+    });
+    const userDataArray = await Promise.all(userDataPromises);
+    const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+    
+    messagesEl.innerHTML = '';
+    latestInitialTimestamp = messages.length ? Math.max(...messages.map(([_, msg]) => msg.timestamp)) : null;
+    const renderStartTime = performance.now();
+    for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
+      const isLatest = key === messages[messages.length - 1]?.[0];
+      const provider = userDataMap[userId]?.provider || 'anonymous';
+      const photoURL = userDataMap[userId]?.photoURL;
+      const li = document.createElement('li');
+      li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+      li.setAttribute('data-message-id', key);
+      li.setAttribute('role', 'listitem');
+      li.setAttribute('data-timestamp', timestamp);
+      const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+      // URLとコードブロックを処理
+      const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+      const codeRegex = /```([\s\S]*?)```/g;
+      let formattedMessage = message
+        ? message
+            .replace(/\n/g, '<br>')
+            .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+            .replace(codeRegex, '<pre><code>$1</code></pre>')
+        : 'メッセージなし';
+      formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
+      li.innerHTML = `
+        <div class="message bg-transparent p-3 row w-100">
+          <div class="col-auto profile-icon">
+            ${photoURL ? 
+              `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+              `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+          </div>
+          <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+            <strong>${username || '匿名'}</strong>
+            <small class="text-muted ms-2">${date}</small>
+          </div>
+          <div class="col-12 message-body mt-2">
+            ${formattedMessage}
+          </div>
+        </div>`;
+      messagesEl.prepend(li);
+      setTimeout(() => li.classList.add('show'), 10);
     }
+    console.log(`初期メッセージ描画完了: メッセージ数=${messages.length}, 描画時間: ${(performance.now() - renderStartTime).toFixed(2)}ms, 総処理時間: ${(performance.now() - startTime).toFixed(2)}ms`);
+    showToast(`最新の${messages.length}件のメッセージを読み込みました`);
+    messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (error) {
+    console.error('初期メッセージ読み込みエラー:', error);
+    showError('メッセージの読み込みに失敗しました。');
+  } finally {
+    if (progressOverlay) progressOverlay.classList.add('d-none');
   }
+}
 
   // 新しいメッセージの監視
   let messageListener = null;
 function setupMessageListener() {
   if (messageListener) {
-    messageListener(); // 既存のリスナーを解除
+    messageListener();
   }
   messageListener = onChildAdded(messagesRef, async (snapshot) => {
     try {
       const { username, message, timestamp, userId, ipAddress } = snapshot.val();
       const key = snapshot.key;
       if (timestamp <= latestInitialTimestamp) {
-        return; // ログ削除済み
+        return;
       }
       if (messagesEl.querySelector(`[data-message-id="${key}"]`) || 
           messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`)) {
@@ -962,6 +986,22 @@ function setupMessageListener() {
       userCache.set(userId, userData);
       if (userCache.size > 100) userCache.clear();
       const photoURL = userData.photoURL;
+      // コードブロックとURLを処理
+      const codeRegex = /```(\w+)?\s*([\s\S]*?)\s*```/g;
+      const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+      let formattedMessage = message;
+      const codePlaceholder = '___CODE_BLOCK___';
+      const codeBlocks = [];
+      formattedMessage = formattedMessage.replace(codeRegex, (_, lang, code) => {
+        const cleanCode = code.replace(/\n$/, '');
+        codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ''}>${cleanCode}</code></pre>`);
+        return codePlaceholder + (codeBlocks.length - 1);
+      });
+      formattedMessage = formattedMessage
+        .replace(/\n/g, '<br>')
+        .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+      formattedMessage = formattedMessage.replace(new RegExp(`${codePlaceholder}(\\d+)`, 'g'), (_, index) => codeBlocks[index]);
+      formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
       const li = document.createElement('li');
       li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
       li.setAttribute('data-message-id', key);
@@ -980,11 +1020,12 @@ function setupMessageListener() {
             <small class="text-muted ms-2">${date}</small>
           </div>
           <div class="col-12 message-body mt-2">
-            ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+            ${formattedMessage}
           </div>
         </div>`;
       messagesEl.prepend(li);
       setTimeout(() => li.classList.add('show'), 10);
+      console.log('新メッセージ表示: key=', key, 'formattedMessage=', formattedMessage);
       if (auth.currentUser?.uid !== userId) {
         notifyNewMessage({ username, message });
         console.log('新メッセージ通知送信: username=', username, 'message=', message);
