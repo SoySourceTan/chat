@@ -131,82 +131,125 @@ const progressOverlay = document.getElementById('progress-overlay');
     }
   }
 
-  // オンラインユーザー更新
-async function updateOnlineUsers() {
+// オンラインユーザー取得（script.js:137-160を置き換え）
+async function fetchOnlineUsers() {
   try {
     const snapshot = await get(onlineUsersRef);
-    const users = snapshot.val() ? Object.values(snapshot.val()) : [];
-    const userDataPromises = users.map(async user => {
-      let userData = userCache.has(user.userId) ? userCache.get(user.userId) : null;
-      if (!userData) {
-        const snapshot = await get(ref(database, `users/${user.userId}`));
-        userData = snapshot.val() || {};
-        userCache.set(user.userId, userData);
-      }
-      return { userId: user.userId, data: userData, username: user.username };
-    });
-    const userDataArray = await Promise.all(userDataPromises);
-    onlineUsersEl.innerHTML = userDataArray.map(({ userId, data, username }) => {
-      const photoURL = data.photoURL || null;
+    const users = snapshot.val()
+      ? Object.entries(snapshot.val()).map(([uid, user]) => ({
+          userId: uid, // UIDをキーから取得
+          username: user.username || '匿名',
+          photoURL: user.photoURL || null
+        }))
+      : [];
+    console.log('Fetched online users:', users);
+    return users;
+  } catch (error) {
+    console.error('オンラインユーザー取得エラー:', error);
+    return [];
+  }
+}
+
+async function getUserData(userId) {
+  if (!userId || typeof userId !== 'string') {
+    console.warn('Invalid userId in getUserData:', userId);
+    return { userId: null, username: '匿名', photoURL: null };
+  }
+  if (userCache.has(userId)) return userCache.get(userId);
+  try {
+    const snapshot = await get(ref(database, `users/${userId}`));
+    const data = snapshot.val() || { username: '匿名', photoURL: null };
+    userCache.set(userId, data);
+    if (userCache.size > 100) userCache.clear();
+    console.log('Fetched user data:', { userId, ...data });
+    return { userId, ...data };
+  } catch (error) {
+    console.error('ユーザー データ取得エラー:', error);
+    return { userId, username: '匿名', photoURL: null };
+  }
+}
+
+function renderOnlineUsers(users) {
+  if (!users || users.length === 0) {
+    console.log('No online users to render');
+    return '<span class="text-muted">オンラインのユーザーはいません</span>';
+  }
+  return users
+    .filter(user => user.userId && typeof user.userId === 'string')
+    .map(({ userId, username, photoURL }) => {
       const displayUsername = username || '匿名';
-      console.log(`userId: ${userId}, photoURL: ${photoURL}`); // デバッグログ
+      console.log(`Rendering user - userId: ${userId}, photoURL: ${photoURL}`);
       return `<span class="online-user" title="${displayUsername}">
-        ${photoURL ? 
-          `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">` :
-          `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
+        ${photoURL
+          ? `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">`
+          : `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
       </span>`;
-    }).join('');
+    })
+    .join('');
+}
+async function updateOnlineUsers() {
+  if (!auth.currentUser) {
+    console.log('未ログインのため、オンラインステータスをスキップ');
+    onlineUsersEl.innerHTML = '<span class="text-muted">ログインしてオンライン状況を確認</span>';
+    return;
+  }
+  try {
+    const users = await fetchOnlineUsers();
+    const userDataPromises = users.map(user => getUserData(user.userId));
+    const userDataArray = await Promise.all(userDataPromises);
+    onlineUsersEl.innerHTML = renderOnlineUsers(userDataArray);
   } catch (error) {
     console.warn('オンラインユーザー取得エラー:', error);
-    onlineUsersEl.innerHTML = '';
+    onlineUsersEl.innerHTML = '<span class="text-muted">オンライン状況の取得に失敗</span>';
   }
 }
   // ユーザーUI更新
   async function updateUserUI(user) {
-    try {
-      let userData; // userDataをここで定義
-      if (user) {
-        userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-        let username = userData.username || user.displayName || 'ゲスト';
-        username = username.length > 7 ? username.substring(0, 7) + "..." : username;
-        userInfo.innerHTML = `<span class="status-dot status-active"></span>${username}<i class="fas fa-pencil-alt ms-1"></i>`;
-        loginBtn.innerHTML = '<i class="fas fa-door-open"></i>';
-        loginModal.hide();
-        loginModalEl.setAttribute('inert', '');
-        if ((user.isAnonymous || !userData.username) && !isLoggingIn) {
-          unameInput.value = userData.username || '';
-          unameModalEl.removeAttribute('inert');
-          unameModal.show();
-          setTimeout(() => unameInput.focus(), 100);
-        }
-        lastActivity = Date.now();
-        try {
-          await set(ref(database, `onlineUsers/${user.uid}`), {
-            username,
-            timestamp: Date.now()
-          });
-          onDisconnect(ref(database, `onlineUsers/${user.uid}`)).remove();
-        } catch (error) {
-          console.warn('オンラインステータス更新エラー:', error);
-        }
-        updateStatusIndicator();
-        await updateOnlineUsers();
-        await loadInitialMessages();
-      } else {
-        userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
-        loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
-        unameModalEl.setAttribute('inert', '');
-        loginModalEl.removeAttribute('inert');
-        loginModal.show();
-        setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
-        if (progressOverlay) progressOverlay.classList.add('d-none');
-        await updateOnlineUsers();
+  try {
+    let userData;
+    if (user) {
+      userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
+      let username = userData.username || user.displayName || 'ゲスト';
+      username = username.length > 7 ? username.substring(0, 7) + "..." : username;
+      userInfo.innerHTML = `<span class="status-dot status-active"></span>${username}<i class="fas fa-pencil-alt ms-1"></i>`;
+      loginBtn.innerHTML = '<i class="fas fa-door-open"></i>';
+      loginModal.hide();
+      loginModalEl.setAttribute('inert', '');
+      if ((user.isAnonymous || !userData.username) && !isLoggingIn) {
+        unameInput.value = userData.username || '';
+        unameModalEl.removeAttribute('inert');
+        unameModal.show();
+        setTimeout(() => unameInput.focus(), 100);
       }
-    } catch (error) {
-      console.error('ユーザーUI更新エラー:', error);
-      showError('ユーザー情報の更新に失敗しました。');
+      lastActivity = Date.now();
+      try {
+        await set(ref(database, `onlineUsers/${user.uid}`), {
+          userId: user.uid, // userIdを明示的に追加
+          username,
+          timestamp: Date.now()
+        });
+        onDisconnect(ref(database, `onlineUsers/${user.uid}`)).remove();
+      } catch (error) {
+        console.warn('オンラインステータス更新エラー:', error);
+      }
+      updateStatusIndicator();
+      await updateOnlineUsers();
+      await loadInitialMessages();
+    } else {
+      userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
+      loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
+      unameModalEl.setAttribute('inert', '');
+      loginModalEl.removeAttribute('inert');
+      loginModal.show();
+      setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
+      if (progressOverlay) progressOverlay.classList.add('d-none');
+      await updateOnlineUsers();
     }
+  } catch (error) {
+    console.error('ユーザーUI更新エラー:', error);
+    showError('ユーザー情報の更新に失敗しました。');
   }
+}
 
   // オンラインユーザー監視
   onValue(onlineUsersRef, () => updateOnlineUsers());
@@ -455,7 +498,7 @@ twitterLogin.addEventListener('click', async () => {
   }
 });
 
-// Googleログイン
+// Googleログイン（script.js:507-539を更新）
 googleLogin.addEventListener('click', async () => {
   if (isLoggingIn) return;
   isLoggingIn = true;
@@ -470,15 +513,23 @@ googleLogin.addEventListener('click', async () => {
       email: user.email, 
       emailVerified: user.emailVerified, 
       providerData: user.providerData 
-    }); // デバッグ
+    });
     const providerId = result.providerId || 'google.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-    const username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    let username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    // usernameのバリデーション
+    if (!username || typeof username !== 'string' || username.length === 0 || username.length > 50 || /[.#$/\[\]]/.test(username)) {
+      console.warn('Invalid username detected, using fallback:', username);
+      username = `user${Date.now()}`; // フォールバック
+      if (username.length > 50) {
+        username = username.slice(0, 50); // 長さ制限
+      }
+    }
     const ipAddress = await getClientIp();
-    await set(ref(database, `users/${user.uid}`), {
+    const userData = {
       username,
       provider: providerId,
-      ipAddress,
+      ipAddress: ipAddress || null,
       photoURL: user.photoURL || null,
       email: user.email || null,
       emailVerified: user.emailVerified || false,
@@ -489,8 +540,10 @@ googleLogin.addEventListener('click', async () => {
         photoURL: data.photoURL,
         email: data.email
       }))
-    });
-    console.log('Google user data saved:', { username, photoURL: user.photoURL, email: user.email, ipAddress }); // デバッグ
+    };
+    console.log('Writing user data to /users/$uid:', { uid: user.uid, ...userData }); // 詳細なログ
+    await set(ref(database, `users/${user.uid}`), userData);
+    console.log('Google user data saved:', { username, photoURL: user.photoURL, email: user.email, ipAddress });
     await push(actionsRef, {
       type: 'connect',
       userId: user.uid,
@@ -500,7 +553,7 @@ googleLogin.addEventListener('click', async () => {
     console.log('Googleログイン成功:', user.displayName);
     showSuccess('Googleでログインしました。');
   } catch (error) {
-    console.error('Googleログインエラー:', { code: error.code, message: error.message });
+    console.error('Googleログインエラー:', { code: error.code, message: error.message, stack: error.stack });
     showError('Googleログインに失敗しました: ' + error.message);
   } finally {
     isLoggingIn = false;
