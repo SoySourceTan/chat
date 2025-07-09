@@ -132,15 +132,19 @@ const progressOverlay = document.getElementById('progress-overlay');
   }
 
 // オンラインユーザー取得（script.js:137-160を置き換え）
+let debounceTimeout = null;
+
 async function fetchOnlineUsers() {
   try {
     const snapshot = await get(onlineUsersRef);
     const users = snapshot.val()
-      ? Object.entries(snapshot.val()).map(([uid, user]) => ({
-          userId: uid, // UIDをキーから取得
-          username: user.username || '匿名',
-          photoURL: user.photoURL || null
-        }))
+      ? Object.entries(snapshot.val())
+          .filter(([uid, user]) => uid && user && typeof user === 'object')
+          .map(([uid, user]) => ({
+            userId: uid,
+            username: user.username && typeof user.username === 'string' ? user.username : '匿名',
+            photoURL: user.photoURL && typeof user.photoURL === 'string' ? user.photoURL : null
+          }))
       : [];
     console.log('Fetched online users:', users);
     return users;
@@ -177,16 +181,17 @@ function renderOnlineUsers(users) {
   return users
     .filter(user => user.userId && typeof user.userId === 'string')
     .map(({ userId, username, photoURL }) => {
-      const displayUsername = username || '匿名';
+      const displayUsername = username && typeof username === 'string' ? username : '匿名';
       console.log(`Rendering user - userId: ${userId}, photoURL: ${photoURL}`);
-      return `<span class="online-user" title="${displayUsername}">
+      return `<span class="online-user" title="${displayUsername}" data-user-id="${userId}">
         ${photoURL
-          ? `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">`
+          ? `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="this.outerHTML='<div class=\\'avatar\\'>${displayUsername.charAt(0).toUpperCase()}</div>'; console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">`
           : `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
       </span>`;
     })
     .join('');
 }
+
 async function updateOnlineUsers() {
   if (!auth.currentUser) {
     console.log('未ログインのため、オンラインステータスをスキップ');
@@ -195,14 +200,39 @@ async function updateOnlineUsers() {
   }
   try {
     const users = await fetchOnlineUsers();
-    const userDataPromises = users.map(user => getUserData(user.userId));
-    const userDataArray = await Promise.all(userDataPromises);
-    onlineUsersEl.innerHTML = renderOnlineUsers(userDataArray);
+    const limitedUsers = users.slice(0, 50);
+    const userDataArray = await Promise.all(limitedUsers.map(user => getUserData(user.userId)));
+    const currentUserIds = new Set(Array.from(onlineUsersEl.children).map(el => el.dataset.userId));
+    const newUserIds = new Set(userDataArray.map(user => user.userId));
+
+    // オフラインのユーザーを削除
+    Array.from(onlineUsersEl.children).forEach(el => {
+      if (!newUserIds.has(el.dataset.userId)) {
+        el.remove();
+      }
+    });
+
+    // オンラインのユーザーを追加または更新
+    userDataArray.forEach(({ userId, username, photoURL }) => {
+      if (!userId) return;
+      const existingEl = onlineUsersEl.querySelector(`[data-user-id="${userId}"]`);
+      const html = renderOnlineUsers([{ userId, username, photoURL }]);
+      if (existingEl) {
+        existingEl.outerHTML = html;
+      } else {
+        onlineUsersEl.insertAdjacentHTML('beforeend', html);
+      }
+    });
   } catch (error) {
     console.warn('オンラインユーザー取得エラー:', error);
     onlineUsersEl.innerHTML = '<span class="text-muted">オンライン状況の取得に失敗</span>';
   }
 }
+
+onValue(onlineUsersRef, () => {
+  clearTimeout(debounceTimeout);
+  debounceTimeout = setTimeout(updateOnlineUsers, 500);
+});
   // ユーザーUI更新
   async function updateUserUI(user) {
   try {
@@ -850,22 +880,22 @@ try {
   });
 
   // 初期メッセージ読み込み
-  async function loadInitialMessages() {
-    if (!auth.currentUser) {
-      console.log('未ログインのためメッセージ読み込みをスキップ');
-      return;
-    }
-    if (!progressOverlay) {
-      console.warn('progress-overlay要素が見つかりません。index.htmlに<div id="progress-overlay">が含まれているか確認してください。');
-      return;
-    }
-    try {
-      progressOverlay.classList.remove('d-none');
-      const startTime = performance.now();
-      const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
-      const snapshot = await get(initialMessagesQuery);
-      const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
-console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
+async function loadInitialMessages() {
+  if (!auth.currentUser) {
+    console.log('未ログインのためメッセージ読み込みをスキップ');
+    return;
+  }
+  if (!progressOverlay) {
+    console.warn('progress-overlay要素が見つかりません。index.htmlに<div id="progress-overlay">が含まれているか確認してください。');
+    return;
+  }
+  try {
+    progressOverlay.classList.remove('d-none');
+    const startTime = performance.now();
+    const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
+    const snapshot = await get(initialMessagesQuery);
+    const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
+    console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
       
       const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
       const userDataPromises = userIds.map(async userId => {
@@ -922,7 +952,7 @@ for (const [key, { username, message, timestamp, userId, ipAddress }] of message
 
   // 新しいメッセージの監視
   let messageListener = null;
- function setupMessageListener() {
+function setupMessageListener() {
   if (messageListener) {
     messageListener(); // 既存のリスナーを解除
   }
@@ -931,8 +961,7 @@ for (const [key, { username, message, timestamp, userId, ipAddress }] of message
       const { username, message, timestamp, userId, ipAddress } = snapshot.val();
       const key = snapshot.key;
       if (timestamp <= latestInitialTimestamp) {
-        console.log('初期ロード済みのメッセージをスキップ: key=', key, 'timestamp=', timestamp);
-        return;
+        return; // ログ削除済み
       }
       if (messagesEl.querySelector(`[data-message-id="${key}"]`) || 
           messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`)) {
