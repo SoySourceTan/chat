@@ -157,16 +157,23 @@ async function fetchOnlineUsers() {
 async function getUserData(userId) {
   if (!userId || typeof userId !== 'string') {
     console.warn('Invalid userId in getUserData:', userId);
-    return { userId: null, username: '匿名', photoURL: null };
+    return null; // 無効な場合はnullを返す
   }
-  if (userCache.has(userId)) return userCache.get(userId);
+  if (userCache.has(userId)) {
+    const cachedData = userCache.get(userId);
+    if (cachedData.userId === userId) {
+      return cachedData;
+    }
+    console.warn('Invalid cached data for userId:', userId, cachedData);
+  }
   try {
     const snapshot = await get(ref(database, `users/${userId}`));
     const data = snapshot.val() || { username: '匿名', photoURL: null };
-    userCache.set(userId, data);
+    const userData = { userId, ...data };
+    userCache.set(userId, userData);
     if (userCache.size > 100) userCache.clear();
-    console.log('Fetched user data:', { userId, ...data });
-    return { userId, ...data };
+    console.log('Fetched user data:', userData);
+    return userData;
   } catch (error) {
     console.error('ユーザー データ取得エラー:', error);
     return { userId, username: '匿名', photoURL: null };
@@ -179,7 +186,7 @@ function renderOnlineUsers(users) {
     return '<span class="text-muted">オンラインのユーザーはいません</span>';
   }
   return users
-    .filter(user => user.userId && typeof user.userId === 'string')
+    .filter(user => user && user.userId && typeof user.userId === 'string') // 有効なuserIdのみ
     .map(({ userId, username, photoURL }) => {
       const displayUsername = username && typeof username === 'string' ? username : '匿名';
       console.log(`Rendering user - userId: ${userId}, photoURL: ${photoURL}`);
@@ -201,37 +208,20 @@ async function updateOnlineUsers() {
   try {
     const users = await fetchOnlineUsers();
     const limitedUsers = users.slice(0, 50);
-    const userDataArray = await Promise.all(limitedUsers.map(user => getUserData(user.userId)));
-    const currentUserIds = new Set(Array.from(onlineUsersEl.children).map(el => el.dataset.userId));
-    const newUserIds = new Set(userDataArray.map(user => user.userId));
-
-    // オフラインのユーザーを削除
-    Array.from(onlineUsersEl.children).forEach(el => {
-      if (!newUserIds.has(el.dataset.userId)) {
-        el.remove();
-      }
-    });
-
-    // オンラインのユーザーを追加または更新
-    userDataArray.forEach(({ userId, username, photoURL }) => {
-      if (!userId) return;
-      const existingEl = onlineUsersEl.querySelector(`[data-user-id="${userId}"]`);
-      const html = renderOnlineUsers([{ userId, username, photoURL }]);
-      if (existingEl) {
-        existingEl.outerHTML = html;
-      } else {
-        onlineUsersEl.insertAdjacentHTML('beforeend', html);
-      }
-    });
+    const userDataArray = (await Promise.all(limitedUsers.map(user => getUserData(user.userId))))
+      .filter(user => user && user.userId && typeof user.userId === 'string'); // 無効なデータを除外
+    console.log('Valid user data array:', userDataArray);
+    onlineUsersEl.innerHTML = renderOnlineUsers(userDataArray);
   } catch (error) {
     console.warn('オンラインユーザー取得エラー:', error);
     onlineUsersEl.innerHTML = '<span class="text-muted">オンライン状況の取得に失敗</span>';
   }
 }
 
-onValue(onlineUsersRef, () => {
+onValue(onlineUsersRef, (snapshot) => {
+  console.log('onValue triggered at:', new Date().toISOString(), 'Data:', snapshot.val());
   clearTimeout(debounceTimeout);
-  debounceTimeout = setTimeout(updateOnlineUsers, 500);
+  debounceTimeout = setTimeout(updateOnlineUsers, 1000);
 });
   // ユーザーUI更新
   async function updateUserUI(user) {
