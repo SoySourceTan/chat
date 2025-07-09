@@ -277,16 +277,33 @@ async function updateOnlineUsers() {
 // 既存のリスナーを削除（念のため）
 messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
 
+// 既存のスクロールイベントリスナーを置き換え
+let lastScrollTop = 0; // 最後のスクロール位置を記録
+
 // 新しいスクロールイベントリスナー
 window.addEventListener('scroll', async () => {
-  const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
-  console.log('Scroll Event:', {
-    scrollBottom,
-    scrollHeight: document.documentElement.scrollHeight,
-    clientHeight: window.innerHeight,
-    scrollTop: window.scrollY
-  });
-  isUserScrolledUp = window.scrollY > 10;
+  const navbar = document.querySelector('nav.navbar-slide');
+  const currentScrollTop = window.scrollY;
+  const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - currentScrollTop;
+
+  // ナビゲーションバーの表示/非表示
+  if (currentScrollTop > 100) {
+    // 100px以上スクロールダウン
+    if (currentScrollTop > lastScrollTop) {
+      // スクロールダウン中
+      navbar.classList.add('hidden');
+    } else {
+      // スクロールアップ中
+      navbar.classList.remove('hidden');
+    }
+  } else {
+    // 100px未満では常に表示
+    navbar.classList.remove('hidden');
+  }
+  lastScrollTop = currentScrollTop <= 0 ? 0 : currentScrollTop; // 負のスクロールを防ぐ
+
+  // 既存のスクロール処理（メッセージ読み込みなど）
+  isUserScrolledUp = currentScrollTop > 10;
   newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
   if (scrollBottom < 100 && !isLoading) {
     console.log('ローディング開始');

@@ -10,11 +10,7 @@ body {
     overflow-y: auto; /* ブラウザのスクロールバーを明示 */
 }
 
-main {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-}
+
 
 #messages {
     flex-grow: 1;
@@ -338,4 +334,22 @@ main {
   0% { box-shadow: 0 0 0 0 rgba(255, 182, 193, 0.4); }
   70% { box-shadow: 0 0 0 10px rgba(255, 182, 193, 0); }
   100% { box-shadow: 0 0 0 0 rgba(255, 182, 193, 0); }
+}
+/* ナビゲーションバーのスライドアニメーション */
+.navbar-slide {
+  transition: transform 0.3s ease-in-out; /* スムーズなスライド */
+  z-index: 1000; /* 他の要素より前面 */
+}
+
+.navbar-slide.hidden {
+  transform: translateY(-100%); /* 上にスライドして非表示 */
+}
+
+/* ナビゲーションバーが隠れた時にコンテンツが隠れないよう調整 */
+
+main {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+      margin-top: 70px; /* ナビゲーションバーの高さに合わせて調整（実測値で変更） */
 }
