@@ -27,6 +27,22 @@ const firebaseConfig = {
   measurementId: "G-2B5KWNHYED"
 };
 
+// クッキー設定
+function setCookie(name, value, days) {
+  const expires = days
+    ? `; expires=${new Date(Date.now() + days * 86400000).toUTCString()}`
+    : '';
+  document.cookie = `${name}=${value}${expires}; path=/; SameSite=Strict`;
+  console.log(`クッキー設定: ${name}=${value}, expires=${expires}`);
+}
+// クッキー取得
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  const value = match ? match[2] : null;
+  console.log(`クッキー取得: ${name}=${value}`);
+  return value;
+}
+
 try {
   // Firebase初期化
   const app = initializeApp(firebaseConfig);
@@ -70,19 +86,20 @@ try {
   const newMessageBtn = document.getElementById('newMessageBtn');
   const toggleModeBtn = document.getElementById('toggleModeBtn');
   const loadingIndicator = document.getElementById('loading-indicator');
-const progressOverlay = document.getElementById('progress-overlay');
+  const progressOverlay = document.getElementById('progress-overlay');
 
-  // 状態管理
-  let isSending = false;
-  let isLoggingIn = false;
-  let isUserScrolledUp = false;
-  let isEnterSendMode = true;
-  let isLoading = false;
-  let lastTimestamp = null;
-  let latestInitialTimestamp = null; // 初期ロードの最新メッセージのタイムスタンプ
-  let isCompactMode = false;
-  let lastActivity = Date.now();
-  const userCache = new Map();
+// 状態管理
+let isSending = false;
+let isLoggingIn = false;
+let isUserScrolledUp = false;
+let isEnterSendMode = getCookie('enterSendMode') === 'true'  // クッキーから復元
+let isLoading = false;
+let lastTimestamp = null;
+let latestInitialTimestamp = null;
+let isCompactMode = false;
+let lastActivity = Date.now();
+const userCache = new Map();
+let debounceTimeout = null;
 
   // エラーメッセージ表示
   function showError(message) {
@@ -131,8 +148,6 @@ const progressOverlay = document.getElementById('progress-overlay');
     }
   }
 
-// オンラインユーザー取得（script.js:137-160を置き換え）
-let debounceTimeout = null;
 
 async function fetchOnlineUsers() {
   try {
@@ -232,7 +247,7 @@ onValue(onlineUsersRef, (snapshot) => {
       let username = userData.username || user.displayName || 'ゲスト';
       username = username.length > 7 ? username.substring(0, 7) + "..." : username;
       userInfo.innerHTML = `<span class="status-dot status-active"></span>${username}<i class="fas fa-pencil-alt ms-1"></i>`;
-      loginBtn.innerHTML = '<i class="fas fa-door-open"></i>';
+      loginBtn.innerHTML = '<i class="fa fa-sign-out"></i>';
       loginModal.hide();
       loginModalEl.setAttribute('inert', '');
       if ((user.isAnonymous || !userData.username) && !isLoggingIn) {
@@ -334,15 +349,16 @@ onValue(onlineUsersRef, (snapshot) => {
   });
 
   // 送信/改行モード切り替え
-  toggleModeBtn.addEventListener('click', () => {
-    isEnterSendMode = !isEnterSendMode;
-    toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
-    const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
-    toggleModeBtn.setAttribute('data-bs-title', newTitle);
-    toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
-    showTooltip(toggleModeBtn, newTitle);
-    console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
-  });
+toggleModeBtn.addEventListener('click', () => {
+  isEnterSendMode = !isEnterSendMode;
+  toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
+  const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
+  toggleModeBtn.setAttribute('data-bs-title', newTitle);
+  toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
+  setCookie('enterSendMode', isEnterSendMode, 365); // クッキーに保存（1年）
+  showTooltip(toggleModeBtn, newTitle);
+  console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
+});
 
   // メッセージ入力時のエンターキー処理
   inputEl.addEventListener('keydown', (e) => {
@@ -1083,19 +1099,24 @@ newMessageBtn.addEventListener('click', () => {
     console.log('newMessageBtnクリック: ページの最上部にスクロール');
 });
   // フォーム初期化（クローンを削除）
-  window.onload = () => {
-    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-      new bootstrap.Tooltip(el);
-    });
-    if (!formEl) {
-      console.error('window.onload: formElが見つかりません。ID="messageForm"の要素を確認してください。');
-    } else {
-      console.log('window.onload: formElにsubmitリスナーを再設定');
-      formEl.removeEventListener('submit', formEl._submitHandler);
-      formEl.addEventListener('submit', formEl._submitHandler);
-    }
-  };
-
+window.onload = () => {
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+    new bootstrap.Tooltip(el);
+  });
+  // モードボタンのUIをクッキーの状態に同期
+  toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
+  const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
+  toggleModeBtn.setAttribute('data-bs-title', newTitle);
+  toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
+  console.log('初期モード:', isEnterSendMode ? '送信モード' : '改行モード');
+  if (!formEl) {
+    console.error('window.onload: formElが見つかりません。ID="messageForm"の要素を確認してください。');
+  } else {
+    console.log('window.onload: formElにsubmitリスナーを再設定');
+    formEl.removeEventListener('submit', formEl._submitHandler);
+    formEl.addEventListener('submit', formEl._submitHandler);
+  }
+};
 } catch (error) {
   console.error('Firebase初期化エラー:', {
     message: error.message,
