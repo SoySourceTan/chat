@@ -456,8 +456,6 @@ if (messagesEl.scrollTop > scrollTopMax - 100 && !isLoading) {
           messagesEl.appendChild(li);
           setTimeout(() => li.classList.add('show'), 10);
         }
-        console.log(`過去メッセージロード完了: メッセージ数=${olderMessagesArray.length}, ${(performance.now() - startTime)}ms`);
-        showToast(`過去の${olderMessagesArray.length}件のメッセージを読み込みました`);
       }
     } catch (error) {
       console.error('過去メッセージ取得エラー:', error);
