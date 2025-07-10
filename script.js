@@ -860,25 +860,26 @@ formEl._submitHandler = async (e) => {
       username,
       timestamp
     });
-    inputEl.value = '';
-    inputEl.focus();
-    formEl.classList.remove('was-validated');
-    isUserScrolledUp = false;
-    messagesEl.scrollTop = 0; // 初期化
-requestAnimationFrame(() => {
-  console.log('スクロール実行前: window.scrollY=', window.scrollY);
-  window.scrollTo({ top: 0, behavior: 'smooth' }); // 変更
-  setTimeout(() => {
-    console.log('スクロール実行後: window.scrollY=', window.scrollY);
-    if (window.scrollY !== 0) {
-      console.warn('スクロール失敗: 強制再試行');
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    }
-  }, 300);
-});
-    newMessageBtn.classList.add('d-none');
-    console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
-    await updateOnlineUsers();
+    // キーボードを閉じる
+    inputEl.blur();
+    console.log('キーボードを閉じました');
+    // キーボードが閉じるのを待ってからスクロール
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        console.log('スクロール実行: scrollY=', window.scrollY);
+        if (window.scrollY !== 0) {
+          console.warn('スクロール失敗: 強制再試行');
+          window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+      });
+      inputEl.value = '';
+      formEl.classList.remove('was-validated');
+      isUserScrolledUp = false;
+      newMessageBtn.classList.add('d-none');
+      // 必要に応じて再フォーカス
+      // inputEl.focus();
+    }, 150); // キーボード閉じる遅延を考慮
   } catch (error) {
     console.error('メッセージ送信エラー:', {
       message: error.message,
