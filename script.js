@@ -865,17 +865,17 @@ formEl._submitHandler = async (e) => {
     formEl.classList.remove('was-validated');
     isUserScrolledUp = false;
     messagesEl.scrollTop = 0; // 初期化
-function adjustScrollForKeyboard() {
-  if (window.visualViewport) {
-    const viewportHeight = window.visualViewport.height;
-    const offset = window.innerHeight - viewportHeight; // キーボードの高さ
-    window.scrollTo({ top: offset, behavior: 'smooth' });
-  } else {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-}
-inputEl.addEventListener('focus', adjustScrollForKeyboard);
-formEl.addEventListener('submit', adjustScrollForKeyboard);
+requestAnimationFrame(() => {
+  console.log('スクロール実行前: window.scrollY=', window.scrollY);
+  window.scrollTo({ top: 0, behavior: 'smooth' }); // 変更
+  setTimeout(() => {
+    console.log('スクロール実行後: window.scrollY=', window.scrollY);
+    if (window.scrollY !== 0) {
+      console.warn('スクロール失敗: 強制再試行');
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, 300);
+});
     newMessageBtn.classList.add('d-none');
     console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
     await updateOnlineUsers();
