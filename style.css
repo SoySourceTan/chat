@@ -14,7 +14,7 @@ body {
 margin-top: 20px;
 }
 
-#nav {background-color: #f4f6ff;}
+#nav {background-color: #ffd6eb;}
 #navsec {background-color: #ffffff;}
 
 #messages {
@@ -340,6 +340,11 @@ margin-top: 20px;
   70% { box-shadow: 0 0 0 10px rgba(255, 182, 193, 0); }
   100% { box-shadow: 0 0 0 0 rgba(255, 182, 193, 0); }
 }
+
+.navbar-brand {
+  color: #ff8e8e;
+}
+
 /* ナビゲーションバーのスライドアニメーション */
 .navbar-slide {
   transition: transform 0.3s ease-in-out; /* スムーズなスライド */
