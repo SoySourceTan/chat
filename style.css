@@ -328,8 +328,6 @@ margin-top: 20px;
   opacity: 0.8;
   align-self: center;
 }
-.navbar-brand {color:#00af90;}
-
 @media (max-width: 576px) {
   .profile-img, .avatar {
     width: 24px;

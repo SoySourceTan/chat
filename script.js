@@ -406,7 +406,8 @@ window.addEventListener('scroll', async () => {
   // 既存のスクロール処理（メッセージ読み込みなど）
   isUserScrolledUp = currentScrollTop > 10;
   newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-  if (scrollBottom < 100 && !isLoading) {
+const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
+if (messagesEl.scrollTop > scrollTopMax - 100 && !isLoading) {
     console.log('ローディング開始');
     isLoading = true;
     loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
@@ -764,132 +765,137 @@ if (!formEl) {
 } else {
   console.log('formElを初期化: ID=messageForm');
   formEl.removeEventListener('submit', formEl._submitHandler);
-  formEl._submitHandler = async (e) => {
-    e.preventDefault();
-    console.log('フォーム送信開始');
-    if (!formEl.checkValidity()) {
-      e.stopPropagation();
-      formEl.classList.add('was-validated');
-      console.log('バリデーション失敗');
-      return;
+formEl._submitHandler = async (e) => {
+  e.preventDefault();
+  console.log('フォーム送信開始');
+  if (!formEl.checkValidity()) {
+    e.stopPropagation();
+    formEl.classList.add('was-validated');
+    console.log('バリデーション失敗');
+    return;
+  }
+  if (!auth.currentUser) {
+    showError('ログインしてください。');
+    console.log('送信失敗: 未ログイン');
+    return;
+  }
+  const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
+  if (banned) {
+    showError('あなたはBANされています。メッセージを送信できません。');
+    console.log('送信失敗: ユーザーがBANされています');
+    return;
+  }
+  const message = inputEl.value.trim();
+  if (message.length === 0) {
+    showError('メッセージを入力してください。');
+    console.log('送信失敗: 空メッセージ');
+    return;
+  }
+  if (isSending) {
+    console.warn('メッセージ送信連打防止');
+    return;
+  }
+  isSending = true;
+  console.log('メッセージ送信処理開始: message=', message);
+  try {
+    const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+    const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
+    const timestamp = Date.now();
+    const tempMessageId = `temp-${timestamp}`;
+    const li = document.createElement('li');
+    li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+    li.setAttribute('data-message-id', tempMessageId);
+    li.setAttribute('role', 'listitem');
+    li.setAttribute('data-timestamp', timestamp);
+    const date = new Date(timestamp).toLocaleString('ja-JP');
+    const codeRegex = /```(\w+)?\s*([\s\S]*?)\s*```/g;
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+    let formattedMessage = message;
+    const codePlaceholder = '___CODE_BLOCK___';
+    const codeBlocks = [];
+    formattedMessage = formattedMessage.replace(codeRegex, (_, lang, code) => {
+      const cleanCode = code.replace(/\n$/, '');
+      codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ''}>${cleanCode}</code></pre>`);
+      return codePlaceholder + (codeBlocks.length - 1);
+    });
+    formattedMessage = formattedMessage
+      .replace(/\n/g, '<br>')
+      .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    formattedMessage = formattedMessage.replace(new RegExp(`${codePlaceholder}(\\d+)`, 'g'), (_, index) => codeBlocks[index]);
+    formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
+    li.innerHTML = `
+      <div class="message bg-transparent p-2 row">
+        <div class="col-auto profile-icon">
+          ${userData.photoURL ? 
+            `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+        </div>
+        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+          <strong>${username}</strong>
+          <small class="text-muted ms-2">${date}</small>
+        </div>
+        <div class="col-12 message-body mt-2">
+          ${formattedMessage}
+        </div>
+      </div>`;
+    messagesEl.prepend(li);
+    setTimeout(() => li.classList.add('show'), 10);
+    console.log('ローカルメッセージ表示: tempMessageId=', tempMessageId);
+    const messageRef = await push(messagesRef, {
+      username,
+      message,
+      timestamp,
+      userId: auth.currentUser.uid,
+      ipAddress: userData.ipAddress || 'github'
+    });
+    console.log('Firebaseメッセージ送信成功: key=', messageRef.key);
+    const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
+    if (tempMessage) {
+      tempMessage.setAttribute('data-message-id', messageRef.key);
+      console.log('ローカルメッセージID更新: newId=', messageRef.key);
+    } else {
+      console.warn('ローカルメッセージが見つかりません: tempMessageId=', tempMessageId);
     }
-    if (!auth.currentUser) {
-      showError('ログインしてください。');
-      console.log('送信失敗: 未ログイン');
-      return;
+    await push(actionsRef, {
+      type: 'sendMessage',
+      userId: auth.currentUser.uid,
+      username,
+      timestamp
+    });
+    inputEl.value = '';
+    inputEl.focus();
+    formEl.classList.remove('was-validated');
+    isUserScrolledUp = false;
+    messagesEl.scrollTop = 0; // 初期化
+requestAnimationFrame(() => {
+  console.log('スクロール実行前: window.scrollY=', window.scrollY);
+  window.scrollTo({ top: 0, behavior: 'smooth' }); // 変更
+  setTimeout(() => {
+    console.log('スクロール実行後: window.scrollY=', window.scrollY);
+    if (window.scrollY !== 0) {
+      console.warn('スクロール失敗: 強制再試行');
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
-    const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
-    if (banned) {
-      showError('あなたはBANされています。メッセージを送信できません。');
-      console.log('送信失敗: ユーザーがBANされています');
-      return;
-    }
-    const message = inputEl.value.trim();
-    if (message.length === 0) {
-      showError('メッセージを入力してください。');
-      console.log('送信失敗: 空メッセージ');
-      return;
-    }
-    if (isSending) {
-      console.warn('メッセージ送信連打防止');
-      return;
-    }
-    isSending = true;
-    console.log('メッセージ送信処理開始: message=', message);
-    try {
-      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-      const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
-      const timestamp = Date.now();
-      const tempMessageId = `temp-${timestamp}`;
-      const li = document.createElement('li');
-      li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
-      li.setAttribute('data-message-id', tempMessageId);
-      li.setAttribute('role', 'listitem');
-      li.setAttribute('data-timestamp', timestamp);
-      const date = new Date(timestamp).toLocaleString('ja-JP');
-      // コードブロックとURLを処理
-      const codeRegex = /```(\w+)?\s*([\s\S]*?)\s*```/g;
-      const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
-      let formattedMessage = message;
-      const codePlaceholder = '___CODE_BLOCK___';
-      const codeBlocks = [];
-      // コードブロックを検出して保護
-      formattedMessage = formattedMessage.replace(codeRegex, (_, lang, code) => {
-        const cleanCode = code.replace(/\n$/, ''); // 末尾の改行を削除
-        codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ''}>${cleanCode}</code></pre>`);
-        return codePlaceholder + (codeBlocks.length - 1);
-      });
-      // 改行とURLリンク化
-      formattedMessage = formattedMessage
-        .replace(/\n/g, '<br>')
-        .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-      // コードブロックを復元
-      formattedMessage = formattedMessage.replace(new RegExp(`${codePlaceholder}(\\d+)`, 'g'), (_, index) => codeBlocks[index]);
-      // サニタイズ
-      formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
-      li.innerHTML = `
-        <div class="message bg-transparent p-2 row">
-          <div class="col-auto profile-icon">
-            ${userData.photoURL ? 
-              `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
-              `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-          </div>
-          <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-            <strong>${username}</strong>
-            <small class="text-muted ms-2">${date}</small>
-          </div>
-          <div class="col-12 message-body mt-2">
-            ${formattedMessage}
-          </div>
-        </div>`;
-      messagesEl.prepend(li);
-      setTimeout(() => li.classList.add('show'), 10);
-      console.log('ローカルメッセージ表示: tempMessageId=', tempMessageId, 'formattedMessage=', formattedMessage);
-      // Firebaseに送信（生のメッセージ）
-      const messageRef = await push(messagesRef, {
-        username,
-        message,
-        timestamp,
-        userId: auth.currentUser.uid,
-        ipAddress: userData.ipAddress || 'github'
-      });
-      console.log('Firebaseメッセージ送信成功: key=', messageRef.key);
-      const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
-      if (tempMessage) {
-        tempMessage.setAttribute('data-message-id', messageRef.key);
-        console.log('ローカルメッセージID更新: newId=', messageRef.key);
-      } else {
-        console.warn('ローカルメッセージが見つかりません: tempMessageId=', tempMessageId);
-      }
-      await push(actionsRef, {
-        type: 'sendMessage',
-        userId: auth.currentUser.uid,
-        username,
-        timestamp
-      });
-      inputEl.value = '';
-      inputEl.focus();
-      formEl.classList.remove('was-validated');
-      isUserScrolledUp = false;
-      messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-      newMessageBtn.classList.add('d-none');
-      console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
-      await updateOnlineUsers();
-    } catch (error) {
-      console.error('メッセージ送信エラー:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
-      });
-      showError(`メッセージの送信に失敗しました: ${error.message}`);
-      const tempMessage = messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`);
-      if (tempMessage) tempMessage.remove();
-    } finally {
-      isSending = false;
-      console.log('メッセージ送信処理終了');
-    }
-  };
-  formEl.addEventListener('submit', formEl._submitHandler);
+  }, 300);
+});
+    newMessageBtn.classList.add('d-none');
+    console.log('メッセージ送信成功: スクロール位置=', messagesEl.scrollTop);
+    await updateOnlineUsers();
+  } catch (error) {
+    console.error('メッセージ送信エラー:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    showError(`メッセージの送信に失敗しました: ${error.message}`);
+    const tempMessage = messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`);
+    if (tempMessage) tempMessage.remove();
+  } finally {
+    isSending = false;
+    console.log('メッセージ送信処理終了');
+  }
+};
+formEl.addEventListener('submit', formEl._submitHandler);
   console.log('formElにsubmitリスナーを設定');
 }
 
@@ -1046,12 +1052,15 @@ function setupMessageListener() {
         notifyNewMessage({ username, message });
         console.log('新メッセージ通知送信: username=', username, 'message=', message);
       }
-      if (!isUserScrolledUp) {
-        messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-        newMessageBtn.classList.add('d-none');
-      } else {
-        newMessageBtn.classList.remove('d-none');
-      }
+if (!isUserScrolledUp) {
+  requestAnimationFrame(() => {
+    messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+    console.log('新メッセージでスクロール: scrollTop=', messagesEl.scrollTop);
+  });
+  newMessageBtn.classList.add('d-none');
+} else {
+  newMessageBtn.classList.remove('d-none');
+}
     } catch (error) {
       console.error('新メッセージ追加エラー:', error);
       showError('メッセージの取得に失敗しました。');
