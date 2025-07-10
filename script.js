@@ -438,7 +438,7 @@ window.addEventListener('scroll', async () => {
           li.setAttribute('data-timestamp', timestamp);
           const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
           li.innerHTML = `
-            <div class="message bg-transparent p-3 row w-100">
+            <div class="message bg-transparent p-2 row">
 <div class="col-auto profile-icon">
   ${photoURL ? 
     `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
@@ -828,7 +828,7 @@ if (!formEl) {
       // サニタイズ
       formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
       li.innerHTML = `
-        <div class="message bg-transparent p-3 row w-100">
+        <div class="message bg-transparent p-2 row">
           <div class="col-auto profile-icon">
             ${userData.photoURL ? 
               `<img src="${userData.photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
@@ -952,7 +952,7 @@ async function loadInitialMessages() {
         : 'メッセージなし';
       formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
       li.innerHTML = `
-        <div class="message bg-transparent p-3 row w-100">
+        <div class="message bg-transparent p-2 row">
           <div class="col-auto profile-icon">
             ${photoURL ? 
               `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
@@ -1025,7 +1025,7 @@ function setupMessageListener() {
       li.setAttribute('data-timestamp', timestamp);
       const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
       li.innerHTML = `
-        <div class="message bg-transparent p-3 row w-100">
+        <div class="message bg-transparent p-2 row">
           <div class="col-auto profile-icon">
             ${photoURL ? 
               `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :

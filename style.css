@@ -10,11 +10,16 @@ body {
     overflow-y: auto; /* ブラウザのスクロールバーを明示 */
 }
 
+.main-content {
+margin-top: 20px;
+}
 
+#nav {background-color: #f4f6ff;}
+#navsec {background-color: #ffffff;}
 
 #messages {
     flex-grow: 1;
-    margin-top: 1rem;
+    margin-top: 100px;
     scroll-behavior: smooth;
     display: flex;
     flex-direction: column;
@@ -323,6 +328,8 @@ body {
   opacity: 0.8;
   align-self: center;
 }
+.navbar-brand {color:#00af90;}
+
 @media (max-width: 576px) {
   .profile-img, .avatar {
     width: 24px;
