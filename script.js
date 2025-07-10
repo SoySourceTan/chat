@@ -388,7 +388,7 @@ window.addEventListener('scroll', async () => {
   const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - currentScrollTop;
 
   // ナビゲーションバーの表示/非表示
-  if (currentScrollTop > 100) {
+  if (currentScrollTop > 50) {
     // 100px以上スクロールダウン
     if (currentScrollTop > lastScrollTop) {
       // スクロールダウン中
@@ -763,6 +763,14 @@ if (!formEl) {
 } else {
   console.log('formElを初期化: ID=messageForm');
   formEl.removeEventListener('submit', formEl._submitHandler);
+
+// モバイル判定関数
+function isMobileDevice() {
+  // window.orientation が定義されている、または ontouchstart がサポートされている場合をモバイルとみなす
+  const hasOrientation = typeof window.orientation !== 'undefined';
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  return hasOrientation || hasTouch;
+}
 formEl._submitHandler = async (e) => {
   e.preventDefault();
   console.log('フォーム送信開始');
@@ -860,26 +868,39 @@ formEl._submitHandler = async (e) => {
       username,
       timestamp
     });
-    // キーボードを閉じる
-    inputEl.blur();
-    console.log('キーボードを閉じました');
-    // キーボードが閉じるのを待ってからスクロール
-    setTimeout(() => {
+
+    // デバイス判別に基づく処理
+    if (isMobileDevice()) {
+      // モバイル: キーボードを閉じてスクロール
+      inputEl.blur();
+      console.log('モバイル: キーボードを閉じました');
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          console.log('モバイル: スクロール実行: scrollY=', window.scrollY);
+          if (window.scrollY !== 0) {
+            console.warn('スクロール失敗: 強制再試行');
+            window.scrollTo({ top: 0, behavior: 'auto' });
+          }
+        });
+      }, 150); // キーボード閉じる遅延を考慮
+    } else {
+      // PC: フォーカスを維持して連続入力可能に
+      console.log('PC: フォーカスを維持');
       requestAnimationFrame(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        console.log('スクロール実行: scrollY=', window.scrollY);
+        console.log('PC: スクロール実行: scrollY=', window.scrollY);
         if (window.scrollY !== 0) {
           console.warn('スクロール失敗: 強制再試行');
           window.scrollTo({ top: 0, behavior: 'auto' });
         }
       });
-      inputEl.value = '';
-      formEl.classList.remove('was-validated');
-      isUserScrolledUp = false;
-      newMessageBtn.classList.add('d-none');
-      // 必要に応じて再フォーカス
-      // inputEl.focus();
-    }, 150); // キーボード閉じる遅延を考慮
+    }
+
+    inputEl.value = '';
+    formEl.classList.remove('was-validated');
+    isUserScrolledUp = false;
+    newMessageBtn.classList.add('d-none');
   } catch (error) {
     console.error('メッセージ送信エラー:', {
       message: error.message,
