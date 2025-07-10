@@ -898,10 +898,14 @@ formEl.addEventListener('submit', formEl._submitHandler);
 }
 
   // テキストエリアの自動リサイズ
-  inputEl.addEventListener('input', () => {
-    inputEl.style.height = 'auto';
-    inputEl.style.height = `${Math.min(inputEl.scrollHeight, 120)}px`;
-  });
+inputEl.addEventListener('focus', (e) => {
+  e.preventDefault();
+  const currentScrollY = window.scrollY;
+  setTimeout(() => {
+    window.scrollTo({ top: currentScrollY, behavior: 'auto' });
+    console.log(`フォーカス時スクロール抑制: scrollY=${currentScrollY}`);
+  }, 100); // キーボード表示の遅延を考慮
+});
 
   // 初期メッセージ読み込み
 async function loadInitialMessages() {
