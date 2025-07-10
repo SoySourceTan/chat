@@ -199,7 +199,23 @@
     <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 100%"></div>
   </div>
 </div>
-
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteConfirmModalLabel">メッセージの削除</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+      </div>
+      <div class="modal-body">
+        このメッセージを削除しますか？
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">削除</button>
+      </div>
+    </div>
+  </div>
+</div>
       <button id="newMessageBtn" class="btn btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
         <i class="fas fa-arrow-up"></i>
       </button>

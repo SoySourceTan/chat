@@ -438,3 +438,17 @@ main {
 #messages {
   padding-bottom: 120px; /* フォームの高さ＋余裕 */
 }
+.delete-message {
+  padding: 2px 6px;
+  font-size: 0.8rem;
+}
+.delete-message .bi-trash {
+  font-size: 1rem;
+}
+.fade-in:not(.show) {
+  opacity: 0;
+}
+.fade-in.show {
+  opacity: 1;
+  transition: opacity 0.3s ease-in;
+}

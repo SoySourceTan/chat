@@ -42,7 +42,9 @@ function getCookie(name) {
   console.log(`クッキー取得: ${name}=${value}`);
   return value;
 }
-
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
 try {
   // Firebase初期化
   const app = initializeApp(firebaseConfig);
@@ -438,21 +440,25 @@ if (messagesEl.scrollTop > scrollTopMax - 100 && !isLoading) {
           li.setAttribute('role', 'listitem');
           li.setAttribute('data-timestamp', timestamp);
           const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-          li.innerHTML = `
-            <div class="message bg-transparent p-2 row">
-<div class="col-auto profile-icon">
-  ${photoURL ? 
-    `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
-    `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-</div>
-              <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                <strong>${username || '匿名'}</strong>
-                <small class="text-muted ms-2">${date}</small>
-              </div>
-              <div class="col-12 message-body mt-2">
-                ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-              </div>
-            </div>`;
+li.innerHTML = `
+  <div class="message bg-transparent p-2 row">
+    <div class="col-auto profile-icon">
+      ${photoURL ? 
+        `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+        `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+    </div>
+    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+      <strong>${username || '匿名'}</strong>
+      <small class="text-muted ms-2">${date}</small>
+      ${auth.currentUser && auth.currentUser.uid === userId ? 
+        `<button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${key}">
+           <i class="fa fa-trash"></i>
+         </button>` : ''}
+    </div>
+    <div class="col-12 message-body mt-2">
+      ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+    </div>
+  </div>`;
           messagesEl.appendChild(li);
           setTimeout(() => li.classList.add('show'), 10);
         }
@@ -762,15 +768,7 @@ if (!formEl) {
   console.error('formElが見つかりません。ID="messageForm"の要素を確認してください。');
 } else {
   console.log('formElを初期化: ID=messageForm');
-  formEl.removeEventListener('submit', formEl._submitHandler);
-
-// モバイル判定関数
-function isMobileDevice() {
-  // window.orientation が定義されている、または ontouchstart がサポートされている場合をモバイルとみなす
-  const hasOrientation = typeof window.orientation !== 'undefined';
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  return hasOrientation || hasTouch;
-}
+  formEl.removeEventListener('submit', formEl._submitHandler); // 既存リスナーを削除
 formEl._submitHandler = async (e) => {
   e.preventDefault();
   console.log('フォーム送信開始');
@@ -803,14 +801,17 @@ formEl._submitHandler = async (e) => {
   }
   isSending = true;
   console.log('メッセージ送信処理開始: message=', message);
+  let tempMessageId;
   try {
     const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+    console.log('ユーザーデータ取得:', userData);
     const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
     const timestamp = Date.now();
-    const tempMessageId = `temp-${timestamp}`;
+    tempMessageId = `temp-${timestamp}-${Math.random().toString(36).slice(2)}`;
     const li = document.createElement('li');
     li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
     li.setAttribute('data-message-id', tempMessageId);
+    li.setAttribute('data-user-id', auth.currentUser.uid);
     li.setAttribute('role', 'listitem');
     li.setAttribute('data-timestamp', timestamp);
     const date = new Date(timestamp).toLocaleString('ja-JP');
@@ -829,6 +830,7 @@ formEl._submitHandler = async (e) => {
       .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
     formattedMessage = formattedMessage.replace(new RegExp(`${codePlaceholder}(\\d+)`, 'g'), (_, index) => codeBlocks[index]);
     formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
+    console.log('送信メッセージ描画: tempMessageId=', tempMessageId, 'userId=', auth.currentUser.uid);
     li.innerHTML = `
       <div class="message bg-transparent p-2 row">
         <div class="col-auto profile-icon">
@@ -839,6 +841,9 @@ formEl._submitHandler = async (e) => {
         <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
           <strong>${username}</strong>
           <small class="text-muted ms-2">${date}</small>
+          <button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${tempMessageId}">
+            <i class="fa fa-trash" aria-hidden="true"></i>
+          </button>
         </div>
         <div class="col-12 message-body mt-2">
           ${formattedMessage}
@@ -858,9 +863,19 @@ formEl._submitHandler = async (e) => {
     const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
     if (tempMessage) {
       tempMessage.setAttribute('data-message-id', messageRef.key);
+      const deleteButton = tempMessage.querySelector('.delete-message');
+      if (deleteButton) {
+        deleteButton.setAttribute('data-message-id', messageRef.key);
+        console.log('削除ボタンのID更新: newId=', messageRef.key);
+      }
       console.log('ローカルメッセージID更新: newId=', messageRef.key);
     } else {
       console.warn('ローカルメッセージが見つかりません: tempMessageId=', tempMessageId);
+    }
+    // 一時メッセージを削除して、setupMessageListener に任せる
+    if (tempMessage) {
+      tempMessage.classList.remove('show');
+      setTimeout(() => tempMessage.remove(), 300);
     }
     await push(actionsRef, {
       type: 'sendMessage',
@@ -868,35 +883,6 @@ formEl._submitHandler = async (e) => {
       username,
       timestamp
     });
-
-    // デバイス判別に基づく処理
-    if (isMobileDevice()) {
-      // モバイル: キーボードを閉じてスクロール
-      inputEl.blur();
-      console.log('モバイル: キーボードを閉じました');
-      setTimeout(() => {
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          console.log('モバイル: スクロール実行: scrollY=', window.scrollY);
-          if (window.scrollY !== 0) {
-            console.warn('スクロール失敗: 強制再試行');
-            window.scrollTo({ top: 0, behavior: 'auto' });
-          }
-        });
-      }, 150); // キーボード閉じる遅延を考慮
-    } else {
-      // PC: フォーカスを維持して連続入力可能に
-      console.log('PC: フォーカスを維持');
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        console.log('PC: スクロール実行: scrollY=', window.scrollY);
-        if (window.scrollY !== 0) {
-          console.warn('スクロール失敗: 強制再試行');
-          window.scrollTo({ top: 0, behavior: 'auto' });
-        }
-      });
-    }
-
     inputEl.value = '';
     formEl.classList.remove('was-validated');
     isUserScrolledUp = false;
@@ -908,14 +894,17 @@ formEl._submitHandler = async (e) => {
       stack: error.stack
     });
     showError(`メッセージの送信に失敗しました: ${error.message}`);
-    const tempMessage = messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`);
-    if (tempMessage) tempMessage.remove();
+    const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
+    if (tempMessage) {
+      tempMessage.classList.remove('show');
+      setTimeout(() => tempMessage.remove(), 300);
+    }
   } finally {
     isSending = false;
     console.log('メッセージ送信処理終了');
   }
 };
-formEl.addEventListener('submit', formEl._submitHandler);
+  formEl.addEventListener('submit', formEl._submitHandler);
   console.log('formElにsubmitリスナーを設定');
 }
 
@@ -981,6 +970,7 @@ async function loadInitialMessages() {
             .replace(codeRegex, '<pre><code>$1</code></pre>')
         : 'メッセージなし';
       formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
+      console.log('メッセージ描画: key=', key, 'userId=', userId, 'currentUser=', auth.currentUser?.uid, 'isButtonDisplayed=', auth.currentUser && auth.currentUser.uid === userId);
       li.innerHTML = `
         <div class="message bg-transparent p-2 row">
           <div class="col-auto profile-icon">
@@ -991,6 +981,10 @@ async function loadInitialMessages() {
           <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
             <strong>${username || '匿名'}</strong>
             <small class="text-muted ms-2">${date}</small>
+            ${auth.currentUser && auth.currentUser.uid === userId ? 
+              `<button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${key}">
+                 <i class="fa fa-trash"></i>
+               </button>` : ''}
           </div>
           <div class="col-12 message-body mt-2">
             ${formattedMessage}
@@ -1012,6 +1006,7 @@ async function loadInitialMessages() {
 
   // 新しいメッセージの監視
   let messageListener = null;
+// setupMessageListener (script.js:1036-1099)
 function setupMessageListener() {
   if (messageListener) {
     messageListener();
@@ -1023,16 +1018,15 @@ function setupMessageListener() {
       if (timestamp <= latestInitialTimestamp) {
         return;
       }
-      if (messagesEl.querySelector(`[data-message-id="${key}"]`) || 
-          messagesEl.querySelector(`[data-message-id="temp-${timestamp}"]`)) {
-        console.log('重複メッセージ検出: key=', key, 'timestamp=', timestamp);
+      // 重複チェック
+      if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
+        console.log('重複メッセージ検出: key=', key);
         return;
       }
       const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
       userCache.set(userId, userData);
       if (userCache.size > 100) userCache.clear();
       const photoURL = userData.photoURL;
-      // コードブロックとURLを処理
       const codeRegex = /```(\w+)?\s*([\s\S]*?)\s*```/g;
       const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
       let formattedMessage = message;
@@ -1051,6 +1045,7 @@ function setupMessageListener() {
       const li = document.createElement('li');
       li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
       li.setAttribute('data-message-id', key);
+      li.setAttribute('data-user-id', userId);
       li.setAttribute('role', 'listitem');
       li.setAttribute('data-timestamp', timestamp);
       const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
@@ -1064,6 +1059,10 @@ function setupMessageListener() {
           <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
             <strong>${username || '匿名'}</strong>
             <small class="text-muted ms-2">${date}</small>
+            ${auth.currentUser && auth.currentUser.uid === userId ? 
+              `<button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${key}">
+                 <i class="fa fa-trash" aria-hidden="true"></i>
+               </button>` : ''}
           </div>
           <div class="col-12 message-body mt-2">
             ${formattedMessage}
@@ -1076,21 +1075,78 @@ function setupMessageListener() {
         notifyNewMessage({ username, message });
         console.log('新メッセージ通知送信: username=', username, 'message=', message);
       }
-if (!isUserScrolledUp) {
-  requestAnimationFrame(() => {
-    messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-    console.log('新メッセージでスクロール: scrollTop=', messagesEl.scrollTop);
-  });
-  newMessageBtn.classList.add('d-none');
-} else {
-  newMessageBtn.classList.remove('d-none');
-}
+      if (!isUserScrolledUp) {
+        requestAnimationFrame(() => {
+          messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+          console.log('新メッセージでスクロール: scrollTop=', messagesEl.scrollTop);
+        });
+        newMessageBtn.classList.add('d-none');
+      } else {
+        newMessageBtn.classList.remove('d-none');
+      }
     } catch (error) {
       console.error('新メッセージ追加エラー:', error);
       showError('メッセージの取得に失敗しました。');
     }
   });
 }
+
+// 削除処理（formEl.addEventListener の後に追加）
+messagesEl.addEventListener('click', async (e) => {
+  if (e.target.closest('.delete-message')) {
+    const button = e.target.closest('.delete-message');
+    const messageId = button.getAttribute('data-message-id');
+    if (!messageId) {
+      console.warn('メッセージIDが見つかりません');
+      showError('メッセージの削除に失敗しました: IDが見つかりません');
+      return;
+    }
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    deleteModal.show();
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    confirmDeleteBtn.focus(); // フォーカスを明示的に設定
+    confirmDeleteBtn.onclick = async () => {
+      try {
+        const messageRef = ref(database, `messages/${messageId}`);
+        const snapshot = await get(messageRef);
+        if (!snapshot.exists()) {
+          console.warn('メッセージが存在しません: messageId=', messageId);
+          showError('メッセージが見つかりません');
+          return;
+        }
+        if (snapshot.val().userId !== auth.currentUser.uid) {
+          console.warn('権限エラー: 自分のメッセージではありません', { messageId, userId: snapshot.val().userId });
+          showError('自分のメッセージのみ削除できます');
+          return;
+        }
+        await remove(messageRef);
+        console.log('メッセージ削除成功: messageId=', messageId);
+        const messageEl = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageEl) {
+          messageEl.classList.remove('show');
+          setTimeout(() => messageEl.remove(), 300);
+        } else {
+          console.warn('UIメッセージが見つかりません: messageId=', messageId);
+        }
+        await push(actionsRef, {
+          type: 'deleteMessage',
+          userId: auth.currentUser.uid,
+          username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
+          messageId,
+          timestamp: Date.now()
+        });
+        showSuccess('メッセージを削除しました。');
+      } catch (error) {
+        console.error('メッセージ削除エラー:', error);
+        showError(`メッセージの削除に失敗しました: ${error.message}`);
+      } finally {
+        deleteModal.hide();
+        inputEl.focus(); // モーダル閉じた後にフォーカスを戻す
+      }
+    };
+  }
+});
+
 
   // 認証状態監視
   auth.onAuthStateChanged(async (user) => {
