@@ -101,10 +101,15 @@ margin-top: 20px;
   transform: scale(1.1);
 }
 
-.btn-pink {background-color: #ffeff7;}
-#submit-btn:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
+    .btn-pink {
+      background-color: #ff69b4;
+      color: white;
+      border-color: #ff69b4;
+    }
+    .btn-pink:hover {
+      background-color: #ff1493;
+      border-color: #ff1493;
+    }
 
 #toggleModeBtn {
   width: 40px;

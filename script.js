@@ -451,7 +451,7 @@ li.innerHTML = `
       <strong>${username || '匿名'}</strong>
       <small class="text-muted ms-2">${date}</small>
       ${auth.currentUser && auth.currentUser.uid === userId ? 
-        `<button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${key}">
+        `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
            <i class="fa fa-trash"></i>
          </button>` : ''}
     </div>
@@ -841,7 +841,7 @@ formEl._submitHandler = async (e) => {
         <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
           <strong>${username}</strong>
           <small class="text-muted ms-2">${date}</small>
-          <button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${tempMessageId}">
+          <button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${tempMessageId}">
             <i class="fa fa-trash" aria-hidden="true"></i>
           </button>
         </div>
@@ -982,7 +982,7 @@ async function loadInitialMessages() {
             <strong>${username || '匿名'}</strong>
             <small class="text-muted ms-2">${date}</small>
             ${auth.currentUser && auth.currentUser.uid === userId ? 
-              `<button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${key}">
+              `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
                  <i class="fa fa-trash"></i>
                </button>` : ''}
           </div>
@@ -1060,7 +1060,7 @@ function setupMessageListener() {
             <strong>${username || '匿名'}</strong>
             <small class="text-muted ms-2">${date}</small>
             ${auth.currentUser && auth.currentUser.uid === userId ? 
-              `<button class="btn btn-sm btn-outline-danger ms-2 delete-message" data-message-id="${key}">
+              `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
                  <i class="fa fa-trash" aria-hidden="true"></i>
                </button>` : ''}
           </div>
