@@ -105,7 +105,7 @@ try {
     const toggleModeBtn = document.getElementById('toggleModeBtn');
     const loadingIndicator = document.getElementById('loading-indicator');
     const progressOverlay = document.getElementById('progress-overlay');
-
+    const navbarRow2 = document.getElementById('navsec'); // navbar-row-2の参照
     // 状態管理
     let isSending = false;
     let isLoggingIn = false;
@@ -395,8 +395,7 @@ toggleModeBtn.addEventListener('click', () => {
     }
   });
 
-  // メッセージスクロール処理
-// 既存のリスナーを削除（念のため）
+// メッセージスクロール処理
 messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
 
 // 既存のスクロールイベントリスナーを置き換え
@@ -407,19 +406,22 @@ let scrollTimeout = null;
 window.addEventListener('scroll', () => {
   if (scrollTimeout) clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(async () => {
-    const navbar = document.querySelector('nav.navbar-slide');
     const currentScrollTop = window.scrollY;
     const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - currentScrollTop;
-    if (currentScrollTop > 50) {
-      if (currentScrollTop > lastScrollTop) {
-        navbar.classList.add('hidden');
-      } else {
-        navbar.classList.remove('hidden');
-      }
-    } else {
-      navbar.classList.remove('hidden');
+    const navbarRow1 = document.querySelector('.navbar-row-1'); // navbar-row-1の参照
+    if (!navbarRow1 || !navbarRow2) {
+      console.warn('navbar-row-1またはnavbar-row-2が見つかりません。HTMLを確認してください。');
+      return;
     }
-    lastScrollTop = currentScrollTop <= 0 ? 0 : currentScrollTop;
+    const navbarRow1Bottom = navbarRow1.getBoundingClientRect().bottom; // navbar-row-1の下端位置
+
+    // navbar-row-1が画面外（上部）にスクロールアウトしたか判定
+    if (navbarRow1Bottom <= 0) {
+      navbarRow2.classList.add('fixed'); // navbar-row-2を固定
+    } else {
+      navbarRow2.classList.remove('fixed'); // navbar-row-2を通常のフローに戻す
+    }
+
     isUserScrolledUp = currentScrollTop > 10;
     newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
     const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
@@ -435,7 +437,7 @@ window.addEventListener('scroll', () => {
         if (lastTimestamp) {
           const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
           const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-          const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
+          const userIds = [...new Set(olderMessagesArray.map(([key, msg]) => msg.userId))]; // デストラクチャリングは既に正しい
           const userDataPromises = userIds.map(async userId => {
             if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
             const snapshot = await get(ref(database, `users/${userId}`));
@@ -487,9 +489,8 @@ window.addEventListener('scroll', () => {
         loadingIndicator.style.display = 'none';
       }
     }
-  }, 200); // デバウンス時間を100msから200msに延長
+  }, 100); // デバウンス時間を200msから100msに短縮
 });
-
 // クライアント側でIPアドレスを取得
 async function getClientIp() {
   try {
