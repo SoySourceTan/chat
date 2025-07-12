@@ -1349,6 +1349,14 @@ window.onload = () => {
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
     new bootstrap.Tooltip(el);
   });
+
+// 仮想キーボードの抑制
+window.visualViewport.addEventListener('resize', () => {
+  if (document.activeElement === inputEl) {
+    window.scrollTo({ top: window.scrollY, behavior: 'auto' });
+  }
+});
+
   // モードボタンのUIをクッキーの状態に同期
   toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
   const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
