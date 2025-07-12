@@ -381,6 +381,21 @@ toggleModeBtn.addEventListener('click', () => {
   console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
 });
 
+  // モバイル端末でのメッセージエリアスクロール抑制
+inputEl.addEventListener('focus', (e) => {
+  e.preventDefault();
+  document.body.classList.add('keyboard-active');
+  const currentScrollY = window.scrollY;
+  setTimeout(() => {
+    window.scrollTo({ top: currentScrollY, behavior: 'auto' });
+    console.log(`フォーカス時スクロール抑制: scrollY=${currentScrollY}`);
+  }, 100);
+});
+
+inputEl.addEventListener('blur', () => {
+  document.body.classList.remove('keyboard-active');
+});
+
   // メッセージ入力時のエンターキー処理
   inputEl.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
