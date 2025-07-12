@@ -5,6 +5,10 @@
     --bs-body-color: #333333; /* 読みやすい黒系テキスト */
 }
 
+html {
+    scroll-behavior: smooth; /* ページ全体のスクロールを滑らかに */
+}
+
 body {
     padding: 0;
     margin: 0;
@@ -35,48 +39,29 @@ body {
     padding: 0.5rem;
     border: 1px solid #dee2e6;
     border-radius: 2.5rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    transition: opacity 0.3s ease;
+    background-color: #fff;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
+    transition: opacity 0.2s ease;
     will-change: transform, opacity;
     height: 48px; /* レイアウトシフト防止 */
-}
-
-.navbar-row-2.fixed {
-    position: fixed;
+    transform: translate3d(0, 0, 0); /* GPUレイヤー生成 */
+    position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
-    margin: 0 auto;
-    max-width: 720px; /* col-md-8相当 */
     opacity: 0.88; /* 透過度88% */
-}
-
-/* AOSカスタムアニメーション */
-[data-aos="custom-bounce"] {
-    transform: scaleY(1);
-    transition-property: transform;
-    transition-duration: 0.4s;
-    transition-timing-function: ease-in-out;
-}
-
-[data-aos="custom-bounce"].aos-animate {
-    animation: bounce 0.4s ease-in-out;
+    animation: bounce 0.35s ease-in-out; /* 初期表示時にびよーん */
 }
 
 @keyframes bounce {
-    0% { transform: scaleY(1); }
-    40% { transform: scaleY(0.9); }
-    70% { transform: scaleY(1.03); }
-    100% { transform: scaleY(1); }
+    0% { transform: scaleY(1) translate3d(0, 0, 0); }
+    40% { transform: scaleY(0.94) translate3d(0, 0, 0); }
+    70% { transform: scaleY(1.01) translate3d(0, 0, 0); }
+    100% { transform: scaleY(1) translate3d(0, 0, 0); }
 }
 
 /* レスポンシブ対応 */
 @media (max-width: 767.98px) {
     .navbar-row-2 {
         max-width: 100%; /* col-12相当 */
-    }
-    .navbar-row-2.fixed {
-        max-width: 100%;
     }
 }
 
@@ -88,15 +73,14 @@ body {
 
 /* モーションセンシティブなユーザー向け */
 @media (prefers-reduced-motion: reduce) {
-    [data-aos="custom-bounce"] {
+    html {
+        scroll-behavior: auto; /* スムーズスクロール無効化 */
+    }
+    .navbar-row-2 {
         animation: none;
-        transition: opacity 0.3s ease;
+        transition: opacity 0.2s ease;
     }
 }
-
-main {
-}
-
 #messages {
     margin-top: 10px;
     flex-grow: 1;
@@ -166,7 +150,7 @@ main {
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    box-shadow: 0 2px 5px rgba(155, 155, 155, 0.3);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
     background-color: #ffb3ec;
     color: white;
     display: flex;
@@ -278,6 +262,7 @@ main {
     font-size: 0.8rem;
     margin-left: 5px;
     overflow: hidden;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
 }
 
 .online-user img {
@@ -285,7 +270,7 @@ main {
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
 }
 
 .loading-indicator {
@@ -347,8 +332,8 @@ main {
     background-color: #dc3545;
     color: white;
     border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    transition: opacity 0.3s ease-in-out;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
+    transition: opacity 0.2s ease-in-out;
 }
 
 #error-alert.d-none {
@@ -387,7 +372,7 @@ main {
     height: 24px;
     border-radius: 50%;
     object-fit: cover;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
     border: 1px solid #fff;
 }
 
@@ -402,7 +387,7 @@ main {
     font-size: 1.2rem;
     color: white;
     font-weight: bold;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
     border: 1px solid #fff;
 }
 
@@ -448,7 +433,7 @@ main {
     z-index: 1000;
     background: #fff;
     padding: 10px;
-    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 -1px 1px rgba(0, 0, 0, 0.03);
 }
 
 .delete-message {

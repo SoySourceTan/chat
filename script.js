@@ -422,7 +422,7 @@ window.addEventListener('scroll', () => {
     isUserScrolledUp = currentScrollTop > 10;
     newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
     const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-    if (messagesEl.scrollTop > scrollTopMax - 100 && !isLoading) {
+    if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) {
       console.log('ローディング開始');
       isLoading = true;
       loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
@@ -486,7 +486,8 @@ window.addEventListener('scroll', () => {
         loadingIndicator.style.display = 'none';
       }
     }
-  }, 150); // デバウンス時間を200msから100msに短縮
+    // ... メッセージ読み込みロジック（変更なし）
+  }, 200); // 150ms → 200ms
 });
 // クライアント側でIPアドレスを取得
 async function getClientIp() {
@@ -1330,9 +1331,9 @@ window.onload = () => {
 }
 // AOS初期化
 AOS.init({
-    duration: 400, // CSSの0.4sに合わせる
+    duration: 350, // CSSの0.35sに合わせる
     easing: 'ease-in-out',
     once: false,
     offset: 0,
-    delay: 50,
+    delay: 100, // タイミング調整
 });
