@@ -1357,28 +1357,6 @@ window.visualViewport.addEventListener('resize', () => {
   }
 });
 
-// フローティングウィンドウの簡易実装
-window.onload = () => {
-  document.getElementById('messageForm').style.position = 'absolute'; // 追加
-  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-    new bootstrap.Tooltip(el);
-  });
-  // モードボタンのUIをクッキーの状態に同期
-  toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
-  const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
-  toggleModeBtn.setAttribute('data-bs-title', newTitle);
-  toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
-  console.log('初期モード:', isEnterSendMode ? '送信モード' : '改行モード');
-  if (!formEl) {
-    console.error('window.onload: formElが見つかりません。ID="messageForm"の要素を確認してください。');
-  } else {
-    console.log('window.onload: formElにsubmitリスナーを再設定');
-    formEl.removeEventListener('submit', formEl._submitHandler);
-    formEl.addEventListener('submit', formEl._submitHandler);
-  }
-};
-
-
   // モードボタンのUIをクッキーの状態に同期
   toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
   const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
