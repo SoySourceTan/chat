@@ -422,18 +422,6 @@ window.addEventListener('scroll', () => {
   if (scrollTimeout) clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(async () => {
     const currentScrollTop = window.scrollY;
-    const navbarRow1 = document.querySelector('.navbar-row-1');
-    if (!navbarRow1 || !navbarRow2) {
-      console.warn('navbar-row-1またはnavbar-row-2が見つかりません。HTMLを確認してください。');
-      return;
-    }
-    const navbarRow1Bottom = navbarRow1.getBoundingClientRect().bottom;
-    if (navbarRow1Bottom <= 0) {
-      navbarRow2.classList.add('fixed');
-    } else {
-      navbarRow2.classList.remove('fixed');
-    }
-
     isUserScrolledUp = currentScrollTop > 10;
     newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
     const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;

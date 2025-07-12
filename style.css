@@ -43,9 +43,6 @@ body {
     background-color: #fff;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
     height: 48px; /* レイアウトシフト防止 */
-    transform: translate3d(0, 0, 0); /* GPUレイヤー生成 */
-    will-change: transform, opacity;
-    position: sticky;
     top: 0;
     opacity: 0.88; /* 透過度88% */
 }
