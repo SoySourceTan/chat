@@ -174,19 +174,21 @@ async function fetchOnlineUsers() {
 async function getUserData(userId) {
   if (!userId || typeof userId !== 'string') {
     console.warn('Invalid userId in getUserData:', userId);
-    return null; // 無効な場合はnullを返す
+    return { userId, username: '匿名', photoURL: null };
   }
   if (userCache.has(userId)) {
     const cachedData = userCache.get(userId);
-    if (cachedData.userId === userId) {
+    if (cachedData && cachedData.userId === userId) {
+      console.log('Using cached user data:', cachedData);
       return cachedData;
     }
     console.warn('Invalid cached data for userId:', userId, cachedData);
+    userCache.delete(userId); // 無効なキャッシュを削除
   }
   try {
     const snapshot = await get(ref(database, `users/${userId}`));
     const data = snapshot.val() || { username: '匿名', photoURL: null };
-    const userData = { userId, ...data };
+    const userData = { userId, username: '匿名', photoURL: null, ...data }; // userIdを常に含める
     userCache.set(userId, userData);
     if (userCache.size > 100) userCache.clear();
     console.log('Fetched user data:', userData);
@@ -241,10 +243,11 @@ onValue(onlineUsersRef, (snapshot) => {
   debounceTimeout = setTimeout(updateOnlineUsers, 1000);
 });
   // ユーザーUI更新
-  async function updateUserUI(user) {
+async function updateUserUI(user) {
   try {
     let userData;
     if (user) {
+      userCache.delete(user.uid); // ログイン時に古いキャッシュをクリア
       userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
       let username = userData.username || user.displayName || 'ゲスト';
       username = username.length > 7 ? username.substring(0, 7) + "..." : username;
@@ -261,7 +264,7 @@ onValue(onlineUsersRef, (snapshot) => {
       lastActivity = Date.now();
       try {
         await set(ref(database, `onlineUsers/${user.uid}`), {
-          userId: user.uid, // userIdを明示的に追加
+          userId: user.uid,
           username,
           timestamp: Date.now()
         });
@@ -384,94 +387,91 @@ messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
 let lastScrollTop = 0; // 最後のスクロール位置を記録
 
 // 新しいスクロールイベントリスナー
-window.addEventListener('scroll', async () => {
-  const navbar = document.querySelector('nav.navbar-slide');
-  const currentScrollTop = window.scrollY;
-  const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - currentScrollTop;
-
-  // ナビゲーションバーの表示/非表示
-  if (currentScrollTop > 50) {
-    // 100px以上スクロールダウン
-    if (currentScrollTop > lastScrollTop) {
-      // スクロールダウン中
-      navbar.classList.add('hidden');
+let scrollTimeout = null;
+window.addEventListener('scroll', () => {
+  if (scrollTimeout) clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(async () => {
+    const navbar = document.querySelector('nav.navbar-slide');
+    const currentScrollTop = window.scrollY;
+    const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - currentScrollTop;
+    if (currentScrollTop > 50) {
+      if (currentScrollTop > lastScrollTop) {
+        navbar.classList.add('hidden');
+      } else {
+        navbar.classList.remove('hidden');
+      }
     } else {
-      // スクロールアップ中
       navbar.classList.remove('hidden');
     }
-  } else {
-    // 100px未満では常に表示
-    navbar.classList.remove('hidden');
-  }
-  lastScrollTop = currentScrollTop <= 0 ? 0 : currentScrollTop; // 負のスクロールを防ぐ
-
-  // 既存のスクロール処理（メッセージ読み込みなど）
-  isUserScrolledUp = currentScrollTop > 10;
-  newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-if (messagesEl.scrollTop > scrollTopMax - 100 && !isLoading) {
-    console.log('ローディング開始');
-    isLoading = true;
-    loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
-    loadingIndicator.style.display = 'block';
-    try {
-      const startTime = performance.now();
-      const messages = messagesEl.querySelectorAll('[data-timestamp]');
-      lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
-      if (lastTimestamp) {
-        const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-        const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-        const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
-        const userDataPromises = userIds.map(async userId => {
-          if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
-          const snapshot = await get(ref(database, `users/${userId}`));
-          const data = snapshot.val() || {};
-          userCache.set(userId, data);
-          return { userId, data };
-        });
-        const userDataArray = await Promise.all(userDataPromises);
-        const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-        for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
-          if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-          const photoURL = userDataMap[userId]?.photoURL;
-          const li = document.createElement('li');
-          li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
-          li.setAttribute('data-message-id', key);
-          li.setAttribute('role', 'listitem');
-          li.setAttribute('data-timestamp', timestamp);
-          const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-li.innerHTML = `
-  <div class="message bg-transparent p-2 row">
-    <div class="col-auto profile-icon">
-      ${photoURL ? 
-        `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
-        `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-    </div>
-    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-      <strong>${username || '匿名'}</strong>
-      <small class="text-muted ms-2">${date}</small>
-      ${auth.currentUser && auth.currentUser.uid === userId ? 
-        `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-           <i class="fa fa-trash"></i>
-         </button>` : ''}
-    </div>
-    <div class="col-12 message-body mt-2">
-      ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
-    </div>
-  </div>`;
-          messagesEl.appendChild(li);
-          setTimeout(() => li.classList.add('show'), 10);
+    lastScrollTop = currentScrollTop <= 0 ? 0 : currentScrollTop;
+    isUserScrolledUp = currentScrollTop > 10;
+    newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
+    const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
+    if (messagesEl.scrollTop > scrollTopMax - 100 && !isLoading) {
+      console.log('ローディング開始');
+      isLoading = true;
+      loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
+      loadingIndicator.style.display = 'block';
+      try {
+        const startTime = performance.now();
+        const messages = messagesEl.querySelectorAll('[data-timestamp]');
+        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
+        if (lastTimestamp) {
+          const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+          const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
+          const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId))];
+          const userDataPromises = userIds.map(async userId => {
+            if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
+            const snapshot = await get(ref(database, `users/${userId}`));
+            console.log('データベースから取得したデータ:', snapshot.val());
+            const data = snapshot.val() || {};
+            userCache.set(userId, data);
+            return { userId, data };
+          });
+          const userDataArray = await Promise.all(userDataPromises);
+          const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+          for (const [key, { username, message, timestamp, userId, ipAddress }] of olderMessagesArray) {
+            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+            const photoURL = userDataMap[userId]?.photoURL;
+            const li = document.createElement('li');
+            li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
+            li.setAttribute('data-message-id', key);
+            li.setAttribute('role', 'listitem');
+            li.setAttribute('data-timestamp', timestamp);
+            const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+            li.innerHTML = `
+              <div class="message bg-transparent p-2 row">
+                <div class="col-auto profile-icon">
+                  ${photoURL ? 
+                    `<img src="${photoURL}" alt="${username}のプロフィール画像" class="profile-img">` :
+                    `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+                </div>
+                <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                  <strong>${username || '匿名'}</strong>
+                  <small class="text-muted ms-2">${date}</small>
+                  ${auth.currentUser && auth.currentUser.uid === userId ? 
+                    `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
+                       <i class="fa fa-trash"></i>
+                     </button>` : ''}
+                </div>
+                <div class="col-12 message-body mt-2">
+                  ${message ? message.replace(/\n/g, '<br>') : 'メッセージなし'}
+                </div>
+              </div>`;
+            messagesEl.appendChild(li);
+            setTimeout(() => li.classList.add('show'), 10);
+          }
         }
+      } catch (error) {
+        console.error('過去メッセージ取得エラー:', error);
+        showError('過去のメッセージが取得できませんでした。');
+      } finally {
+        isLoading = false;
+        loadingIndicator.textContent = 'ロード中...';
+        loadingIndicator.style.display = 'none';
       }
-    } catch (error) {
-      console.error('過去メッセージ取得エラー:', error);
-      showError('過去のメッセージが取得できませんでした。');
-    } finally {
-      isLoading = false;
-      loadingIndicator.textContent = 'ロード中...';
-      loadingIndicator.style.display = 'none';
     }
-  }
+  }, 200); // デバウンス時間を100msから200msに延長
 });
 
 // クライアント側でIPアドレスを取得
@@ -486,8 +486,7 @@ async function getClientIp() {
   }
 }
 
-
-// Twitterログイン
+// Twitterログイン認証（script.js:642-689を修正）
 twitterLogin.addEventListener('click', async () => {
   if (isLoggingIn) return;
   isLoggingIn = true;
@@ -495,34 +494,74 @@ twitterLogin.addEventListener('click', async () => {
     const provider = new TwitterAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
-    console.log('Twitter user info:', { 
-      uid: user.uid, 
-      displayName: user.displayName, 
-      photoURL: user.photoURL, 
-      email: user.email, 
-      emailVerified: user.emailVerified, 
-      providerData: user.providerData 
-    }); // デバッグ
+    console.log('Twitter user info:', {
+      uid: user.uid,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      providerData: user.providerData
+    });
+
+    await new Promise((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+        if (currentUser && currentUser.uid === user.uid) {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+
+    const token = await user.getIdToken(true);
+    console.log('Token refreshed:', token);
+
     const providerId = result.providerId || 'twitter.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
     const username = existingUserData.username || user.displayName || `user${Date.now()}`;
+    if (/[.#$/\[\]]/.test(username) || username.length > 50) {
+      throw new Error('無効なユーザー名です');
+    }
     const ipAddress = await getClientIp();
-    await set(ref(database, `users/${user.uid}`), {
+
+    const userData = {
       username,
       provider: providerId,
       ipAddress,
       photoURL: user.photoURL || null,
       email: user.email || null,
-      emailVerified: user.emailVerified || false,
-      providerData: user.providerData.map(data => ({
-        providerId: data.providerId,
-        uid: data.uid,
-        displayName: data.displayName,
-        photoURL: data.photoURL,
-        email: data.email
-      }))
+      emailVerified: user.emailVerified || false
+    };
+    console.log('書き込みデータ詳細:', JSON.stringify(userData, null, 2)); // 追加
+    console.log('書き込みデータ検証:', {
+      username: typeof username === 'string' && username.length > 0 && username.length <= 50,
+      provider: typeof providerId === 'string',
+      ipAddress: typeof ipAddress === 'string',
+      photoURL: typeof userData.photoURL === 'string' || userData.photoURL === null,
+      email: typeof userData.email === 'string' || userData.email === null,
+      emailVerified: typeof userData.emailVerified === 'boolean'
     });
-    console.log('Twitter user data saved:', { username, photoURL: user.photoURL, email: user.email, ipAddress }); // デバッグ
+
+    let retries = 3;
+    let success = false;
+    let lastError = null;
+    while (retries > 0 && !success) {
+      try {
+        await set(ref(database, `users/${user.uid}`), userData);
+        success = true;
+        console.log('Twitter user data saved:', userData);
+      } catch (error) {
+        lastError = error;
+        retries--;
+        console.warn(`書き込み失敗（残りリトライ: ${retries}）:`, { code: error.code, message: error.message });
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    if (!success) {
+      throw lastError || new Error('ユーザーデータの保存に失敗しました');
+    }
+
     await push(actionsRef, {
       type: 'connect',
       userId: user.uid,
@@ -539,7 +578,7 @@ twitterLogin.addEventListener('click', async () => {
   }
 });
 
-// Googleログイン（script.js:507-539を更新）
+// Googleログイン（script.js:696-736を修正）
 googleLogin.addEventListener('click', async () => {
   if (isLoggingIn) return;
   isLoggingIn = true;
@@ -558,19 +597,18 @@ googleLogin.addEventListener('click', async () => {
     const providerId = result.providerId || 'google.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
     let username = existingUserData.username || user.displayName || `user${Date.now()}`;
-    // usernameのバリデーション
     if (!username || typeof username !== 'string' || username.length === 0 || username.length > 50 || /[.#$/\[\]]/.test(username)) {
       console.warn('Invalid username detected, using fallback:', username);
-      username = `user${Date.now()}`; // フォールバック
+      username = `user${Date.now()}`;
       if (username.length > 50) {
-        username = username.slice(0, 50); // 長さ制限
+        username = username.slice(0, 50);
       }
     }
     const ipAddress = await getClientIp();
     const userData = {
       username,
       provider: providerId,
-      ipAddress: ipAddress || null,
+      ipAddress,
       photoURL: user.photoURL || null,
       email: user.email || null,
       emailVerified: user.emailVerified || false,
@@ -582,9 +620,31 @@ googleLogin.addEventListener('click', async () => {
         email: data.email
       }))
     };
-    console.log('Writing user data to /users/$uid:', { uid: user.uid, ...userData }); // 詳細なログ
-    await set(ref(database, `users/${user.uid}`), userData);
-    console.log('Google user data saved:', { username, photoURL: user.photoURL, email: user.email, ipAddress });
+    console.log('書き込みデータ:', JSON.stringify(userData, null, 2));
+    console.log('認証状態:', { uid: auth.currentUser?.uid, isAnonymous: auth.currentUser?.isAnonymous });
+
+    // リトライロジックの挿入
+    let retries = 3;
+    let success = false;
+    let lastError = null;
+    while (retries > 0 && !success) {
+      try {
+        await set(ref(database, `users/${user.uid}`), userData);
+        success = true;
+        console.log('Google user data saved:', userData);
+      } catch (error) {
+        lastError = error;
+        retries--;
+        console.warn(`書き込み失敗（残りリトライ: ${retries}）:`, { code: error.code, message: error.message });
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    if (!success) {
+      throw lastError || new Error('ユーザーデータの保存に失敗しました');
+    }
+
     await push(actionsRef, {
       type: 'connect',
       userId: user.uid,
@@ -610,7 +670,7 @@ anonymousLogin.addEventListener('click', async () => {
     const user = result.user;
     const uniqueUsername = `anon${Date.now()}`;
     const ipAddress = await getClientIp();
-    await set(ref(database, `users/${user.uid}`), {
+    const userData = {
       username: uniqueUsername,
       provider: 'anonymous',
       ipAddress,
@@ -618,8 +678,28 @@ anonymousLogin.addEventListener('click', async () => {
       email: null,
       emailVerified: false,
       providerData: []
-    });
-    console.log('Anonymous user data saved:', { username: uniqueUsername, ipAddress }); // デバッグ
+    };
+    console.log('書き込みデータ詳細:', JSON.stringify(userData, null, 2));
+    let retries = 3;
+    let success = false;
+    let lastError = null;
+    while (retries > 0 && !success) {
+      try {
+        await set(ref(database, `users/${user.uid}`), userData);
+        success = true;
+        console.log('Anonymous user data saved:', userData);
+      } catch (error) {
+        lastError = error;
+        retries--;
+        console.warn(`書き込み失敗（残りリトライ: ${retries}）:`, { code: error.code, message: error.message });
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    if (!success) {
+      throw lastError || new Error('ユーザーデータの保存に失敗しました');
+    }
     await push(actionsRef, {
       type: 'connect',
       userId: user.uid,
@@ -703,65 +783,84 @@ anonymousLogin.addEventListener('click', async () => {
   });
 
   confirmName.addEventListener('click', async () => {
-    const rawInput = unameInput.value;
-    const username = rawInput.trim();
-    console.log('ユーザー名入力: raw=', rawInput, 'trimmed=', username);
-    if (!username || username.length === 0) {
-      unameInput.classList.add('is-invalid');
-      console.log('ユーザー名エラー: 空文字または無効な入力');
-      showError('ユーザー名を入力してください。');
-      return;
+  const rawInput = unameInput.value;
+  const username = rawInput.trim();
+  console.log('ユーザー名入力: raw=', rawInput, 'trimmed=', username);
+  if (!username || username.length === 0) {
+    unameInput.classList.add('is-invalid');
+    console.log('ユーザー名エラー: 空文字または無効な入力');
+    showError('ユーザー名を入力してください。');
+    return;
+  }
+  if (username.length > 20) {
+    unameInput.classList.add('is-invalid');
+    console.log('ユーザー名エラー: 文字数超過');
+    showError('ユーザー名は20文字以内にしてください。');
+    return;
+  }
+  if (/[.#$/\[\]]/.test(username)) {
+    unameInput.classList.add('is-invalid');
+    console.log('ユーザー名エラー: 無効な文字');
+    showError('ユーザー名に使用できない文字（. # $ / [ ]）が含まれています。');
+    return;
+  }
+  if (!auth.currentUser) {
+    showError('ログインしてください。');
+    console.log('ユーザー名エラー: 未ログイン');
+    return;
+  }
+  try {
+    const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+    const updates = {};
+    updates[`users/${auth.currentUser.uid}`] = {
+      username,
+      provider: userData.provider || 'anonymous',
+      ipAddress: userData.ipAddress || 'github'
+    };
+    updates[`onlineUsers/${auth.currentUser.uid}`] = {
+      username,
+      timestamp: Date.now(),
+      userId: auth.currentUser.uid
+    };
+    const actionRef = push(actionsRef);
+    updates[`actions/${actionRef.key}`] = {
+      type: 'setUsername',
+      userId: auth.currentUser.uid,
+      username,
+      timestamp: Date.now()
+    };
+    console.log('ユーザー名設定開始: username=', username, 'userId=', auth.currentUser.uid);
+    let retries = 3;
+    let success = false;
+    let lastError = null;
+    while (retries > 0 && !success) {
+      try {
+        await update(ref(database), updates);
+        success = true;
+        console.log('ユーザー名設定成功:', username);
+      } catch (error) {
+        lastError = error;
+        retries--;
+        console.warn(`ユーザー名設定失敗（残りリトライ: ${retries}）:`, { code: error.code, message: error.message });
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     }
-    if (username.length > 20) {
-      unameInput.classList.add('is-invalid');
-      console.log('ユーザー名エラー: 文字数超過');
-      showError('ユーザー名は20文字以内にしてください。');
-      return;
+    if (!success) {
+      throw lastError || new Error('ユーザー名の保存に失敗しました');
     }
-    if (/[.#$/\[\]]/.test(username)) {
-      unameInput.classList.add('is-invalid');
-      console.log('ユーザー名エラー: 無効な文字');
-      showError('ユーザー名に使用できない文字（. # $ / [ ]）が含まれています。');
-      return;
-    }
-    if (!auth.currentUser) {
-      showError('ログインしてください。');
-      console.log('ユーザー名エラー: 未ログイン');
-      return;
-    }
-    try {
-      const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-      const updates = {};
-      updates[`users/${auth.currentUser.uid}`] = {
-        username,
-        provider: userData.provider || 'anonymous',
-        ipAddress: userData.ipAddress || 'github'
-      };
-      updates[`onlineUsers/${auth.currentUser.uid}`] = {
-        username,
-        timestamp: Date.now()
-      };
-      const actionRef = push(actionsRef);
-      updates[`actions/${actionRef.key}`] = {
-        type: 'setUsername',
-        userId: auth.currentUser.uid,
-        username,
-        timestamp: Date.now()
-      };
-      console.log('ユーザー名設定開始: username=', username, 'userId=', auth.currentUser.uid);
-      await update(ref(database), updates);
-      userInfo.innerHTML = `<span class="status-dot status-active"></span>${username} <i class="fas fa-pencil-alt ms-1"></i>`;
-      unameModal.hide();
-      unameInput.classList.remove('is-invalid');
-      console.log('ユーザー名設定成功:', username);
-      showSuccess('ユーザー名を更新しました。');
-      await updateOnlineUsers();
-    } catch (error) {
-      console.error('ユーザー名設定エラー:', error);
-      showError(`ユーザー名の保存に失敗しました: ${error.message}`);
-      unameInput.classList.add('is-invalid');
-    }
-  });
+    userInfo.innerHTML = `<span class="status-dot status-active"></span>${username} <i class="fas fa-pencil-alt ms-1"></i>`;
+    unameModal.hide();
+    unameInput.classList.remove('is-invalid');
+    showSuccess('ユーザー名を更新しました。');
+    await updateOnlineUsers();
+  } catch (error) {
+    console.error('ユーザー名設定エラー:', error);
+    showError(`ユーザー名の保存に失敗しました: ${error.message}`);
+    unameInput.classList.add('is-invalid');
+  }
+});
 
   // メッセージ送信
 if (!formEl) {
@@ -940,6 +1039,7 @@ async function loadInitialMessages() {
     const userDataPromises = userIds.map(async userId => {
       if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
       const snapshot = await get(ref(database, `users/${userId}`));
+      console.log('データベースから取得したデータ:', snapshot.val());
       const data = snapshot.val() || {};
       userCache.set(userId, data);
       return { userId, data };
