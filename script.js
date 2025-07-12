@@ -16,13 +16,8 @@ async function loadFirebaseConfig() {
             throw new Error(`HTTPエラー: ステータス ${response.status}`);
         }
         const config = await response.json();
-        console.log('Firebase設定取得成功:', config);
         return config;
     } catch (error) {
-        console.error('Firebase設定取得エラー:', {
-            message: error.message,
-            stack: error.stack
-        });
         throw error;
     }
 }
@@ -34,12 +29,9 @@ async function getClientIp() {
     const data = await response.json();
     return data.ip;
   } catch (error) {
-    console.error('IP取得エラー:', error);
     return 'unknown';
   }
 }
-
-
 
 // クッキー設定
 function setCookie(name, value, days) {
@@ -47,13 +39,11 @@ function setCookie(name, value, days) {
     ? `; expires=${new Date(Date.now() + days * 86400000).toUTCString()}`
     : '';
   document.cookie = `${name}=${value}${expires}; path=/; SameSite=Strict`;
-  console.log(`クッキー設定: ${name}=${value}, expires=${expires}`);
 }
 // クッキー取得
 function getCookie(name) {
   const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
   const value = match ? match[2] : null;
-  console.log(`クッキー取得: ${name}=${value}`);
   return value;
 }
 function isMobileDevice() {
@@ -66,11 +56,9 @@ try {
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
     const auth = getAuth(app);
-    console.log('Firebase初期化成功');
     
     // 通知初期化
     initNotifications();
-    console.log('通知システム初期化');
 
     // データベース参照
     const messagesRef = ref(database, 'messages');
@@ -129,7 +117,6 @@ try {
       errorAlert.classList.add('d-none');
       errorAlert.removeAttribute('role');
     }, 6000);
-    console.log('エラーメッセージ表示:', message);
   }
 
   // 成功メッセージ表示
@@ -141,7 +128,6 @@ try {
     successAlert.textContent = message;
     document.body.appendChild(successAlert);
     setTimeout(() => successAlert.remove(), 3000);
-    console.log('成功メッセージ表示:', message);
   }
 
   // トースト通知
@@ -153,7 +139,6 @@ try {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
-    console.log('トースト通知表示:', message);
   }
 
   // ステータスインジケーター更新
@@ -179,26 +164,21 @@ async function fetchOnlineUsers() {
             photoURL: user.photoURL && typeof user.photoURL === 'string' ? user.photoURL : null
           }))
       : [];
-    console.log('Fetched online users:', users);
     return users;
   } catch (error) {
-    console.error('オンラインユーザー取得エラー:', error);
     return [];
   }
 }
 
 async function getUserData(userId) {
   if (!userId || typeof userId !== 'string') {
-    console.warn('Invalid userId in getUserData:', userId);
     return { userId, username: '匿名', photoURL: null };
   }
   if (userCache.has(userId)) {
     const cachedData = userCache.get(userId);
     if (cachedData && cachedData.userId === userId) {
-      console.log('Using cached user data:', cachedData);
       return cachedData;
     }
-    console.warn('Invalid cached data for userId:', userId, cachedData);
     userCache.delete(userId); // 無効なキャッシュを削除
   }
   try {
@@ -207,27 +187,24 @@ async function getUserData(userId) {
     const userData = { userId, username: '匿名', photoURL: null, ...data }; // userIdを常に含める
     userCache.set(userId, userData);
     if (userCache.size > 100) userCache.clear();
-    console.log('Fetched user data:', userData);
     return userData;
   } catch (error) {
-    console.error('ユーザー データ取得エラー:', error);
     return { userId, username: '匿名', photoURL: null };
   }
 }
 
 function renderOnlineUsers(users) {
   if (!users || users.length === 0) {
-    console.log('No online users to render');
     return '<span class="text-muted">オンラインのユーザーはいません</span>';
   }
   return users
     .filter(user => user && user.userId && typeof user.userId === 'string') // 有効なuserIdのみ
     .map(({ userId, username, photoURL }) => {
       const displayUsername = username && typeof username === 'string' ? username : '匿名';
-      console.log(`Rendering user - userId: ${userId}, photoURL: ${photoURL}`);
       return `<span class="online-user" title="${displayUsername}" data-user-id="${userId}">
         ${photoURL
-          ? `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="this.outerHTML='<div class=\\'avatar\\'>${displayUsername.charAt(0).toUpperCase()}</div>'; console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">`
+          ? `<img src="${photoURL}" alt="${displayUsername}のプロフィール画像" class="profile-img" onerror="this.outerHTML='<div class=\\'avatar\\'>${displayUsername.charAt(0).toUpperCase()}</div>'; 
+          console.log('Image load failed for userId: ${userId}, URL: ${photoURL}')">`
           : `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
       </span>`;
     })
@@ -236,7 +213,6 @@ function renderOnlineUsers(users) {
 
 async function updateOnlineUsers() {
   if (!auth.currentUser) {
-    console.log('未ログインのため、オンラインステータスをスキップ');
     onlineUsersEl.innerHTML = '<span class="text-muted">ログインしてオンライン状況を確認</span>';
     return;
   }
@@ -245,16 +221,13 @@ async function updateOnlineUsers() {
     const limitedUsers = users.slice(0, 50);
     const userDataArray = (await Promise.all(limitedUsers.map(user => getUserData(user.userId))))
       .filter(user => user && user.userId && typeof user.userId === 'string'); // 無効なデータを除外
-    console.log('Valid user data array:', userDataArray);
     onlineUsersEl.innerHTML = renderOnlineUsers(userDataArray);
   } catch (error) {
-    console.warn('オンラインユーザー取得エラー:', error);
     onlineUsersEl.innerHTML = '<span class="text-muted">オンライン状況の取得に失敗</span>';
   }
 }
 
 onValue(onlineUsersRef, (snapshot) => {
-  console.log('onValue triggered at:', new Date().toISOString(), 'Data:', snapshot.val());
   clearTimeout(debounceTimeout);
   debounceTimeout = setTimeout(updateOnlineUsers, 1000);
 });
@@ -286,8 +259,7 @@ async function updateUserUI(user) {
         });
         onDisconnect(ref(database, `onlineUsers/${user.uid}`)).remove();
       } catch (error) {
-        console.warn('オンラインステータス更新エラー:', error);
-      }
+     }
       updateStatusIndicator();
       await updateOnlineUsers();
       await loadInitialMessages();
@@ -302,7 +274,6 @@ async function updateUserUI(user) {
       await updateOnlineUsers();
     }
   } catch (error) {
-    console.error('ユーザーUI更新エラー:', error);
     showError('ユーザー情報の更新に失敗しました。');
   }
 }
@@ -512,15 +483,6 @@ twitterLogin.addEventListener('click', async () => {
     const provider = new TwitterAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
-    console.log('Twitter user info:', {
-      uid: user.uid,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      email: user.email,
-      emailVerified: user.emailVerified,
-      providerData: user.providerData
-    });
-
     await new Promise((resolve) => {
       const unsubscribe = auth.onAuthStateChanged((currentUser) => {
         if (currentUser && currentUser.uid === user.uid) {
@@ -531,8 +493,6 @@ twitterLogin.addEventListener('click', async () => {
     });
 
     const token = await user.getIdToken(true);
-    console.log('Token refreshed:', token);
-
     const providerId = result.providerId || 'twitter.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
     const username = existingUserData.username || user.displayName || `user${Date.now()}`;
@@ -549,16 +509,6 @@ twitterLogin.addEventListener('click', async () => {
       email: user.email || null,
       emailVerified: user.emailVerified || false
     };
-    console.log('書き込みデータ詳細:', JSON.stringify(userData, null, 2)); // 追加
-    console.log('書き込みデータ検証:', {
-      username: typeof username === 'string' && username.length > 0 && username.length <= 50,
-      provider: typeof providerId === 'string',
-      ipAddress: typeof ipAddress === 'string',
-      photoURL: typeof userData.photoURL === 'string' || userData.photoURL === null,
-      email: typeof userData.email === 'string' || userData.email === null,
-      emailVerified: typeof userData.emailVerified === 'boolean'
-    });
-
     let retries = 3;
     let success = false;
     let lastError = null;
@@ -566,7 +516,6 @@ twitterLogin.addEventListener('click', async () => {
       try {
         await set(ref(database, `users/${user.uid}`), userData);
         success = true;
-        console.log('Twitter user data saved:', userData);
       } catch (error) {
         lastError = error;
         retries--;
@@ -586,7 +535,6 @@ twitterLogin.addEventListener('click', async () => {
       username,
       timestamp: Date.now()
     });
-    console.log('Twitterログイン成功:', user.displayName);
     showSuccess('Twitterでログインしました。');
   } catch (error) {
     console.error('Twitterログインエラー:', { code: error.code, message: error.message });
@@ -604,14 +552,6 @@ googleLogin.addEventListener('click', async () => {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
-    console.log('Google user info:', { 
-      uid: user.uid, 
-      displayName: user.displayName, 
-      photoURL: user.photoURL, 
-      email: user.email, 
-      emailVerified: user.emailVerified, 
-      providerData: user.providerData 
-    });
     const providerId = result.providerId || 'google.com';
     const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
     let username = existingUserData.username || user.displayName || `user${Date.now()}`;
@@ -638,8 +578,6 @@ googleLogin.addEventListener('click', async () => {
         email: data.email
       }))
     };
-    console.log('書き込みデータ:', JSON.stringify(userData, null, 2));
-    console.log('認証状態:', { uid: auth.currentUser?.uid, isAnonymous: auth.currentUser?.isAnonymous });
 
     // リトライロジックの挿入
     let retries = 3;
@@ -649,7 +587,6 @@ googleLogin.addEventListener('click', async () => {
       try {
         await set(ref(database, `users/${user.uid}`), userData);
         success = true;
-        console.log('Google user data saved:', userData);
       } catch (error) {
         lastError = error;
         retries--;
@@ -669,7 +606,6 @@ googleLogin.addEventListener('click', async () => {
       username,
       timestamp: Date.now()
     });
-    console.log('Googleログイン成功:', user.displayName);
     showSuccess('Googleでログインしました。');
   } catch (error) {
     console.error('Googleログインエラー:', { code: error.code, message: error.message, stack: error.stack });
@@ -697,7 +633,6 @@ anonymousLogin.addEventListener('click', async () => {
       emailVerified: false,
       providerData: []
     };
-    console.log('書き込みデータ詳細:', JSON.stringify(userData, null, 2));
     let retries = 3;
     let success = false;
     let lastError = null;
@@ -705,7 +640,6 @@ anonymousLogin.addEventListener('click', async () => {
       try {
         await set(ref(database, `users/${user.uid}`), userData);
         success = true;
-        console.log('Anonymous user data saved:', userData);
       } catch (error) {
         lastError = error;
         retries--;
@@ -724,7 +658,6 @@ anonymousLogin.addEventListener('click', async () => {
       username: uniqueUsername,
       timestamp: Date.now()
     });
-    console.log('匿名ログイン成功');
     showSuccess('匿名でログインしました。');
   } catch (error) {
     console.error('匿名ログインエラー:', { code: error.code, message: error.message });
@@ -746,7 +679,6 @@ anonymousLogin.addEventListener('click', async () => {
         });
         await remove(ref(database, `onlineUsers/${auth.currentUser.uid}`));
         await signOut(auth);
-        console.log('ログアウト成功');
         showSuccess('ログアウトしました。');
       } catch (error) {
         console.error('ログアウトエラー:', error);
@@ -756,7 +688,6 @@ anonymousLogin.addEventListener('click', async () => {
       loginModalEl.removeAttribute('inert');
       loginModal.show();
       setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
-      console.log('ログインモーダル表示');
     }
   });
 
@@ -884,7 +815,6 @@ anonymousLogin.addEventListener('click', async () => {
 if (!formEl) {
   console.error('formElが見つかりません。ID="messageForm"の要素を確認してください。');
 } else {
-  console.log('formElを初期化: ID=messageForm');
   formEl.removeEventListener('submit', formEl._submitHandler); // 既存リスナーを削除
 formEl._submitHandler = async (e) => {
   e.preventDefault();
@@ -1022,7 +952,6 @@ formEl._submitHandler = async (e) => {
   }
 };
   formEl.addEventListener('submit', formEl._submitHandler);
-  console.log('formElにsubmitリスナーを設定');
 }
 
   // テキストエリアの自動リサイズ
@@ -1051,13 +980,10 @@ async function loadInitialMessages() {
     const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
     const snapshot = await get(initialMessagesQuery);
     const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
-    console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
-    
     const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
     const userDataPromises = userIds.map(async userId => {
       if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
       const snapshot = await get(ref(database, `users/${userId}`));
-      console.log('データベースから取得したデータ:', snapshot.val());
       const data = snapshot.val() || {};
       userCache.set(userId, data);
       return { userId, data };
@@ -1089,7 +1015,6 @@ async function loadInitialMessages() {
             .replace(codeRegex, '<pre><code>$1</code></pre>')
         : 'メッセージなし';
       formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
-      console.log('メッセージ描画: key=', key, 'userId=', userId, 'currentUser=', auth.currentUser?.uid, 'isButtonDisplayed=', auth.currentUser && auth.currentUser.uid === userId);
       li.innerHTML = `
         <div class="message bg-transparent p-2 row">
           <div class="col-auto profile-icon">
@@ -1112,8 +1037,6 @@ async function loadInitialMessages() {
       messagesEl.prepend(li);
       setTimeout(() => li.classList.add('show'), 10);
     }
-    console.log(`初期メッセージ描画完了: メッセージ数=${messages.length}, 描画時間: ${(performance.now() - renderStartTime).toFixed(2)}ms, 総処理時間: ${(performance.now() - startTime).toFixed(2)}ms`);
-    showToast(`最新の${messages.length}件のメッセージを読み込みました`);
     messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (error) {
     console.error('初期メッセージ読み込みエラー:', error);
@@ -1139,7 +1062,6 @@ function setupMessageListener() {
       }
       // 重複チェック
       if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
-        console.log('重複メッセージ検出: key=', key);
         return;
       }
       const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
@@ -1269,7 +1191,6 @@ messagesEl.addEventListener('click', async (e) => {
 
   // 認証状態監視
   auth.onAuthStateChanged(async (user) => {
-    console.log('authStateChanged:', user ? `ユーザー ${user.uid} (${user.isAnonymous ? '匿名' : '認証済み'})` : '未ログイン');
     try {
       latestInitialTimestamp = null; // リセット
       await updateUserUI(user);
@@ -1290,13 +1211,11 @@ messagesEl.addEventListener('click', async (e) => {
   unameModalEl.addEventListener('hidden.bs.modal', () => {
     unameModalEl.setAttribute('inert', '');
     loginBtn.focus();
-    console.log('unameModal非表示: フォーカスをlogin-btnに移動');
   });
 
   loginModalEl.addEventListener('hidden.bs.modal', () => {
     loginModalEl.setAttribute('inert', '');
     loginBtn.focus();
-    console.log('loginModal非表示: フォーカスをlogin-btnに移動');
   });
 
   // 新着メッセージボタン
