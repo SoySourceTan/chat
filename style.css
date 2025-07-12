@@ -19,6 +19,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+        overscroll-behavior-y: none; /* スクロールのバウンス効果を無効化 */
 }
 
 .navbar {
@@ -41,21 +42,12 @@ body {
     border-radius: 2.5rem;
     background-color: #fff;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
-    transition: opacity 0.2s ease;
-    will-change: transform, opacity;
     height: 48px; /* レイアウトシフト防止 */
     transform: translate3d(0, 0, 0); /* GPUレイヤー生成 */
+    will-change: transform, opacity;
     position: sticky;
     top: 0;
     opacity: 0.88; /* 透過度88% */
-    animation: bounce 0.35s ease-in-out; /* 初期表示時にびよーん */
-}
-
-@keyframes bounce {
-    0% { transform: scaleY(1) translate3d(0, 0, 0); }
-    40% { transform: scaleY(0.94) translate3d(0, 0, 0); }
-    70% { transform: scaleY(1.01) translate3d(0, 0, 0); }
-    100% { transform: scaleY(1) translate3d(0, 0, 0); }
 }
 
 /* レスポンシブ対応 */
@@ -78,9 +70,11 @@ body {
     }
     .navbar-row-2 {
         animation: none;
-        transition: opacity 0.2s ease;
+        transition: none;
     }
 }
+
+
 #messages {
     margin-top: 10px;
     flex-grow: 1;
@@ -434,8 +428,23 @@ body {
     background: #fff;
     padding: 10px;
     box-shadow: 0 -1px 1px rgba(0, 0, 0, 0.03);
+    transform: translate3d(0, 0, 0); /* GPUアクセラレーション */
+    will-change: transform;
 }
-
+/* 仮想キーボード表示時の調整 */
+@media (max-width: 767.98px) {
+    body.keyboard-active {
+        position: fixed; /* キーボード表示中はbodyを固定 */
+        width: 100%;
+        top: 0;
+        overflow: hidden; /* スクロールを完全に禁止 */
+    }
+    #messageForm.keyboard-active {
+        position: fixed;
+        bottom: 0; /* キーボードの上にフォームを保持 */
+        width: 100%;
+    }
+}
 .delete-message {
     padding: 2px 6px;
     font-size: 0.8rem;
