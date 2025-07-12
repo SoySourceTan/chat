@@ -410,41 +410,6 @@ inputEl.addEventListener('blur', () => {
     }
   });
 
-// ドラッグ機能の追加
-let isDragging = false;
-let currentY;
-let formTop;
-
-formEl.addEventListener('touchstart', (e) => {
-  isDragging = true;
-  currentY = e.touches[0].clientY;
-  formTop = parseInt(window.getComputedStyle(formEl).top, 10) || 0;
-});
-
-formEl.addEventListener('touchmove', (e) => {
-  if (!isDragging) return;
-  const newY = e.touches[0].clientY;
-  const deltaY = newY - currentY;
-  formEl.style.top = `${formTop + deltaY}px`;
-});
-
-formEl.addEventListener('touchend', () => {
-  isDragging = false;
-});
-
-// 仮想キーボード表示時の調整
-inputEl.addEventListener('focus', () => {
-  document.body.classList.add('keyboard-active');
-  formEl.style.top = `${window.visualViewport.height - formEl.offsetHeight - 10}px`;
-});
-
-inputEl.addEventListener('blur', () => {
-  document.body.classList.remove('keyboard-active');
-  formEl.style.top = 'auto';
-  formEl.style.bottom = '10px';
-});
-
-
 // メッセージスクロール処理
 messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
 

@@ -432,6 +432,7 @@ body {
     will-change: transform;
 }
 
+
 /* 仮想キーボード表示時の調整 */
 @media (max-width: 767.98px) {
     body.keyboard-active {
