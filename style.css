@@ -420,8 +420,8 @@ body {
 }
 
 #messageForm {
-    position: fixed;
-    bottom: 0;
+    position: absolute; /* fixedからabsoluteに変更 */
+    bottom: 10px; /* 仮想キーボード表示時に見える位置 */
     left: 0;
     right: 0;
     z-index: 1000;
@@ -431,17 +431,16 @@ body {
     transform: translate3d(0, 0, 0); /* GPUアクセラレーション */
     will-change: transform;
 }
+
 /* 仮想キーボード表示時の調整 */
 @media (max-width: 767.98px) {
     body.keyboard-active {
-        position: fixed; /* キーボード表示中はbodyを固定 */
-        width: 100%;
-        top: 0;
-        overflow: hidden; /* スクロールを完全に禁止 */
+        position: relative; /* fixedからrelativeに変更 */
+        overflow-y: auto; /* スクロールを許可 */
     }
     #messageForm.keyboard-active {
-        position: fixed;
-        bottom: 0; /* キーボードの上にフォームを保持 */
+        position: absolute;
+        bottom: 10px; /* キーボードの上にフォームを配置 */
         width: 100%;
     }
 }

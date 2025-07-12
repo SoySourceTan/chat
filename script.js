@@ -410,6 +410,41 @@ inputEl.addEventListener('blur', () => {
     }
   });
 
+// ドラッグ機能の追加
+let isDragging = false;
+let currentY;
+let formTop;
+
+formEl.addEventListener('touchstart', (e) => {
+  isDragging = true;
+  currentY = e.touches[0].clientY;
+  formTop = parseInt(window.getComputedStyle(formEl).top, 10) || 0;
+});
+
+formEl.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  const newY = e.touches[0].clientY;
+  const deltaY = newY - currentY;
+  formEl.style.top = `${formTop + deltaY}px`;
+});
+
+formEl.addEventListener('touchend', () => {
+  isDragging = false;
+});
+
+// 仮想キーボード表示時の調整
+inputEl.addEventListener('focus', () => {
+  document.body.classList.add('keyboard-active');
+  formEl.style.top = `${window.visualViewport.height - formEl.offsetHeight - 10}px`;
+});
+
+inputEl.addEventListener('blur', () => {
+  document.body.classList.remove('keyboard-active');
+  formEl.style.top = 'auto';
+  formEl.style.bottom = '10px';
+});
+
+
 // メッセージスクロール処理
 messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
 
@@ -1356,6 +1391,28 @@ window.visualViewport.addEventListener('resize', () => {
     window.scrollTo({ top: window.scrollY, behavior: 'auto' });
   }
 });
+
+// フローティングウィンドウの簡易実装
+window.onload = () => {
+  document.getElementById('messageForm').style.position = 'absolute'; // 追加
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+    new bootstrap.Tooltip(el);
+  });
+  // モードボタンのUIをクッキーの状態に同期
+  toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
+  const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
+  toggleModeBtn.setAttribute('data-bs-title', newTitle);
+  toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
+  console.log('初期モード:', isEnterSendMode ? '送信モード' : '改行モード');
+  if (!formEl) {
+    console.error('window.onload: formElが見つかりません。ID="messageForm"の要素を確認してください。');
+  } else {
+    console.log('window.onload: formElにsubmitリスナーを再設定');
+    formEl.removeEventListener('submit', formEl._submitHandler);
+    formEl.addEventListener('submit', formEl._submitHandler);
+  }
+};
+
 
   // モードボタンのUIをクッキーの状態に同期
   toggleModeBtn.innerHTML = isEnterSendMode ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-level-down-alt fa-rotate-90"></i>';
