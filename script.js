@@ -4,6 +4,29 @@ import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, sign
 import { initNotifications, notifyNewMessage } from './notify.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
 
+async function loadFirebaseConfig() {
+    try {
+        const response = await fetch('https://trextacy.com/firebase-config.php', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTPエラー: ステータス ${response.status}`);
+        }
+        const config = await response.json();
+        console.log('Firebase設定取得成功:', config);
+        return config;
+    } catch (error) {
+        console.error('Firebase設定取得エラー:', {
+            message: error.message,
+            stack: error.stack
+        });
+        throw error;
+    }
+}
+
 // IPアドレス取得関数
 async function getClientIp() {
   try {
@@ -16,16 +39,7 @@ async function getClientIp() {
   }
 }
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc",
-  authDomain: "gentle-brace-458923-k9.firebaseapp.com",
-  databaseURL: "https://gentle-brace-458923-k9-default-rtdb.firebaseio.com",
-  projectId: "gentle-brace-458923-k9",
-  storageBucket: "gentle-brace-458923-k9.firebasestorage.app",
-  messagingSenderId: "426876531009",
-  appId: "1:426876531009:web:021b23c449bce5d72031c0",
-  measurementId: "G-2B5KWNHYED"
-};
+
 
 // クッキー設定
 function setCookie(name, value, days) {
@@ -46,62 +60,64 @@ function isMobileDevice() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 try {
-  // Firebase初期化
-  const app = initializeApp(firebaseConfig);
-  const database = getDatabase(app);
-  const auth = getAuth(app);
-  console.log('Firebase初期化成功');
-  
-  // 通知初期化
-  initNotifications();
-  console.log('通知システム初期化');
+    // Firebase設定取得
+    const firebaseConfig = await loadFirebaseConfig();
+    // Firebase初期化
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+    const auth = getAuth(app);
+    console.log('Firebase初期化成功');
+    
+    // 通知初期化
+    initNotifications();
+    console.log('通知システム初期化');
 
-  // データベース参照
-  const messagesRef = ref(database, 'messages');
-  const usersRef = ref(database, 'users');
-  const actionsRef = ref(database, 'actions');
-  const bannedUsersRef = ref(database, 'bannedUsers');
-  const onlineUsersRef = ref(database, 'onlineUsers');
+    // データベース参照
+    const messagesRef = ref(database, 'messages');
+    const usersRef = ref(database, 'users');
+    const actionsRef = ref(database, 'actions');
+    const bannedUsersRef = ref(database, 'bannedUsers');
+    const onlineUsersRef = ref(database, 'onlineUsers');
 
-  // DOM要素
-  let formEl = document.getElementById('messageForm');
-  const messagesEl = document.getElementById('messages');
-  const inputEl = document.getElementById('m');
-  const errorAlert = document.getElementById('error-alert');
-  const loginBtn = document.getElementById('login-btn');
-  const twitterLogin = document.getElementById('twitterLogin');
-  const googleLogin = document.getElementById('googleLogin');
-  const anonymousLogin = document.getElementById('anonymousLogin');
-  const userInfo = document.getElementById('user-info');
-  const unameModalEl = document.getElementById('unameModal');
-  const unameModal = new bootstrap.Modal(unameModalEl);
-  const loginModalEl = document.getElementById('loginModal');
-  const loginModal = new bootstrap.Modal(loginModalEl);
-  const unameInput = document.getElementById('uname');
-  const confirmName = document.getElementById('confirmName');
-  const onlineUsersEl = document.getElementById('online-users');
-  const compactModeBtn = document.getElementById('compactModeBtn');
-  const fontSizeS = document.getElementById('fontSizeS');
-  const fontSizeM = document.getElementById('fontSizeM');
-  const fontSizeL = document.getElementById('fontSizeL');
-  const signOutBtn = document.getElementById('signOut');
-  const newMessageBtn = document.getElementById('newMessageBtn');
-  const toggleModeBtn = document.getElementById('toggleModeBtn');
-  const loadingIndicator = document.getElementById('loading-indicator');
-  const progressOverlay = document.getElementById('progress-overlay');
+    // DOM要素
+    let formEl = document.getElementById('messageForm');
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('m');
+    const errorAlert = document.getElementById('error-alert');
+    const loginBtn = document.getElementById('login-btn');
+    const twitterLogin = document.getElementById('twitterLogin');
+    const googleLogin = document.getElementById('googleLogin');
+    const anonymousLogin = document.getElementById('anonymousLogin');
+    const userInfo = document.getElementById('user-info');
+    const unameModalEl = document.getElementById('unameModal');
+    const unameModal = new bootstrap.Modal(unameModalEl);
+    const loginModalEl = document.getElementById('loginModal');
+    const loginModal = new bootstrap.Modal(loginModalEl);
+    const unameInput = document.getElementById('uname');
+    const confirmName = document.getElementById('confirmName');
+    const onlineUsersEl = document.getElementById('online-users');
+    const compactModeBtn = document.getElementById('compactModeBtn');
+    const fontSizeS = document.getElementById('fontSizeS');
+    const fontSizeM = document.getElementById('fontSizeM');
+    const fontSizeL = document.getElementById('fontSizeL');
+    const signOutBtn = document.getElementById('signOut');
+    const newMessageBtn = document.getElementById('newMessageBtn');
+    const toggleModeBtn = document.getElementById('toggleModeBtn');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const progressOverlay = document.getElementById('progress-overlay');
 
-// 状態管理
-let isSending = false;
-let isLoggingIn = false;
-let isUserScrolledUp = false;
-let isEnterSendMode = getCookie('enterSendMode') === 'true'  // クッキーから復元
-let isLoading = false;
-let lastTimestamp = null;
-let latestInitialTimestamp = null;
-let isCompactMode = false;
-let lastActivity = Date.now();
-const userCache = new Map();
-let debounceTimeout = null;
+    // 状態管理
+    let isSending = false;
+    let isLoggingIn = false;
+    let isUserScrolledUp = false;
+    let isEnterSendMode = getCookie('enterSendMode') === 'true'; // クッキーから復元
+    let isLoading = false;
+    let lastTimestamp = null;
+    let latestInitialTimestamp = null;
+    let isCompactMode = false;
+    let lastActivity = Date.now();
+    const userCache = new Map();
+    let debounceTimeout = null;
 
   // エラーメッセージ表示
   function showError(message) {
@@ -1307,10 +1323,10 @@ window.onload = () => {
   }
 };
 } catch (error) {
-  console.error('Firebase初期化エラー:', {
-    message: error.message,
-    code: error.code,
-    stack: error.stack
-  });
-  showError(`Firebaseの初期化に失敗しました: ${error.message}`);
+    console.error('Firebase初期化エラー:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+    });
+    showError(`Firebaseの初期化に失敗しました: ${error.message}`);
 }
