@@ -1063,31 +1063,6 @@ async function loadInitialMessages() {
       return { userId, data };
     });
   
-    // ScrollReveal初期化（エラー防止）
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof ScrollReveal === 'undefined') {
-    console.error('ScrollRevealが読み込まれていません。CDNを確認してください。');
-    // フォールバック: CSSアニメーション
-    const navsec = document.getElementById('navsec');
-    navsec.classList.add('fallback-animate');
-    return;
-  }
-
-  ScrollReveal().reveal('#navsec', {
-    scaleY: [1, 0.94, 1.01, 1], // びよーん効果
-    opacity: 0.88, // 透過度88%
-    duration: 350, // 0.35秒
-    easing: 'ease-in-out',
-    reset: false, // スクロールごとに再実行しない
-    viewOffset: { top: 0, bottom: 0 }, // navbar-row-1がビューポート外でトリガー
-    beforeReveal: (el) => {
-      el.style.transform = 'translate3d(0, 0, 0)'; // GPUアクセラレーション
-    }
-  });
-});
-
-
-
     const userDataArray = await Promise.all(userDataPromises);
     const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
     
