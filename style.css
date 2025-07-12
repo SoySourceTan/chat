@@ -19,7 +19,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-        overscroll-behavior-y: none; /* スクロールのバウンス効果を無効化 */
+    overscroll-behavior-y: contain;
 }
 
 .navbar {

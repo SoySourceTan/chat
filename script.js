@@ -1330,6 +1330,7 @@ newMessageBtn.addEventListener('click', () => {
 });
   // フォーム初期化（クローンを削除）
 window.onload = () => {
+  document.body.style.overscrollBehaviorY = 'contain'; // 追加
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
     new bootstrap.Tooltip(el);
   });
