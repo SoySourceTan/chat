@@ -105,7 +105,7 @@ try {
     const toggleModeBtn = document.getElementById('toggleModeBtn');
     const loadingIndicator = document.getElementById('loading-indicator');
     const progressOverlay = document.getElementById('progress-overlay');
-    const navbarRow2 = document.getElementById('navsec'); // navbar-row-2の参照
+    const navbarRow2 = document.getElementById('navsec');
     // 状態管理
     let isSending = false;
     let isLoggingIn = false;
@@ -407,19 +407,16 @@ window.addEventListener('scroll', () => {
   if (scrollTimeout) clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(async () => {
     const currentScrollTop = window.scrollY;
-    const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - currentScrollTop;
-    const navbarRow1 = document.querySelector('.navbar-row-1'); // navbar-row-1の参照
+    const navbarRow1 = document.querySelector('.navbar-row-1');
     if (!navbarRow1 || !navbarRow2) {
       console.warn('navbar-row-1またはnavbar-row-2が見つかりません。HTMLを確認してください。');
       return;
     }
-    const navbarRow1Bottom = navbarRow1.getBoundingClientRect().bottom; // navbar-row-1の下端位置
-
-    // navbar-row-1が画面外（上部）にスクロールアウトしたか判定
+    const navbarRow1Bottom = navbarRow1.getBoundingClientRect().bottom;
     if (navbarRow1Bottom <= 0) {
-      navbarRow2.classList.add('fixed'); // navbar-row-2を固定
+      navbarRow2.classList.add('fixed');
     } else {
-      navbarRow2.classList.remove('fixed'); // navbar-row-2を通常のフローに戻す
+      navbarRow2.classList.remove('fixed');
     }
 
     isUserScrolledUp = currentScrollTop > 10;
@@ -489,7 +486,7 @@ window.addEventListener('scroll', () => {
         loadingIndicator.style.display = 'none';
       }
     }
-  }, 100); // デバウンス時間を200msから100msに短縮
+  }, 150); // デバウンス時間を200msから100msに短縮
 });
 // クライアント側でIPアドレスを取得
 async function getClientIp() {
@@ -1331,3 +1328,11 @@ window.onload = () => {
     });
     showError(`Firebaseの初期化に失敗しました: ${error.message}`);
 }
+// AOS初期化
+AOS.init({
+    duration: 400, // CSSの0.4sに合わせる
+    easing: 'ease-in-out',
+    once: false,
+    offset: 0,
+    delay: 50,
+});

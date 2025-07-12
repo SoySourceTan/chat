@@ -5,68 +5,6 @@
     --bs-body-color: #333333; /* 読みやすい黒系テキスト */
 }
 
-.navbar {
-    background-color: var(--bs-primary);
-    position: relative; /* 親要素の位置を基準に */
-}
-
-.navbar-row-1 {
-    padding: 0.5rem 1rem;
-    background-color: var(--bs-primary);
-}
-
-.navbar-row-2 {
-    background-color: #f9f9f9;
-    z-index: 1020;
-    padding: 0.5rem 1rem;
-    max-width: 800px; /* col-md-8相当 */
-    margin: 0 auto;
-    border-radius: 1rem;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease-in-out; /* スムーズな固定/非固定の切り替え */
-}
-
-.navbar-row-2.fixed {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    margin: 0 auto;
-    border-radius: 0 0 1rem 1rem; /* 下部のみ丸める */
-}
-
-@media (min-width: 768px) {
-    .navbar-row-2 {
-        width: 66.67%; /* col-md-8相当 */
-    }
-}
-
-main {
-    margin-top: 120px; /* navbar-row-1とnavbar-row-2の高さに合わせて調整 */
-}
-
-#messages {
-    margin-top: 10px; /* navbar-row-2との間隔を調整 */
-    flex-grow: 1;
-    scroll-behavior: smooth;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-    scrollbar-width: auto;
-    scrollbar-color: #aab7cf #dee2e6;
-}
-
-/* ナビゲーションのスライドアニメーションを無効化 */
-.navbar-slide {
-    transition: none;
-    z-index: 1000;
-}
-
-.navbar-slide.hidden {
-    transform: none;
-}
-
-/* 以下、既存のスタイルを維持 */
 body {
     padding: 0;
     margin: 0;
@@ -77,6 +15,97 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+}
+
+.navbar {
+    background-color: var(--bs-primary);
+    position: relative;
+    z-index: 1000;
+}
+
+.navbar-row-1 {
+    padding: 0.5rem 1rem;
+    background-color: var(--bs-primary);
+}
+
+.navbar-row-2 {
+    display: flex;
+    align-items: center;
+    margin: 0.5rem auto;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 2.5rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: opacity 0.3s ease;
+    will-change: transform, opacity;
+    height: 48px; /* レイアウトシフト防止 */
+}
+
+.navbar-row-2.fixed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    max-width: 720px; /* col-md-8相当 */
+    opacity: 0.88; /* 透過度88% */
+}
+
+/* AOSカスタムアニメーション */
+[data-aos="custom-bounce"] {
+    transform: scaleY(1);
+    transition-property: transform;
+    transition-duration: 0.4s;
+    transition-timing-function: ease-in-out;
+}
+
+[data-aos="custom-bounce"].aos-animate {
+    animation: bounce 0.4s ease-in-out;
+}
+
+@keyframes bounce {
+    0% { transform: scaleY(1); }
+    40% { transform: scaleY(0.9); }
+    70% { transform: scaleY(1.03); }
+    100% { transform: scaleY(1); }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 767.98px) {
+    .navbar-row-2 {
+        max-width: 100%; /* col-12相当 */
+    }
+    .navbar-row-2.fixed {
+        max-width: 100%;
+    }
+}
+
+@media (min-width: 768px) {
+    .navbar-row-2 {
+        width: 66.67%; /* col-md-8相当 */
+    }
+}
+
+/* モーションセンシティブなユーザー向け */
+@media (prefers-reduced-motion: reduce) {
+    [data-aos="custom-bounce"] {
+        animation: none;
+        transition: opacity 0.3s ease;
+    }
+}
+
+main {
+}
+
+#messages {
+    margin-top: 10px;
+    flex-grow: 1;
+    scroll-behavior: smooth;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    scrollbar-width: auto;
+    scrollbar-color: #aab7cf #dee2e6;
 }
 
 #messages::-webkit-scrollbar {
@@ -161,15 +190,7 @@ body {
     border-color: #ff1493;
 }
 
-#toggleModeBtn {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#notificationToggle {
+#toggleModeBtn, #notificationToggle {
     width: 40px;
     height: 40px;
     display: flex;
@@ -179,8 +200,9 @@ body {
 
 .message-header {
     font-size: 0.9em;
-    margin-bottom: 5px;
+    margin-bottom: 0;
     opacity: 0.8;
+    align-self: center;
 }
 
 .loading-indicator::before {
@@ -262,6 +284,8 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .loading-indicator {
@@ -363,7 +387,7 @@ body {
     height: 24px;
     border-radius: 50%;
     object-fit: cover;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     border: 1px solid #fff;
 }
 
@@ -378,23 +402,8 @@ body {
     font-size: 1.2rem;
     color: white;
     font-weight: bold;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     border: 1px solid #fff;
-}
-
-.message-header {
-    font-size: 0.9em;
-    margin-bottom: 0;
-    opacity: 0.8;
-    align-self: center;
-}
-
-@media (max-width: 576px) {
-    .profile-img, .avatar {
-        width: 24px;
-        height: 24px;
-        font-size: 1.2rem;
-    }
 }
 
 .navbar-brand {
@@ -405,29 +414,6 @@ body {
     display: flex;
     gap: 5px;
     align-items: center;
-}
-
-.online-user {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background-color: #FFE4E1;
-    color: white;
-    font-size: 0.8rem;
-    overflow: hidden;
-    position: relative;
-}
-
-.online-user img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    border: 1px solid #fff;
 }
 
 .message-body a {
