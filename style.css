@@ -1,110 +1,4 @@
-:root {
-    --bs-primary: #FFD1DC; /* キュアプリズムの淡いピンク */
-    --bs-secondary: #F5F5F5; /* 薄いグレー */
-    --bs-body-bg: #FFFFFF; /* ホワイト */
-    --bs-body-color: #333333; /* 読みやすい黒系テキスト */
-}
 
-html {
-    scroll-behavior: smooth; /* ページ全体のスクロールを滑らかに */
-}
-
-body {
-    padding: 0;
-    margin: 0;
-    font-family: sans-serif;
-    padding-bottom: 70px;
-    position: relative;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-}
-
-.navbar {
-    background-color: var(--bs-primary);
-    position: relative;
-    z-index: 1000;
-}
-
-.navbar-row-1 {
-    padding: 0.5rem 1rem;
-    background-color: var(--bs-primary);
-}
-
-.navbar-row-2 {
-    display: flex;
-    align-items: center;
-    margin: 0.5rem auto;
-    padding: 0.5rem;
-    border: 1px solid #dee2e6;
-    border-radius: 2.5rem;
-    background-color: #fff;
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
-    height: 48px; /* レイアウトシフト防止 */
-    top: 0;
-    opacity: 0.88; /* 透過度88% */
-}
-
-/* レスポンシブ対応 */
-@media (max-width: 767.98px) {
-    .navbar-row-2 {
-        max-width: 100%; /* col-12相当 */
-    }
-}
-
-@media (min-width: 768px) {
-    .navbar-row-2 {
-        width: 66.67%; /* col-md-8相当 */
-    }
-}
-
-/* モーションセンシティブなユーザー向け */
-@media (prefers-reduced-motion: reduce) {
-    html {
-        scroll-behavior: auto; /* スムーズスクロール無効化 */
-    }
-    .navbar-row-2 {
-        animation: none;
-        transition: none;
-    }
-}
-
-
-#messages {
-    margin-top: 10px;
-    flex-grow: 1;
-    scroll-behavior: smooth;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-    scrollbar-width: auto;
-    scrollbar-color: #aab7cf #dee2e6;
-}
-
-#messages::-webkit-scrollbar {
-    width: 8px;
-}
-
-#messages::-webkit-scrollbar-track {
-    background: #dee2e6;
-}
-
-#messages::-webkit-scrollbar-thumb {
-    background-color: #aab7cf;
-    border-radius: 4px;
-    border: 1px solid #dee2e6;
-}
-
-#messages::-webkit-scrollbar-thumb:hover {
-    background-color: #8690a4;
-}
-
-#messages li {
-    word-break: break-word;
-    hyphens: auto;
-}
 
 .fade-in {
     opacity: 0;
@@ -417,7 +311,7 @@ body {
 }
 
 #messageForm {
-    position: absolute; /* fixedからabsoluteに変更 */
+    position: fixed; /* fixedからabsoluteに変更 */
     bottom: 10px; /* 仮想キーボード表示時に見える位置 */
     left: 0;
     right: 0;
@@ -433,13 +327,16 @@ body {
 /* 仮想キーボード表示時の調整 */
 @media (max-width: 767.98px) {
     body.keyboard-active {
-        position: relative; /* fixedからrelativeに変更 */
-        overflow-y: auto; /* スクロールを許可 */
+        position: relative;
+        overflow-y: hidden;
+        padding-bottom: 0; /* キーボード表示時に余分なpaddingを削除 */
     }
     #messageForm.keyboard-active {
-        position: absolute;
-        bottom: 10px; /* キーボードの上にフォームを配置 */
+        position: fixed; /* absoluteからfixedに変更してキーボードの上に固定 */
+        bottom: 0;
         width: 100%;
+        z-index: 1000;
+        transition: bottom 0.2s ease-in-out; /* スムーズな移動 */
     }
 }
 .delete-message {

@@ -486,33 +486,22 @@ if (toggleModeBtn) {
     });
 }
 
-// inputElのfocusイベントリスナー
+// inputEl のイベントリスナー（フォーカス、ブラー、キー入力）
 if (inputEl) {
-// inputElのイベントリスナー（フォーカス、ブラー、キー入力）
-if (inputEl) {
-    // フォーカスイベント（既存）
     inputEl.addEventListener('focus', (e) => {
         try {
             e.preventDefault();
             document.body.classList.add('keyboard-active');
-            const currentScrollY = window.scrollY;
             if ('virtualKeyboard' in navigator) {
                 navigator.virtualKeyboard.addEventListener('geometrychange', () => {
                     try {
                         const { height } = navigator.virtualKeyboard.boundingRect;
                         if (document.activeElement === inputEl && height > 0) {
-                            formEl.style.bottom = `${height}px`;
-                            messagesEl.style.maxHeight = `calc(100vh - ${height + formEl.offsetHeight + 10}px)`;
-                            window.scrollTo({
-                                top: formEl.getBoundingClientRect().top + window.scrollY - 10,
-                                behavior: 'smooth'
-                            });
-                            console.log(`キーボード高さ変更: ${height}px`);
+                            formEl.style.bottom = `${height}px`; /* キーボードの高さに応じて調整 */
                             inputEl.setAttribute('aria-live', 'polite');
                             inputEl.setAttribute('aria-description', '仮想キーボードが表示されています');
                         } else {
                             formEl.style.bottom = '10px';
-                            messagesEl.style.maxHeight = '';
                             inputEl.setAttribute('aria-description', '仮想キーボードが非表示です');
                         }
                     } catch (error) {
@@ -520,16 +509,12 @@ if (inputEl) {
                     }
                 });
             }
-            setTimeout(() => {
-                window.scrollTo({ top: currentScrollY, behavior: 'auto' });
-                console.log(`フォーカス時スクロール抑制: scrollY=${currentScrollY}`);
-            }, 100);
         } catch (error) {
             console.error('input focusエラー:', error);
         }
     });
 
-// ブラーイベント（既存）
+    // blur イベント
     inputEl.addEventListener('blur', () => {
         try {
             document.body.classList.remove('keyboard-active');
@@ -537,15 +522,13 @@ if (inputEl) {
                 navigator.virtualKeyboard.hide();
                 console.log('仮想キーボードを非表示');
                 formEl.style.bottom = '10px';
-                messagesEl.style.maxHeight = '';
             }
         } catch (error) {
             console.error('input blurエラー:', error);
         }
     });
-}
 
-// キー入力イベント（新規追加）
+    // キー入力イベント
     inputEl.addEventListener('keydown', (e) => {
         try {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -566,7 +549,6 @@ if (inputEl) {
         }
     });
 }
-
 // メッセージスクロール処理
 if (messagesEl) {
     messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);

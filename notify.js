@@ -19,9 +19,14 @@ function requestNotificationPermission() {
 // 通知音の初期化
 function initNotificationSound() {
   if (!notificationSound) {
-    notificationSound = new Audio("./notification.mp3");
-    notificationSound.load();
-    if (isDebug) console.log("通知音を初期化: ./notification.mp3");
+    try {
+      notificationSound = new Audio("./notification.mp3");
+      notificationSound.load();
+      if (isDebug) console.log("通知音を初期化: ./notification.mp3");
+    } catch (error) {
+      console.error("通知音の初期化エラー:", error);
+      notificationSound = null;
+    }
   }
 }
 
@@ -40,7 +45,7 @@ function showNotification({ title, body, icon }) {
       notificationSound.play().then(() => {
         if (isDebug) console.log("通知音を再生");
       }).catch(error => {
-        if (isDebug) console.warn("通知音再生エラー:", error);
+        console.warn("通知音再生エラー:", error);
       });
     }
   } else {
