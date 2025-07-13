@@ -1068,6 +1068,7 @@ if (formEl) {
                 </div>`;
             messagesEl.prepend(li);
             setTimeout(() => li.classList.add('show'), 10);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             const messageRef = await push(messagesRef, {
                 username,
                 message,
