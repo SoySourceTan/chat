@@ -62,25 +62,27 @@
     </div>
   </main>
 
-  <footer class="bg-light py-2 fixed-bottom" style="z-index: 1050;">
-    <div class="container">
-      <div id="typing-indicator" class="text-muted small d-none"></div>
-      <form id="messageForm" class="needs-validation w-100" novalidate="">
-        <div class="row g-2 align-items-start">
-          <div class="col-10 col-md-10 d-flex align-items-center">
-            <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required="" aria-label="メッセージ入力"></textarea>
-            <div class="invalid-feedback">メッセージを入力してください。</div>
-          </div>
-          <div class="col-2 col-md-2 d-flex flex-column align-items-end gap-2">
-            <button type="button" id="toggleModeBtn" class="btn btn-outline-secondary btn-sm w-100" data-bs-toggle="tooltip" data-bs-placement="top" aria-label="送信モードに切り替え" data-bs-title="送信モード">
-              <i class="fas fa-paper-plane"></i>
-            </button>
-            <button type="submit" id="submit-btn" class="btn btn-pink border shadow mx-auto w-100 p-1">届け</button>
-          </div>
+<footer class="bg-light py-2 fixed-bottom" style="z-index: 1050;">
+  <div class="container d-flex align-items-center" style="min-height: 80px;">
+    <div id="typing-indicator" class="text-muted small d-none"></div>
+    <form id="messageForm" class="needs-validation w-100" novalidate="">
+      <div class="row g-2 align-items-center">
+        <div class="col-auto d-flex flex-column align-items-end gap-2">
+          <button type="button" id="toggleModeBtn" class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="tooltip" data-bs-placement="top" aria-label="送信モードに切り替え" data-bs-title="送信モード">
+            <i class="fas fa-paper-plane"></i>
+          </button>
         </div>
-      </form>
-    </div>
-  </footer>
+        <div class="col-10 d-flex align-items-center">
+          <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required="" aria-label="メッセージ入力"></textarea>
+          <div class="invalid-feedback">メッセージを入力してください。</div>
+        </div>
+        <div class="col-auto d-flex flex-column align-items-end gap-2">
+          <button type="submit" id="submit-btn" class="btn btn-pink border shadow mx-auto p-1">届け</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</footer>
 
   <!-- ログインモーダル -->
   <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
