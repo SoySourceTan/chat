@@ -479,7 +479,7 @@ if (toggleModeBtn) {
             toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
             setCookie('enterSendMode', isEnterSendMode, 365);
             showTooltip(toggleModeBtn, newTitle);
-            console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
+            console.log('入力モード切替:', isEnterSendMode ? '送信モード' : '改行モード', 'クッキー値:', getCookie('enterSendMode'));
         } catch (error) {
             console.error('モード切り替えエラー:', error);
         }
@@ -488,6 +488,9 @@ if (toggleModeBtn) {
 
 // inputElのfocusイベントリスナー
 if (inputEl) {
+// inputElのイベントリスナー（フォーカス、ブラー、キー入力）
+if (inputEl) {
+    // フォーカスイベント（既存）
     inputEl.addEventListener('focus', (e) => {
         try {
             e.preventDefault();
@@ -526,7 +529,7 @@ if (inputEl) {
         }
     });
 
-    // inputElのblurイベントリスナー
+// ブラーイベント（既存）
     inputEl.addEventListener('blur', () => {
         try {
             document.body.classList.remove('keyboard-active');
@@ -538,6 +541,28 @@ if (inputEl) {
             }
         } catch (error) {
             console.error('input blurエラー:', error);
+        }
+    });
+}
+
+// キー入力イベント（新規追加）
+    inputEl.addEventListener('keydown', (e) => {
+        try {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                if (isEnterSendMode) {
+                    e.preventDefault();
+                    formEl.dispatchEvent(new Event('submit', { cancelable: true }));
+                    console.log('Enterキー: 送信モードでフォーム送信');
+                } else {
+                    // 改行モードではデフォルトの改行動作を許可
+                    console.log('Enterキー: 改行モードで改行挿入');
+                }
+            } else if (e.key === 'Enter' && e.shiftKey) {
+                // Shift+Enterは常に改行
+                console.log('Shift+Enter: 改行挿入');
+            }
+        } catch (error) {
+            console.error('キー入力処理エラー:', error);
         }
     });
 }
@@ -1058,6 +1083,7 @@ if (formEl) {
                     deleteButton.setAttribute('data-message-id', messageRef.key);
                 }
             }
+            // 古い一時メッセージを削除
             if (tempMessage) {
                 tempMessage.classList.remove('show');
                 setTimeout(() => tempMessage.remove(), 300);
@@ -1077,6 +1103,11 @@ if (formEl) {
                 formEl.style.bottom = '10px';
                 messagesEl.style.maxHeight = '';
             }
+            // スクロールを確実にトップへ
+            requestAnimationFrame(() => {
+                messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+                console.log('メッセージ送信後: トップにスクロール');
+            });
             setTimeout(() => inputEl.focus(), 100);
         } catch (error) {
             console.error('メッセージ送信エラー:', error);
