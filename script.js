@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
-import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { initNotifications, notifyNewMessage } from './notify.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
@@ -1059,10 +1059,14 @@ async function loadInitialMessages() {
 
   // 新しいメッセージの監視
   let messageListener = null;
-// setupMessageListener (script.js:1036-1099)
+  let messageRemoveListener = null;
+// setupMessageListener
 function setupMessageListener() {
   if (messageListener) {
     messageListener();
+  }
+  if (messageRemoveListener) {
+    messageRemoveListener();
   }
   messageListener = onChildAdded(messagesRef, async (snapshot) => {
     try {
@@ -1139,6 +1143,27 @@ function setupMessageListener() {
     } catch (error) {
       console.error('新メッセージ追加エラー:', error);
       showError('メッセージの取得に失敗しました。');
+    }
+  });
+  // メッセージ削除の監視
+  messageRemoveListener = onChildRemoved(messagesRef, (snapshot) => {
+    try {
+      const key = snapshot.key;
+      console.log('メッセージ削除検知: key=', key);
+      const messageEl = messagesEl.querySelector(`[data-message-id="${key}"]`);
+      if (messageEl) {
+        messageEl.classList.remove('show');
+        setTimeout(() => {
+          messageEl.remove();
+          console.log('UIからメッセージ削除: key=', key);
+        }, 300);
+        showToast('メッセージが削除されました。');
+      } else {
+        console.warn('UIメッセージが見つかりません: key=', key);
+      }
+    } catch (error) {
+      console.error('メッセージ削除処理エラー:', error);
+      showError('メッセージの削除処理に失敗しました。');
     }
   });
 }
