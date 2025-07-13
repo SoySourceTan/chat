@@ -349,7 +349,6 @@ toggleModeBtn.addEventListener('click', () => {
   toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
   setCookie('enterSendMode', isEnterSendMode, 365); // クッキーに保存（1年）
   showTooltip(toggleModeBtn, newTitle);
-  console.log('モード切り替え:', isEnterSendMode ? '送信モード' : '改行モード');
 });
 
   // モバイル端末でのメッセージエリアスクロール抑制
@@ -359,7 +358,6 @@ inputEl.addEventListener('focus', (e) => {
   const currentScrollY = window.scrollY;
   setTimeout(() => {
     window.scrollTo({ top: currentScrollY, behavior: 'auto' });
-    console.log(`フォーカス時スクロール抑制: scrollY=${currentScrollY}`);
   }, 100);
 });
 
@@ -372,7 +370,6 @@ inputEl.addEventListener('blur', () => {
     if (e.isComposing) return;
     if (e.key === 'Enter' && ((!e.shiftKey && isEnterSendMode) || (e.shiftKey && !isEnterSendMode))) {
       e.preventDefault();
-      console.log('Enterキー押下: フォーム送信');
       formEl.dispatchEvent(new Event('submit'));
     } else if (e.key === 'Enter' && ((e.shiftKey && isEnterSendMode) || (!e.shiftKey && !isEnterSendMode))) {
       e.preventDefault();
@@ -397,7 +394,6 @@ window.addEventListener('scroll', () => {
     newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
     const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
     if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) {
-      console.log('ローディング開始');
       isLoading = true;
       loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
       loadingIndicator.style.display = 'block';
@@ -412,7 +408,6 @@ window.addEventListener('scroll', () => {
           const userDataPromises = userIds.map(async userId => {
             if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
             const snapshot = await get(ref(database, `users/${userId}`));
-            console.log('データベースから取得したデータ:', snapshot.val());
             const data = snapshot.val() || {};
             userCache.set(userId, data);
             return { userId, data };
@@ -704,7 +699,6 @@ anonymousLogin.addEventListener('click', async () => {
       unameModal.hide();
       unameModalEl.setAttribute('inert', '');
       document.getElementById('login-btn').focus();
-      console.log('ログアウト成功');
       showSuccess('ログアウトしました。');
     } catch (error) {
       console.error('ログアウトエラー:', error);
@@ -721,7 +715,6 @@ anonymousLogin.addEventListener('click', async () => {
         unameModalEl.removeAttribute('inert');
         unameModal.show();
         setTimeout(() => unameInput.focus(), 100);
-        console.log('unameModal表示: uname入力欄にフォーカス');
       } catch (error) {
         console.error('ユーザー名取得エラー:', error);
         showError('ユーザー名の取得に失敗しました。');
@@ -734,28 +727,23 @@ anonymousLogin.addEventListener('click', async () => {
   confirmName.addEventListener('click', async () => {
   const rawInput = unameInput.value;
   const username = rawInput.trim();
-  console.log('ユーザー名入力: raw=', rawInput, 'trimmed=', username);
   if (!username || username.length === 0) {
     unameInput.classList.add('is-invalid');
-    console.log('ユーザー名エラー: 空文字または無効な入力');
     showError('ユーザー名を入力してください。');
     return;
   }
   if (username.length > 20) {
     unameInput.classList.add('is-invalid');
-    console.log('ユーザー名エラー: 文字数超過');
     showError('ユーザー名は20文字以内にしてください。');
     return;
   }
   if (/[.#$/\[\]]/.test(username)) {
     unameInput.classList.add('is-invalid');
-    console.log('ユーザー名エラー: 無効な文字');
     showError('ユーザー名に使用できない文字（. # $ / [ ]）が含まれています。');
     return;
   }
   if (!auth.currentUser) {
     showError('ログインしてください。');
-    console.log('ユーザー名エラー: 未ログイン');
     return;
   }
   try {
@@ -778,7 +766,6 @@ anonymousLogin.addEventListener('click', async () => {
       username,
       timestamp: Date.now()
     };
-    console.log('ユーザー名設定開始: username=', username, 'userId=', auth.currentUser.uid);
     let retries = 3;
     let success = false;
     let lastError = null;
@@ -786,7 +773,6 @@ anonymousLogin.addEventListener('click', async () => {
       try {
         await update(ref(database), updates);
         success = true;
-        console.log('ユーザー名設定成功:', username);
       } catch (error) {
         lastError = error;
         retries--;
@@ -818,28 +804,23 @@ if (!formEl) {
   formEl.removeEventListener('submit', formEl._submitHandler); // 既存リスナーを削除
 formEl._submitHandler = async (e) => {
   e.preventDefault();
-  console.log('フォーム送信開始');
   if (!formEl.checkValidity()) {
     e.stopPropagation();
     formEl.classList.add('was-validated');
-    console.log('バリデーション失敗');
     return;
   }
   if (!auth.currentUser) {
     showError('ログインしてください。');
-    console.log('送信失敗: 未ログイン');
     return;
   }
   const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
   if (banned) {
     showError('あなたはBANされています。メッセージを送信できません。');
-    console.log('送信失敗: ユーザーがBANされています');
     return;
   }
   const message = inputEl.value.trim();
   if (message.length === 0) {
     showError('メッセージを入力してください。');
-    console.log('送信失敗: 空メッセージ');
     return;
   }
   if (isSending) {
@@ -847,11 +828,9 @@ formEl._submitHandler = async (e) => {
     return;
   }
   isSending = true;
-  console.log('メッセージ送信処理開始: message=', message);
   let tempMessageId;
   try {
     const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-    console.log('ユーザーデータ取得:', userData);
     const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
     const timestamp = Date.now();
     tempMessageId = `temp-${timestamp}-${Math.random().toString(36).slice(2)}`;
@@ -877,7 +856,6 @@ formEl._submitHandler = async (e) => {
       .replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
     formattedMessage = formattedMessage.replace(new RegExp(`${codePlaceholder}(\\d+)`, 'g'), (_, index) => codeBlocks[index]);
     formattedMessage = DOMPurify.sanitize(formattedMessage, { ADD_ATTR: ['target'], ADD_TAGS: ['pre', 'code'] });
-    console.log('送信メッセージ描画: tempMessageId=', tempMessageId, 'userId=', auth.currentUser.uid);
     li.innerHTML = `
       <div class="message bg-transparent p-2 row">
         <div class="col-auto profile-icon">
@@ -898,7 +876,6 @@ formEl._submitHandler = async (e) => {
       </div>`;
     messagesEl.prepend(li);
     setTimeout(() => li.classList.add('show'), 10);
-    console.log('ローカルメッセージ表示: tempMessageId=', tempMessageId);
     const messageRef = await push(messagesRef, {
       username,
       message,
@@ -906,18 +883,13 @@ formEl._submitHandler = async (e) => {
       userId: auth.currentUser.uid,
       ipAddress: userData.ipAddress || 'github'
     });
-    console.log('Firebaseメッセージ送信成功: key=', messageRef.key);
     const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
     if (tempMessage) {
       tempMessage.setAttribute('data-message-id', messageRef.key);
       const deleteButton = tempMessage.querySelector('.delete-message');
       if (deleteButton) {
         deleteButton.setAttribute('data-message-id', messageRef.key);
-        console.log('削除ボタンのID更新: newId=', messageRef.key);
       }
-      console.log('ローカルメッセージID更新: newId=', messageRef.key);
-    } else {
-      console.warn('ローカルメッセージが見つかりません: tempMessageId=', tempMessageId);
     }
     // 一時メッセージを削除して、setupMessageListener に任せる
     if (tempMessage) {
@@ -948,7 +920,6 @@ formEl._submitHandler = async (e) => {
     }
   } finally {
     isSending = false;
-    console.log('メッセージ送信処理終了');
   }
 };
   formEl.addEventListener('submit', formEl._submitHandler);
@@ -960,14 +931,12 @@ inputEl.addEventListener('focus', (e) => {
   const currentScrollY = window.scrollY;
   setTimeout(() => {
     window.scrollTo({ top: currentScrollY, behavior: 'auto' });
-    console.log(`フォーカス時スクロール抑制: scrollY=${currentScrollY}`);
   }, 100); // キーボード表示の遅延を考慮
 });
 
   // 初期メッセージ読み込み
 async function loadInitialMessages() {
   if (!auth.currentUser) {
-    console.log('未ログインのためメッセージ読み込みをスキップ');
     return;
   }
   if (!progressOverlay) {
@@ -980,6 +949,8 @@ async function loadInitialMessages() {
     const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
     const snapshot = await get(initialMessagesQuery);
     const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
+    console.log(`初期メッセージ取得時間: ${(performance.now() - startTime).toFixed(2)}ms, メッセージ数: ${messages.length}`);
+    
     const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
     const userDataPromises = userIds.map(async userId => {
       if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
@@ -1111,15 +1082,12 @@ function setupMessageListener() {
         </div>`;
       messagesEl.prepend(li);
       setTimeout(() => li.classList.add('show'), 10);
-      console.log('新メッセージ表示: key=', key, 'formattedMessage=', formattedMessage);
       if (auth.currentUser?.uid !== userId) {
         notifyNewMessage({ username, message });
-        console.log('新メッセージ通知送信: username=', username, 'message=', message);
       }
       if (!isUserScrolledUp) {
         requestAnimationFrame(() => {
           messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-          console.log('新メッセージでスクロール: scrollTop=', messagesEl.scrollTop);
         });
         newMessageBtn.classList.add('d-none');
       } else {
@@ -1223,7 +1191,6 @@ newMessageBtn.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     isUserScrolledUp = false;
     newMessageBtn.classList.add('d-none');
-    console.log('newMessageBtnクリック: ページの最上部にスクロール');
 });
   // フォーム初期化（クローンを削除）
 window.onload = () => {
@@ -1244,11 +1211,9 @@ window.visualViewport.addEventListener('resize', () => {
   const newTitle = isEnterSendMode ? '送信モード' : '改行モード';
   toggleModeBtn.setAttribute('data-bs-title', newTitle);
   toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
-  console.log('初期モード:', isEnterSendMode ? '送信モード' : '改行モード');
   if (!formEl) {
     console.error('window.onload: formElが見つかりません。ID="messageForm"の要素を確認してください。');
   } else {
-    console.log('window.onload: formElにsubmitリスナーを再設定');
     formEl.removeEventListener('submit', formEl._submitHandler);
     formEl.addEventListener('submit', formEl._submitHandler);
   }
