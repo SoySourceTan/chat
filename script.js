@@ -1,8 +1,8 @@
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { initNotifications, notifyNewMessage } from './notify.js';
+import { sendNotification } from './chat/fcmpush.js'; // 修正: fcmpush.js からインポート
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
 
 // 画像読み込みエラー処理関数
@@ -1067,7 +1067,6 @@ if (formEl) {
                     deleteButton.setAttribute('data-message-id', messageRef.key);
                 }
             }
-            // 古い一時メッセージを削除
             if (tempMessage) {
                 tempMessage.classList.remove('show');
                 setTimeout(() => tempMessage.remove(), 300);
@@ -1078,6 +1077,22 @@ if (formEl) {
                 username,
                 timestamp
             });
+            // 通知送信
+            try {
+                const notificationTitle = `新しいメッセージ from ${username}`;
+                const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
+                await sendNotification(
+                    null, // 全ユーザー対象
+                    notificationTitle,
+                    notificationBody,
+                    { url: 'https://trextacy.com/chat', icon: '/chat/images/icon.png' },
+                    auth.currentUser.uid // 送信者ID
+                );
+                console.log('通知送信成功:', { title: notificationTitle, body: notificationBody });
+            } catch (notificationError) {
+                console.error('通知送信エラー:', notificationError);
+                showError('通知の送信に失敗しました。');
+            }
             inputEl.value = '';
             formEl.classList.remove('was-validated');
             isUserScrolledUp = false;
@@ -1087,7 +1102,6 @@ if (formEl) {
                 formEl.style.bottom = '10px';
                 messagesEl.style.maxHeight = '';
             }
-            // スクロールを確実にトップへ
             requestAnimationFrame(() => {
                 messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
                 console.log('メッセージ送信後: トップにスクロール');

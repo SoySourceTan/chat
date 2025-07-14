@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#007bff">
   <title>Forrest Aura</title>
+  <link rel="manifest" href="/chat/manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="style.css">
-
   <link rel="icon" href="https://soysourcetan.github.io/chat/favicon.ico" type="image/x-icon">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
- 
 </head>
 <body class="d-flex flex-column vh-100">
   <!-- 初期ローディングオーバーレイ -->
@@ -22,67 +22,66 @@
     </div>
   </div>
 
-<nav id="nav" class="navbar navbar-light navbar-slide border shadow-sm">
-  <div class="container-fluid">
-    <!-- 1段目 -->
-    <div class="navbar-row navbar-row-1 d-flex align-items-center justify-content-between w-100">
-      <a class="navbar-brand" href="#">
-        <i class="fa-solid fa-feather-pointed"></i>AURA
-      </a>
-      <div class="d-flex align-items-center">
-        <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
-          <i class="fas fa-compress"></i>
-        </button>
-        <div class="btn-group me-2" role="group" aria-label="フォントサイズ選択">
-          <button id="fontSizeS" class="btn btn-outline-secondary btn-sm">S</button>
-          <button id="fontSizeM" class="btn btn-outline-secondary btn-sm active">M</button>
-          <button id="fontSizeL" class="btn btn-outline-secondary btn-sm">L</button>
+  <nav id="nav" class="navbar navbar-light navbar-slide border shadow-sm">
+    <div class="container-fluid">
+      <!-- 1段目 -->
+      <div class="navbar-row navbar-row-1 d-flex align-items-center justify-content-between w-100">
+        <a class="navbar-brand" href="#">
+          <i class="fa-solid fa-feather-pointed"></i>AURA
+        </a>
+        <div class="d-flex align-items-center">
+          <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
+            <i class="fas fa-compress"></i>
+          </button>
+          <div class="btn-group me-2" role="group" aria-label="フォントサイズ選択">
+            <button id="fontSizeS" class="btn btn-outline-secondary btn-sm">S</button>
+            <button id="fontSizeM" class="btn btn-outline-secondary btn-sm active">M</button>
+            <button id="fontSizeL" class="btn btn-outline-secondary btn-sm">L</button>
+          </div>
+          <button id="login-btn" class="btn btn-outline-primary btn-sm"><i class="fa fa-sign-in" aria-hidden="true"></i></button>
         </div>
-        <button id="login-btn" class="btn btn-outline-primary btn-sm"><i class="fa fa-sign-in" aria-hidden="true"></i></button>
+      </div>
+      <!-- 2段目 -->
+      <div id="navsec" class="navbar-row bg-white mx-auto col-10 col-md-8 navbar-row-2 d-flex align-items-center shadow-sm border my-2 p-2 rounded-5">
+        <div id="online-users" class="me-2"></div>
+        <span id="user-info" class="cursor-pointer ms-auto" tabindex="0" aria-label="ユーザー名編集">
+          <span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>
+        </span>
       </div>
     </div>
-    <!-- 2段目 -->
-<div id="navsec" class="navbar-row bg-white mx-auto col-10 col-md-8 navbar-row-2 d-flex align-items-center shadow-sm border my-2 p-2 rounded-5">
-  <div id="online-users" class="me-2"></div>
-  <span id="user-info" class="cursor-pointer ms-auto" tabindex="0" aria-label="ユーザー名編集">
-    <span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>
-  </span>
-</div>
-  </div>
-</nav>
+  </nav>
+  
   <!-- メインコンテンツ -->
   <main class="container main-content d-flex flex-column">
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
-    <div class="d-flex justify-content-center">
-    </div>
+    <div class="d-flex justify-content-center"></div>
     <div class="messages-container flex-grow-1">
-      <ul id="messages" class="list-group font-size-medium" role="list">
-      </ul>
+      <ul id="messages" class="list-group font-size-medium" role="list"></ul>
       <div id="loading-indicator" class="loading-indicator">読み込み中...</div>
     </div>
   </main>
 
-<footer class="bg-light py-2 fixed-bottom" style="z-index: 1050;">
-  <div class="container d-flex align-items-center" style="min-height: 80px;">
-    <div id="typing-indicator" class="text-muted small d-none"></div>
-    <form id="messageForm" class="needs-validation w-100" novalidate="">
-      <div class="row g-2 align-items-center">
-        <div class="col-auto d-flex flex-column align-items-end gap-2">
-          <button type="button" id="toggleModeBtn" class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="tooltip" data-bs-placement="top" aria-label="送信モードに切り替え" data-bs-title="送信モード">
-            <i class="fas fa-paper-plane"></i>
-          </button>
+  <footer class="bg-light py-2 fixed-bottom" style="z-index: 1050;">
+    <div class="container d-flex align-items-center" style="min-height: 80px;">
+      <div id="typing-indicator" class="text-muted small d-none"></div>
+      <form id="messageForm" class="needs-validation w-100" novalidate="">
+        <div class="row g-2 align-items-center">
+          <div class="col-auto d-flex flex-column align-items-end gap-2">
+            <button type="button" id="toggleModeBtn" class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="tooltip" data-bs-placement="top" aria-label="送信モードに切り替え" data-bs-title="送信モード">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+          <div class="col w-100 d-flex align-items-center">
+            <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required="" aria-label="メッセージ入力"></textarea>
+            <div class="invalid-feedback">メッセージを入力してください。</div>
+          </div>
+          <div class="col-auto d-flex flex-column align-items-end gap-2">
+            <button type="submit" id="submit-btn" class="btn btn-pink border shadow mx-auto p-1">届け</button>
+          </div>
         </div>
-        <div class="col w-100 d-flex align-items-center">
-          <textarea id="m" class="form-control" placeholder="メッセージを入力" rows="2" autocomplete="off" required="" aria-label="メッセージ入力"></textarea>
-          <div class="invalid-feedback">メッセージを入力してください。</div>
-        </div>
-        <div class="col-auto d-flex flex-column align-items-end gap-2">
-          <button type="submit" id="submit-btn" class="btn btn-pink border shadow mx-auto p-1">届け</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</footer>
+      </form>
+    </div>
+  </footer>
 
   <!-- ログインモーダル -->
   <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
@@ -122,40 +121,54 @@
       </div>
     </div>
   </div>
-<div id="progress-overlay" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background: rgba(0,0,0,0.3); z-index: 1000;">
-  <div class="progress w-50" role="progressbar" aria-label="読み込み中" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 100%"></div>
+
+  <div id="progress-overlay" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background: rgba(0,0,0,0.3); z-index: 1000;">
+    <div class="progress w-50" role="progressbar" aria-label="読み込み中" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 100%"></div>
+    </div>
   </div>
-</div>
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="deleteConfirmModalLabel">メッセージの削除</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
-      </div>
-      <div class="modal-body">
-        このメッセージを削除しますか？
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">削除</button>
+
+  <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteConfirmModalLabel">メッセージの削除</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          このメッセージを削除しますか？
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteBtn">削除</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
-      <button id="newMessageBtn" class="btn btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
-        <i class="fas fa-arrow-up"></i>
-      </button>
 
+  <button id="newMessageBtn" class="btn btn-sm btn-floating d-none" tabindex="0" aria-label="新着メッセージにスクロール">
+    <i class="fas fa-arrow-up"></i>
+  </button>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js"></script>
-<!-- ScrollReveal CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/scrollreveal/4.0.9/scrollreveal.min.js"></script>
-  
   <script type="module" src="script.js" defer></script>
   <script type="module" src="notify.js"></script>
-<!-- ScrollReveal CDN -->
+  <script type="module" src="chat/fcmpush.js"></script>
+<!-- サービスワーカー登録スクリプトを追加 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/chat/sw.js')
+          .then((registration) => {
+            console.log('サービスワーカー登録成功:', registration);
+          })
+          .catch((error) => {
+            console.error('サービスワーカー登録エラー:', error);
+          });
+      });
+    }
+  </script>
 </body>
 </html>
