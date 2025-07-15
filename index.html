@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#007bff">
   <title>Forrest Aura</title>
-  <link rel="manifest" href="/chat/manifest.json">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="manifest" href="./manifest.json">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="https://soysourcetan.github.io/chat/favicon.ico" type="image/x-icon">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -27,8 +27,19 @@
       <!-- 1段目 -->
       <div class="navbar-row navbar-row-1 d-flex align-items-center justify-content-between w-100">
         <a class="navbar-brand" href="#">
-          <i class="fa-solid fa-feather-pointed"></i>AURA
+          <i class="fa-solid fa-feather-pointed d-none d-md-block"></i>AURA
         </a>
+              <div id="colorPicker" class="ms-0">
+        <select class="form-select form-select-sm" id="userColorSelect">
+          <option>色</option>
+          <option value="bg-user-0">薄ピンク</option>
+          <option value="bg-user-1">黄緑</option>
+          <option value="bg-user-2">薄紫</option>
+          <option value="bg-user-3">ライトラベンダー</option>
+          <option value="bg-user-4">水色</option>
+          <option value="bg-user-5">薄い水色</option>
+        </select>
+      </div>
         <div class="d-flex align-items-center">
           <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
             <i class="fas fa-compress"></i>
@@ -47,6 +58,7 @@
         <span id="user-info" class="cursor-pointer ms-auto" tabindex="0" aria-label="ユーザー名編集">
           <span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>
         </span>
+
       </div>
     </div>
   </nav>
@@ -150,23 +162,21 @@
     <i class="fas fa-arrow-up"></i>
   </button>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/scrollreveal/4.0.9/scrollreveal.min.js"></script>
-  <script type="module" src="script.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script type="module" src="script.js"></script>
   <script type="module" src="notify.js"></script>
   <script type="module" src="chat/fcmpush.js"></script>
-<!-- サービスワーカー登録スクリプトを追加 -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/chat/sw.js')
-          .then((registration) => {
-            console.log('サービスワーカー登録成功:', registration);
-          })
-          .catch((error) => {
-            console.error('サービスワーカー登録エラー:', error);
-          });
+      navigator.serviceWorker.register('/learning/english-words/chat/sw.js', {
+        scope: '/learning/english-words/chat/'
+      }).then(registration => {
+        console.log('サービスワーカー登録成功:', registration);
+      }).catch(error => {
+        console.error('サービスワーカー登録エラー:', error);
       });
     }
   </script>

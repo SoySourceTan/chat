@@ -2,13 +2,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { initNotifications, notifyNewMessage } from './notify.js';
-import { sendNotification } from './chat/fcmpush.js'; // 修正: fcmpush.js からインポート
+import { sendNotification } from './chat/fcmpush.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
 
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
     try {
-        // ユーザー名の最初の文字を安全に取得
         const initial = displayUsername && typeof displayUsername === 'string' && displayUsername.length > 0
             ? displayUsername.charAt(0).toUpperCase()
             : 'A';
@@ -18,6 +17,9 @@ function handleImageError(imgElement, userId, displayUsername, photoURL) {
         console.error('handleImageErrorエラー:', error);
     }
 }
+
+// GSAP をグローバルスコープで使用
+const { gsap } = window;
 
 async function loadFirebaseConfig() {
     try {
@@ -53,10 +55,9 @@ async function getClientIp() {
 // クッキー設定
 function setCookie(name, value, days) {
     try {
-        const expires = days
-            ? `; expires=${new Date(Date.now() + days * 86400000).toUTCString()}`
-            : '';
-        document.cookie = `${name}=${value}${expires}; path=/; SameSite=Strict`;
+        const expires = days ? `; expires=${new Date(Date.now() + days * 86400000).toUTCString()}` : '';
+        document.cookie = `${name}=${encodeURIComponent(value)}${expires}; path=/; SameSite=Strict`;
+        console.log(`クッキー設定: ${name}=${value}, expires=${expires}`);
     } catch (error) {
         console.error('クッキー設定エラー:', error);
     }
@@ -66,7 +67,9 @@ function setCookie(name, value, days) {
 function getCookie(name) {
     try {
         const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
-        return match ? match[2] : null;
+        const value = match ? decodeURIComponent(match[2]) : null;
+        console.log(`クッキー取得: ${name}=${value}`);
+        return value;
     } catch (error) {
         console.error('クッキー取得エラー:', error);
         return null;
@@ -97,6 +100,142 @@ let lastActivity = Date.now();
 const userCache = new Map();
 let debounceTimeout = null;
 
+// ユーザーIDと背景色のマッピング
+const userColorMap = new Map();
+// 背景色のリスト
+const backgroundColors = [
+    'bg-user-0', // 薄ピンク
+    'bg-user-1', // 黄緑
+    'bg-user-2', // 薄紫
+    'bg-user-3', // ライトラベンダー
+    'bg-user-4', // 水色
+    'bg-user-5'  // 薄い水色
+];
+// 背景色割り当てモード
+let colorAssignmentMode = getCookie('colorAssignmentMode') || 'sequential';
+
+// ユーザー背景色割り当て関数
+function assignUserBackgroundColor(userId) {
+    try {
+        if (userColorMap.has(userId)) {
+            console.log(`ユーザー ${userId} の既存色: ${userColorMap.get(userId)}`);
+            return userColorMap.get(userId);
+        }
+
+        let colorClass;
+        console.log(`モード: ${colorAssignmentMode}, ユーザー: ${userId}`);
+        if (colorAssignmentMode === 'random') {
+            const randomIndex = Math.floor(Math.random() * backgroundColors.length);
+            colorClass = backgroundColors[randomIndex];
+            console.log(`ランダム割り当て: ${colorClass}`);
+        } else if (colorAssignmentMode === 'sequential') {
+            const index = userColorMap.size % backgroundColors.length;
+            colorClass = backgroundColors[index];
+            console.log(`順番割り当て: ${colorClass} (インデックス: ${index})`);
+        } else if (colorAssignmentMode === 'user-selected') {
+            if (auth.currentUser && userId === auth.currentUser.uid) {
+                const selectedColor = getCookie(`userColor_${userId}`);
+                colorClass = selectedColor && backgroundColors.includes(selectedColor)
+                    ? selectedColor
+                    : backgroundColors[0];
+                console.log(`ユーザー選択（現在のユーザー）: ${colorClass} (クッキー: ${selectedColor})`);
+            } else {
+                const selectedColor = getCookie(`userColor_${userId}`);
+                if (selectedColor && backgroundColors.includes(selectedColor)) {
+                    colorClass = selectedColor;
+                    console.log(`ユーザー選択（他のユーザー）: ${colorClass} (クッキー: ${selectedColor})`);
+                } else {
+                    const index = userColorMap.size % backgroundColors.length;
+                    colorClass = backgroundColors[index];
+                    console.log(`ユーザー選択（フォールバック・順番割り当て）: ${colorClass} (インデックス: ${index})`);
+                }
+            }
+        } else {
+            console.warn(`不明なモード: ${colorAssignmentMode}`);
+            colorClass = backgroundColors[0];
+        }
+
+        userColorMap.set(userId, colorClass);
+        console.log(`userColorMap 更新:`, userColorMap);
+        return colorClass;
+    } catch (error) {
+        console.error('背景色割り当てエラー:', error);
+        return backgroundColors[0];
+    }
+}
+
+// カラーピッカーの選択イベントリスナー
+// ユーザー色選択
+const colorOptions = document.querySelectorAll('.color-option');
+if (colorOptions.length > 0) {
+    colorOptions.forEach(option => {
+        option.addEventListener('click', (e) => {
+            try {
+                if (!auth.currentUser) {
+                    showError('ログインしてください。');
+                    return;
+                }
+                if (colorAssignmentMode !== 'user-selected') {
+                    showError('背景色モードを「自分で選択」にしてください。');
+                    return;
+                }
+                const selectedColor = e.target.getAttribute('data-color');
+                if (backgroundColors.includes(selectedColor)) {
+                    // 選択状態を視覚的に更新
+                    colorOptions.forEach(opt => opt.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                    setCookie(`userColor_${auth.currentUser.uid}`, selectedColor, 365);
+                    userColorMap.set(auth.currentUser.uid, selectedColor);
+                    console.log(`ユーザー ${auth.currentUser.uid} の色選択: ${selectedColor}`);
+                    reloadMessages();
+                    showSuccess('メッセージの背景色を変更しました。');
+                } else {
+                    console.warn(`無効な色選択: ${selectedColor}`);
+                    showError('無効な色が選択されました。');
+                }
+            } catch (error) {
+                console.error('色選択エラー:', error);
+                showError('色の選択に失敗しました。');
+            }
+        });
+        // キーボード操作用にEnterキー対応
+        option.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                option.click();
+            }
+        });
+    });
+}
+
+
+
+
+// 背景色モードのドロップダウンイベントリスナー
+const colorModeDropdown = document.getElementById('colorModeDropdown');
+if (colorModeDropdown) {
+    const dropdownItems = colorModeDropdown.nextElementSibling.querySelectorAll('.dropdown-item');
+    dropdownItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const mode = e.target.getAttribute('data-mode');
+            if (['sequential', 'random', 'user-selected'].includes(mode)) {
+                colorAssignmentMode = mode;
+                setCookie('colorAssignmentMode', mode, 365);
+                console.log(`背景色モード変更: ${mode}`);
+                userColorMap.clear();
+                reloadMessages();
+                const colorPicker = document.getElementById('colorPicker');
+                if (colorPicker) {
+                    colorPicker.classList.toggle('show', mode === 'user-selected' && auth.currentUser);
+                }
+            } else {
+                console.warn(`無効なモード選択: ${mode}`);
+            }
+        });
+    });
+}
+
 try {
     // Firebase設定取得
     const firebaseConfig = await loadFirebaseConfig();
@@ -114,33 +253,36 @@ try {
     bannedUsersRef = ref(database, 'bannedUsers');
     onlineUsersRef = ref(database, 'onlineUsers');
 
-    // DOM要素
-    formEl = document.getElementById('messageForm');
-    messagesEl = document.getElementById('messages');
-    inputEl = document.getElementById('m');
-    errorAlert = document.getElementById('error-alert');
-    loginBtn = document.getElementById('login-btn');
-    twitterLogin = document.getElementById('twitterLogin');
-    googleLogin = document.getElementById('googleLogin');
-    anonymousLogin = document.getElementById('anonymousLogin');
-    userInfo = document.getElementById('user-info');
-    unameModalEl = document.getElementById('unameModal');
-    unameModal = new bootstrap.Modal(unameModalEl);
-    loginModalEl = document.getElementById('loginModal');
-    loginModal = new bootstrap.Modal(loginModalEl);
-    unameInput = document.getElementById('uname');
-    confirmName = document.getElementById('confirmName');
-    onlineUsersEl = document.getElementById('online-users');
-    compactModeBtn = document.getElementById('compactModeBtn');
-    fontSizeS = document.getElementById('fontSizeS');
-    fontSizeM = document.getElementById('fontSizeM');
-    fontSizeL = document.getElementById('fontSizeL');
-    signOutBtn = document.getElementById('signOut');
-    newMessageBtn = document.getElementById('newMessageBtn');
-    toggleModeBtn = document.getElementById('toggleModeBtn');
-    loadingIndicator = document.getElementById('loading-indicator');
-    progressOverlay = document.getElementById('progress-overlay');
-    navbarRow2 = document.getElementById('navsec');
+// DOM要素
+formEl = document.getElementById('messageForm');
+messagesEl = document.getElementById('messages');
+inputEl = document.getElementById('m');
+errorAlert = document.getElementById('error-alert');
+loginBtn = document.getElementById('login-btn');
+twitterLogin = document.getElementById('twitterLogin');
+googleLogin = document.getElementById('googleLogin');
+anonymousLogin = document.getElementById('anonymousLogin');
+userInfo = document.getElementById('user-info');
+unameModalEl = document.getElementById('unameModal');
+unameModal = new bootstrap.Modal(unameModalEl);
+loginModalEl = document.getElementById('loginModal');
+loginModal = new bootstrap.Modal(loginModalEl);
+unameInput = document.getElementById('uname');
+confirmName = document.getElementById('confirmName');
+onlineUsersEl = document.getElementById('online-users');
+compactModeBtn = document.getElementById('compactModeBtn');
+fontSizeS = document.getElementById('fontSizeS');
+fontSizeM = document.getElementById('fontSizeM');
+fontSizeL = document.getElementById('fontSizeL');
+signOutBtn = document.getElementById('signOut');
+newMessageBtn = document.getElementById('newMessageBtn');
+toggleModeBtn = document.getElementById('toggleModeBtn');
+loadingIndicator = document.getElementById('loading-indicator');
+progressOverlay = document.getElementById('progress-overlay');
+navbarRow2 = document.getElementById('navsec');
+const colorModeDropdown = document.getElementById('colorModeDropdown');
+const colorPicker = document.getElementById('colorPicker');
+const userColorSelect = document.getElementById('userColorSelect');
 } catch (error) {
     console.error('初期化エラー:', error);
     showError('アプリケーションの初期化に失敗しました。ページをリロードしてください。');
@@ -487,6 +629,57 @@ if (toggleModeBtn) {
     });
 }
 
+// 背景色モード切り替え
+if (colorModeDropdown) {
+    colorModeDropdown.nextElementSibling.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            colorAssignmentMode = e.target.getAttribute('data-mode');
+            setCookie('colorAssignmentMode', colorAssignmentMode, 365);
+            colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
+            userColorMap.clear();
+            console.log('モード変更:', colorAssignmentMode, 'userColorMap リセット');
+            reloadMessages();
+            showSuccess(`背景色モードを${colorAssignmentMode === 'sequential' ? '順番' : colorAssignmentMode === 'random' ? 'ランダム' : '自分で選択'}に変更しました。`);
+        });
+    });
+}
+
+// ユーザー色選択
+if (userColorSelect) {
+    userColorSelect.addEventListener('change', () => {
+        try {
+            if (!auth.currentUser) {
+                showError('ログインしてください。');
+                userColorSelect.value = backgroundColors[0]; // リセット
+                return;
+            }
+            if (colorAssignmentMode !== 'user-selected') {
+                showError('背景色モードを「自分で選択」にしてください。');
+                userColorSelect.value = getCookie(`userColor_${auth.currentUser.uid}`) || backgroundColors[0];
+                return;
+            }
+            const selectedColor = userColorSelect.value;
+            if (backgroundColors.includes(selectedColor)) {
+                setCookie(`userColor_${auth.currentUser.uid}`, selectedColor, 365);
+                userColorMap.set(auth.currentUser.uid, selectedColor);
+                console.log(`ユーザー ${auth.currentUser.uid} の色選択: ${selectedColor}`);
+                reloadMessages();
+                const colorName = userColorSelect.options[userColorSelect.selectedIndex].text.split(' ')[1]; // 例: "● 薄ピンク" → "薄ピンク"
+                showSuccess(`メッセージの背景色を${colorName}に変更しました。`);
+            } else {
+                console.warn(`無効な色選択: ${selectedColor}`);
+                showError('無効な色が選択されました。');
+                userColorSelect.value = backgroundColors[0]; // リセット
+            }
+        } catch (error) {
+            console.error('色選択エラー:', error);
+            showError('色の選択に失敗しました。');
+            userColorSelect.value = getCookie(`userColor_${auth.currentUser.uid}`) || backgroundColors[0];
+        }
+    });
+}
+
 // inputEl のイベントリスナー（フォーカス、ブラー、キー入力）
 if (inputEl) {
     inputEl.addEventListener('focus', (e) => {
@@ -589,7 +782,7 @@ if (messagesEl) {
                                 if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
-                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in`;
+                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
                                 li.setAttribute('data-message-id', key);
                                 li.setAttribute('role', 'listitem');
                                 li.setAttribute('data-timestamp', timestamp);
@@ -656,6 +849,20 @@ function formatMessage(message) {
     } catch (error) {
         console.error('メッセージフォーマットエラー:', error);
         return 'メッセージフォーマットエラー';
+    }
+}
+
+// メッセージ再描画関数
+async function reloadMessages() {
+    try {
+        console.log('メッセージ再描画開始, モード:', colorAssignmentMode);
+        messagesEl.innerHTML = '';
+        await loadInitialMessages();
+        setupMessageListener();
+        console.log('メッセージ再描画完了, userColorMap:', userColorMap);
+    } catch (error) {
+        console.error('メッセージ再描画エラー:', error);
+        showError('メッセージの再読み込みに失敗しました。');
     }
 }
 
@@ -992,134 +1199,131 @@ if (confirmName) {
 // メッセージ送信
 if (formEl) {
     formEl.removeEventListener('submit', formEl._submitHandler);
-    formEl._submitHandler = async (e) => {
-        try {
-            e.preventDefault();
-            if (!formEl.checkValidity()) {
-                e.stopPropagation();
-                formEl.classList.add('was-validated');
-                return;
-            }
-            if (!auth.currentUser) {
-                showError('ログインしてください。');
-                return;
-            }
-            const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
-            if (banned) {
-                showError('あなたはBANされています。メッセージを送信できません。');
-                return;
-            }
-            const message = inputEl.value.trim();
-            if (message.length === 0) {
-                showError('メッセージを入力してください。');
-                return;
-            }
-            if (isSending) {
-                console.warn('メッセージ送信連打防止');
-                return;
-            }
-            isSending = true;
-            const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-            const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
-            const timestamp = Date.now();
-            const tempMessageId = `temp-${timestamp}-${Math.random().toString(36).slice(2)}`;
-            const li = document.createElement('li');
-            li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
-            li.setAttribute('data-message-id', tempMessageId);
-            li.setAttribute('data-user-id', auth.currentUser.uid);
-            li.setAttribute('role', 'listitem');
-            li.setAttribute('data-timestamp', timestamp);
-            const date = new Date(timestamp).toLocaleString('ja-JP');
-            const formattedMessage = formatMessage(message);
-            li.innerHTML = `
-                <div class="message bg-transparent p-2 row">
-                    <div class="col-auto profile-icon">
-                        ${userData.photoURL ? 
-                            `<img src="${escapeHTMLAttribute(userData.photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(auth.currentUser.uid)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(userData.photoURL)}')">` :
-                            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-                    </div>
-                    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                        <strong>${escapeHTMLAttribute(username)}</strong>
-                        <small class="text-muted ms-2">${date}</small>
-                        <button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${tempMessageId}">
-                            <i class="fa fa-trash" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                    <div class="col-12 message-body mt-2">
-                        ${formattedMessage}
-                    </div>
-                </div>`;
-            messagesEl.prepend(li);
-            setTimeout(() => li.classList.add('show'), 10);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            const messageRef = await push(messagesRef, {
-                username,
-                message,
-                timestamp,
-                userId: auth.currentUser.uid,
-                ipAddress: userData.ipAddress || 'unknown'
-            });
-            const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
-            if (tempMessage) {
-                tempMessage.setAttribute('data-message-id', messageRef.key);
-                const deleteButton = tempMessage.querySelector('.delete-message');
-                if (deleteButton) {
-                    deleteButton.setAttribute('data-message-id', messageRef.key);
-                }
-            }
-            if (tempMessage) {
-                tempMessage.classList.remove('show');
-                setTimeout(() => tempMessage.remove(), 300);
-            }
-            await push(actionsRef, {
-                type: 'sendMessage',
-                userId: auth.currentUser.uid,
-                username,
-                timestamp
-            });
-            // 通知送信
-            try {
-                const notificationTitle = `新しいメッセージ from ${username}`;
-                const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
-                await sendNotification(
-                    null, // 全ユーザー対象
-                    notificationTitle,
-                    notificationBody,
-                    { url: 'https://trextacy.com/chat', icon: '/chat/images/icon.png' },
-                    auth.currentUser.uid // 送信者ID
-                );
-                console.log('通知送信成功:', { title: notificationTitle, body: notificationBody });
-            } catch (notificationError) {
-                console.error('通知送信エラー:', notificationError);
-                showError('通知の送信に失敗しました。');
-            }
-            inputEl.value = '';
-            formEl.classList.remove('was-validated');
-            isUserScrolledUp = false;
-            newMessageBtn.classList.add('d-none');
-            if ('virtualKeyboard' in navigator) {
-                navigator.virtualKeyboard.hide();
-                formEl.style.bottom = '10px';
-                messagesEl.style.maxHeight = '';
-            }
-            requestAnimationFrame(() => {
-                messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-                console.log('メッセージ送信後: トップにスクロール');
-            });
-            setTimeout(() => inputEl.focus(), 100);
-        } catch (error) {
-            console.error('メッセージ送信エラー:', error);
-            showError(`メッセージの送信に失敗しました: ${error.message}`);
-            const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
-            if (tempMessage) {
-                tempMessage.classList.remove('show');
-                setTimeout(() => tempMessage.remove(), 300);
-            }
-        } finally {
-            isSending = false;
+formEl._submitHandler = async (e) => {
+    try {
+        e.preventDefault();
+        if (!formEl.checkValidity()) {
+            e.stopPropagation();
+            formEl.classList.add('was-validated');
+            return;
         }
-    };
-    formEl.addEventListener('submit', formEl._submitHandler);
+        if (!auth.currentUser) {
+            showError('ログインしてください。');
+            return;
+        }
+        const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
+        if (banned) {
+            showError('あなたはBANされています。メッセージを送信できません。');
+            return;
+        }
+        const message = inputEl.value.trim();
+        if (message.length === 0) {
+            showError('メッセージを入力してください。');
+            return;
+        }
+        if (isSending) {
+            console.warn('メッセージ送信連打防止');
+            return;
+        }
+        isSending = true;
+        const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+        const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
+        const timestamp = Date.now();
+        const tempMessageId = `temp-${timestamp}-${Math.random().toString(36).slice(2)}`;
+        const li = document.createElement('li');
+        li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3 ${assignUserBackgroundColor(auth.currentUser.uid)}`;
+        li.setAttribute('data-message-id', tempMessageId);
+        li.setAttribute('data-user-id', auth.currentUser.uid);
+        li.setAttribute('role', 'listitem');
+        li.setAttribute('data-timestamp', timestamp);
+        const date = new Date(timestamp).toLocaleString('ja-JP');
+        const formattedMessage = formatMessage(message);
+        li.innerHTML = `
+            <div class="message bg-transparent p-2 row">
+                <div class="col-auto profile-icon">
+                    ${userData.photoURL ? 
+                        `<img src="${escapeHTMLAttribute(userData.photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(auth.currentUser.uid)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(userData.photoURL)}')">` :
+                        `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+                </div>
+                <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                    <strong>${escapeHTMLAttribute(username)}</strong>
+                    <small class="text-muted ms-2">${date}</small>
+                    <button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${tempMessageId}">
+                        <i class="fa fa-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="col-12 message-body mt-2">
+                    ${formattedMessage}
+                </div>
+            </div>`;
+        messagesEl.prepend(li);
+        setTimeout(() => li.classList.add('show'), 10);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const messageRef = await push(messagesRef, {
+            username,
+            message,
+            timestamp,
+            userId: auth.currentUser.uid,
+            ipAddress: userData.ipAddress || 'unknown'
+        });
+        const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
+        if (tempMessage) {
+            tempMessage.setAttribute('data-message-id', messageRef.key);
+            const deleteButton = tempMessage.querySelector('.delete-message');
+            if (deleteButton) {
+                deleteButton.setAttribute('data-message-id', messageRef.key);
+            }
+        }
+        // 仮メッセージを削除しない（正式メッセージは onChildAdded で追加される）
+        await push(actionsRef, {
+            type: 'sendMessage',
+            userId: auth.currentUser.uid,
+            username,
+            timestamp
+        });
+        // 通知送信
+        try {
+            const notificationTitle = `新しいメッセージ from ${username}`;
+            const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
+            await sendNotification(
+                null,
+                notificationTitle,
+                notificationBody,
+                { url: 'https://soysourcetan.github.io/chat', icon: '/learning/english-words/chat/images/icon.png' },
+                auth.currentUser.uid
+            );
+            console.log('通知送信成功:', { title: notificationTitle, body: notificationBody });
+        } catch (notificationError) {
+            console.error('通知送信エラー:', notificationError);
+            showError('通知の送信に失敗しました。');
+        }
+        inputEl.value = '';
+        formEl.classList.remove('was-validated');
+        isUserScrolledUp = false;
+        newMessageBtn.classList.add('d-none');
+        if ('virtualKeyboard' in navigator) {
+            navigator.virtualKeyboard.hide();
+            formEl.style.bottom = '10px';
+            messagesEl.style.maxHeight = '';
+        }
+        requestAnimationFrame(() => {
+            messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+            console.log('メッセージ送信後: トップにスクロール');
+        });
+        setTimeout(() => inputEl.focus(), 100);
+    } catch (error) {
+        console.error('メッセージ送信エラー:', error);
+        showError(`メッセージの送信に失敗しました: ${error.message}`);
+        const tempMessage = messagesEl.querySelector(`[data-message-id="${tempMessageId}"]`);
+        if (tempMessage) {
+            tempMessage.classList.remove('show');
+            setTimeout(() => tempMessage.remove(), 300);
+        }
+    } finally {
+        isSending = false;
+    }
+};
+formEl.addEventListener('submit', formEl._submitHandler);
 }
 
 // テキストエリアの自動リサイズ
@@ -1162,10 +1366,10 @@ async function loadInitialMessages() {
         messagesEl.innerHTML = '';
         latestInitialTimestamp = messages.length ? Math.max(...messages.map(([_, msg]) => msg.timestamp)) : null;
         for (const [key, { username, message, timestamp, userId, ipAddress }] of messages) {
-            const isLatest = key === messages[messages.length - 1]?.[0];
+            const isLatest = key === messages[messages.length - 1]?.[0]; // 最新メッセージを判定
             const photoURL = userDataMap[userId]?.photoURL;
             const li = document.createElement('li');
-            li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in`;
+            li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in ${assignUserBackgroundColor(userId)}`;
             li.setAttribute('data-message-id', key);
             li.setAttribute('role', 'listitem');
             li.setAttribute('data-timestamp', timestamp);
@@ -1224,13 +1428,21 @@ function setupMessageListener() {
                 if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
                     return;
                 }
+                // 仮メッセージを削除
+                const tempMessages = messagesEl.querySelectorAll(`[data-user-id="${userId}"]`);
+                tempMessages.forEach(temp => {
+                    if (temp.getAttribute('data-message-id').startsWith('temp-')) {
+                        temp.classList.remove('show');
+                        setTimeout(() => temp.remove(), 300);
+                    }
+                });
                 const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
                 userCache.set(userId, userData);
                 if (userCache.size > 100) userCache.clear();
                 const photoURL = userData.photoURL;
                 const formattedMessage = formatMessage(message);
                 const li = document.createElement('li');
-                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3`;
+                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3 ${assignUserBackgroundColor(userId)}`;
                 li.setAttribute('data-message-id', key);
                 li.setAttribute('data-user-id', userId);
                 li.setAttribute('role', 'listitem');
@@ -1351,12 +1563,27 @@ if (messagesEl) {
     });
 }
 
-// 認証状態監視
+
+
+
+// 認証状態変更リスナー
 auth.onAuthStateChanged(async (user) => {
     try {
         latestInitialTimestamp = null;
         await updateUserUI(user);
         setupMessageListener();
+        if (colorPicker) {
+            colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && user);
+            if (user && colorAssignmentMode === 'user-selected') {
+                const savedColor = getCookie(`userColor_${user.uid}`);
+                userColorSelect.value = savedColor && backgroundColors.includes(savedColor) ? savedColor : backgroundColors[0];
+                console.log(`ログイン時色設定: ユーザー ${user.uid}, 色: ${userColorSelect.value}`);
+                if (savedColor && backgroundColors.includes(savedColor)) {
+                    userColorMap.set(user.uid, savedColor);
+                    reloadMessages();
+                }
+            }
+        }
     } catch (error) {
         console.error('認証状態変更エラー:', error);
         showError('認証状態の更新に失敗しました。ページをリロードしてください。');
@@ -1368,6 +1595,22 @@ auth.onAuthStateChanged(async (user) => {
         if (progressOverlay) progressOverlay.classList.add('d-none');
     }
 });
+
+// モード変更リスナー
+if (colorModeDropdown) {
+    colorModeDropdown.nextElementSibling.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            colorAssignmentMode = e.target.getAttribute('data-mode');
+            setCookie('colorAssignmentMode', colorAssignmentMode, 365);
+            colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
+            userColorMap.clear();
+            console.log('モード変更:', colorAssignmentMode, 'userColorMap リセット');
+            reloadMessages();
+            showSuccess(`背景色モードを${colorAssignmentMode === 'sequential' ? '順番' : colorAssignmentMode === 'random' ? 'ランダム' : '自分で選択'}に変更しました。`);
+        });
+    });
+}
 
 // モーダル非表示時のフォーカス管理
 if (unameModalEl) {
