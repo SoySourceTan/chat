@@ -348,6 +348,9 @@ body {
 
 .navbar-brand {
     color: var(--bs-primary);
+    display: flex;
+  align-items: center;
+  gap: 8px; /* アイコンとテキストの間隔 */
 }
 
 #online-users {

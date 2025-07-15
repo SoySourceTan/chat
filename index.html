@@ -30,7 +30,9 @@
         <a class="navbar-brand" href="#">
           <i class="fa-solid fa-feather-pointed d-none d-md-block"></i>AURA
         </a>
-              <div id="colorPicker" class="ms-0">
+        <div class="d-flex align-items-center">
+
+                        <div id="colorPicker" class="ms-0">
         <select class="form-select form-select-sm" id="userColorSelect">
           <option>色</option>
           <option value="bg-user-0">薄ピンク</option>
@@ -41,7 +43,6 @@
           <option value="bg-user-5">薄い水色</option>
         </select>
       </div>
-        <div class="d-flex align-items-center">
           <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
             <i class="fas fa-compress"></i>
           </button>
@@ -171,8 +172,11 @@
   <script type="module" src="notify.js"></script>
   <script type="module" src="chat/fcmpush.js"></script>
   <script>
+// index.html
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(error => {
+  const isLocalhost = window.location.hostname === 'localhost';
+  const swPath = isLocalhost ? '/learning/english-words/chat/sw.js' : '/chat/sw.js';
+  navigator.serviceWorker.register(swPath, { scope: isLocalhost ? '/learning/english-words/chat/' : '/chat/' }).catch(error => {
     console.error('サービスワーカー登録エラー:', error);
   });
 }
