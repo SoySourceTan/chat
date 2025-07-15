@@ -56,9 +56,10 @@ if (messaging) {
     messaging.onBackgroundMessage((payload) => {
         console.log('[firebase-messaging-sw.js] バックグラウンドメッセージ受信:', payload);
         const notificationTitle = payload.notification.title;
+        
         const notificationOptions = {
             body: payload.notification.body,
-            icon: '/chat/images/icon.png',
+            icon: '/learning/english-words/chat/images/icon.png',
             data: payload.data,
         };
         try {

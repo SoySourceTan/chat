@@ -1,24 +1,20 @@
 {
-  "name": "AURA Chat",
-  "short_name": "AURA",
-  "description": "AURA - sanctuary",
-  "start_url": "/chat/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#007bff",
-  "icons": [
-    {
-      "src": "/chat/images/icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/chat/images/icon.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ],
-  "scope": "/chat/",
-  "lang": "ja-JP",
-  "orientation": "portrait-primary"
+    "name": "AURA",
+    "short_name": "AURA",
+    "icons": [
+        {
+            "src": "./images/icon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "./images/icon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "start_url": "./",
+    "display": "standalone",
+    "theme_color": "#FF99AC",
+    "background_color": "#FFFFFF"
 }
