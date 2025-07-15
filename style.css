@@ -30,6 +30,15 @@
 .bg-user-5 { background-color: var(--bs-message-mint) !important; }
 
 
+body {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+}
+
+/* メッセージエリア */
+#messages {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+}
+
 #colorPicker {
     display: none;
 }
@@ -129,8 +138,17 @@
     opacity: 0.8;
     align-self: center;
     color: var(--bs-text-dark);
+    
 }
-
+/* ユーザー名やヘッダー */
+.message-header strong,
+.message-header small {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+}
+/* オプション内のフォント */
+#userColorSelect option {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+}
 .loading-indicator::before {
     content: '';
     display: inline-block;
@@ -345,6 +363,7 @@
 
 .message-body a {
     color: var(--bs-secondary);
+    font-family: 'M PLUS Rounded 1c', sans-serif;
     text-decoration: underline;
     word-break: break-all;
 }
