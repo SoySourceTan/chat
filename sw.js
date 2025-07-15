@@ -1,5 +1,5 @@
 // キャッシュ名
-const CACHE_NAME = 'aura-chat-v1';
+const CACHE_NAME = 'aura-chat-v2'; // バージョン更新
 
 // キャッシュするリソース
 const urlsToCache = [
@@ -8,7 +8,6 @@ const urlsToCache = [
   'style.css',
   'script.js',
   'notify.js',
-  'script-nofiti.js',
   'images/icon-192x192.png',
   'images/icon-512x512.png',
   'images/icon.png'
@@ -24,7 +23,6 @@ self.addEventListener('install', (event) => {
       console.error('[sw.js] キャッシュ追加エラー:', error);
     })
   );
-  // すぐにアクティブ化
   self.skipWaiting();
 });
 
@@ -51,30 +49,31 @@ self.addEventListener('activate', (event) => {
 
 // フェッチイベント
 self.addEventListener('fetch', (event) => {
+  // Firebase API リクエストはキャッシュせず、常にネットワークから取得
+  if (event.request.url.includes('firebase')) {
+    event.respondWith(fetch(event.request).catch((error) => {
+      console.error('[sw.js] Firebase フェッチエラー:', error);
+      return new Response('Network error', { status: 503 });
+    }));
+    return;
+  }
+
+  // ネットワーク優先戦略
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      // キャッシュがあれば返す
-      if (response) {
-        return response;
+    fetch(event.request).then((networkResponse) => {
+      // ネットワークから取得したリソースをキャッシュ
+      if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
       }
-      // ネットワークから取得
-      return fetch(event.request).then((networkResponse) => {
-        // リクエストが成功した場合、キャッシュに保存
-        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, networkResponse.clone());
-            return networkResponse;
-          });
-        }
-        return networkResponse;
-      }).catch((error) => {
-        console.error('[sw.js] フェッチエラー:', error);
-        // オフラインページ（オプション）
-        return caches.match('offline.html');
+      return networkResponse;
+    }).catch(() => {
+      // ネットワークエラー時（オフライン時）にキャッシュを返す
+      return caches.match(event.request).then((response) => {
+        return response || caches.match('index.html');
       });
-    }).catch((error) => {
-      console.error('[sw.js] キャッシュマッチエラー:', error);
-      return caches.match('index.html');
     })
   );
 });
