@@ -39,12 +39,7 @@ body {
   font-family: 'M PLUS Rounded 1c', sans-serif;
 }
 
-#colorPicker {
-    display: none;
-}
-#colorPicker.show {
-    display: block;
-}
+
 
 /* 基本アニメーション */
 .fade-in {
