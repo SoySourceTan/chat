@@ -3,15 +3,15 @@ const CACHE_NAME = 'aura-chat-v1';
 
 // キャッシュするリソース
 const urlsToCache = [
-  '/chat/',
-  '/chat/index.html',
-  '/chat/style.css',
-  '/chat/script.js',
-  '/chat/notify.js',
-  '/chat/script-nofiti.js',
-  '/chat/images/icon-192x192.png',
-  '/chat/images/icon-512x512.png',
-  '/chat/images/icon.png'
+  '/',
+  'index.html',
+  'style.css',
+  'script.js',
+  'notify.js',
+  'script-nofiti.js',
+  'images/icon-192x192.png',
+  'images/icon-512x512.png',
+  'images/icon.png'
 ];
 
 // インストールイベント
@@ -70,11 +70,11 @@ self.addEventListener('fetch', (event) => {
       }).catch((error) => {
         console.error('[sw.js] フェッチエラー:', error);
         // オフラインページ（オプション）
-        return caches.match('/chat/offline.html');
+        return caches.match('offline.html');
       });
     }).catch((error) => {
       console.error('[sw.js] キャッシュマッチエラー:', error);
-      return caches.match('/chat/index.html');
+      return caches.match('index.html');
     })
   );
 });
