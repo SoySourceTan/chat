@@ -112,7 +112,7 @@ const backgroundColors = [
     'bg-user-5'  // 薄い水色
 ];
 // 背景色割り当てモード
-let colorAssignmentMode = getCookie('colorAssignmentMode') || 'sequential';
+let colorAssignmentMode = getCookie('colorAssignmentMode') || 'user-selected';
 
 // ユーザー背景色割り当て関数
 function assignUserBackgroundColor(userId) {
@@ -651,7 +651,7 @@ if (userColorSelect) {
         try {
             if (!auth.currentUser) {
                 showError('ログインしてください。');
-                userColorSelect.value = backgroundColors[0]; // リセット
+                userColorSelect.value = backgroundColors[0];
                 return;
             }
             if (colorAssignmentMode !== 'user-selected') {
@@ -665,12 +665,12 @@ if (userColorSelect) {
                 userColorMap.set(auth.currentUser.uid, selectedColor);
                 console.log(`ユーザー ${auth.currentUser.uid} の色選択: ${selectedColor}`);
                 reloadMessages();
-                const colorName = userColorSelect.options[userColorSelect.selectedIndex].text.split(' ')[1]; // 例: "● 薄ピンク" → "薄ピンク"
+                const colorName = userColorSelect.options[userColorSelect.selectedIndex].text;
                 showSuccess(`メッセージの背景色を${colorName}に変更しました。`);
             } else {
                 console.warn(`無効な色選択: ${selectedColor}`);
                 showError('無効な色が選択されました。');
-                userColorSelect.value = backgroundColors[0]; // リセット
+                userColorSelect.value = getCookie(`userColor_${auth.currentUser.uid}`) || backgroundColors[0];
             }
         } catch (error) {
             console.error('色選択エラー:', error);
@@ -1573,15 +1573,23 @@ auth.onAuthStateChanged(async (user) => {
         await updateUserUI(user);
         setupMessageListener();
         if (colorPicker) {
+            if (!getCookie('colorAssignmentMode')) {
+                setCookie('colorAssignmentMode', 'user-selected', 365);
+                colorAssignmentMode = 'user-selected';
+            }
             colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && user);
             if (user && colorAssignmentMode === 'user-selected') {
                 const savedColor = getCookie(`userColor_${user.uid}`);
-                userColorSelect.value = savedColor && backgroundColors.includes(savedColor) ? savedColor : backgroundColors[0];
+                const defaultColor = backgroundColors[0];
+                userColorSelect.value = savedColor && backgroundColors.includes(savedColor) ? savedColor : defaultColor;
                 console.log(`ログイン時色設定: ユーザー ${user.uid}, 色: ${userColorSelect.value}`);
                 if (savedColor && backgroundColors.includes(savedColor)) {
                     userColorMap.set(user.uid, savedColor);
-                    reloadMessages();
+                } else {
+                    userColorMap.set(user.uid, defaultColor);
+                    setCookie(`userColor_${user.uid}`, defaultColor, 365);
                 }
+                reloadMessages();
             }
         }
     } catch (error) {
