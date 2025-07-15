@@ -171,15 +171,11 @@
   <script type="module" src="notify.js"></script>
   <script type="module" src="chat/fcmpush.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/learning/english-words/chat/sw.js', {
-        scope: '/learning/english-words/chat/'
-      }).then(registration => {
-        console.log('サービスワーカー登録成功:', registration);
-      }).catch(error => {
-        console.error('サービスワーカー登録エラー:', error);
-      });
-    }
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(error => {
+    console.error('サービスワーカー登録エラー:', error);
+  });
+}
   </script>
 </body>
 </html>
