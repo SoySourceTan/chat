@@ -1647,16 +1647,33 @@ if (newMessageBtn) {
         }
     });
 }
-// script.js（末尾または適切な場所に追加）
+// script.js（末尾の既存コードを置き換え）
 import { initNotifications } from './fcmpush.js';
 
 // グローバルに公開（コンソールでの手動実行用）
 window.initNotifications = initNotifications;
 
 // ページロード時に自動実行
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('[script.js] ページロード完了、initNotificationsを実行');
-  initNotifications().catch(error => {
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[script.js] ページロード完了');
+  try {
+    if (auth.currentUser) {
+      await initNotifications();
+      console.log('[script.js] initNotifications 実行成功');
+    } else {
+      console.log('[script.js] 未ログインのためinitNotificationsをスキップ');
+      // 認証状態変更を待機
+      auth.onAuthStateChanged((user) => {
+        if (user) {
+          initNotifications().catch(error => {
+            console.error('[script.js] initNotificationsエラー（認証後）:', error);
+            showError('通知の初期化に失敗しました: ' + error.message);
+          });
+        }
+      }, { once: true }); // 1回だけ実行
+    }
+  } catch (error) {
     console.error('[script.js] initNotificationsエラー:', error);
-  });
+    showError('通知の初期化に失敗しました: ' + error.message);
+  }
 });
