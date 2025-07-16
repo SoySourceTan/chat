@@ -6,7 +6,6 @@ const urlsToCache = [
   'style.css',
   'script.js',
   'notify.js',
-  'script-notify.js',
   'images/icon-192x192.png',
   'images/icon-512x512.png',
   'images/icon.png'
@@ -89,104 +88,79 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// FCMの処理を追加
+// FCMの処理をトップレベルで設定
 try {
   importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');
   importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
+
+  // ハードコーディングしたfirebaseConfig（テスト用）
+  const firebaseConfig = {
+    apiKey: 'AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc',
+    authDomain: 'gentle-brace-458923-k9.firebaseapp.com',
+    databaseURL: 'https://gentle-brace-458923-k9-default-rtdb.firebaseio.com',
+    projectId: 'gentle-brace-458923-k9',
+    storageBucket: 'gentle-brace-458923-k9.firebasestorage.app',
+    messagingSenderId: '426876531009',
+    appId: '1:426876531009:web:021b23c449bce5d72031c0',
+    measurementId: 'G-2B5KWNHYED'
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const messaging = firebase.messaging();
+  console.log('[sw.js] Messaging 初期化成功');
+
+  // バックグラウンド通知
+  messaging.onBackgroundMessage((payload) => {
+    console.log('[sw.js] バックグラウンドメッセージ受信:', payload);
+    const notificationTitle = payload.notification.title;
+    const isLocalhost = self.location.hostname === 'localhost';
+    const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
+    
+    const notificationOptions = {
+      body: payload.notification.body,
+      icon: iconPath,
+      badge: iconPath,
+      vibrate: [200, 100, 200],
+      data: payload.data,
+      actions: [{ action: 'open', title: '開く' }]
+    };
+    
+    try {
+      self.registration.showNotification(notificationTitle, notificationOptions);
+      console.log('[sw.js] 通知表示成功:', notificationTitle);
+    } catch (error) {
+      console.error('[sw.js] 通知表示エラー:', error);
+    }
+  });
+
+  self.addEventListener('notificationclick', (event) => {
+    console.log('[sw.js] 通知クリック:', event);
+    event.notification.close();
+    const url = event.notification.data?.url || 'https://soysourcetan.github.io/chat/';
+    
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+        for (const client of clientList) {
+          if (client.url === url && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      })
+    );
+  });
+
+  self.addEventListener('pushsubscriptionchange', (event) => {
+    console.log('[sw.js] プッシュサブスクリプション変更:', event);
+    // 必要に応じて再サブスクライブ処理を追加
+  });
 } catch (error) {
-  console.error('[sw.js] importScriptsエラー:', error);
+  console.error('[sw.js] FCM初期化エラー:', error);
   self.clients.matchAll().then(clients => {
     clients.forEach(client => {
-      client.postMessage({ type: 'ERROR', message: 'スクリプトの読み込みに失敗しました: ' + error.message });
+      client.postMessage({ type: 'ERROR', message: 'Service Worker の初期化に失敗しました: ' + error.message });
     });
   });
 }
-
-// Firebase設定を外部から取得
-async function loadFirebaseConfig() {
-  try {
-    const response = await fetch('https://trextacy.com/chat/firebase-config.php', {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    });
-    if (!response.ok) {
-      throw new Error(`HTTPエラー: ステータス ${response.status}`);
-    }
-    const config = await response.json();
-    return config;
-  } catch (error) {
-    console.error('[sw.js] Firebase設定取得エラー:', error);
-    self.clients.matchAll().then(clients => {
-      clients.forEach(client => {
-        client.postMessage({ type: 'ERROR', message: 'Firebase設定の取得に失敗しました: ' + error.message });
-      });
-    });
-    throw error;
-  }
-}
-
-try {
-  loadFirebaseConfig().then(firebaseConfig => {
-    console.log('[sw.js] 設定取得成功:', firebaseConfig);
-    firebase.initializeApp(firebaseConfig);
-    const messaging = firebase.messaging();
-    console.log('[sw.js] Messaging 初期化成功');
-
-    // バックグラウンド通知
-    messaging.onBackgroundMessage((payload) => {
-      console.log('[sw.js] バックグラウンドメッセージ受信:', payload);
-      const notificationTitle = payload.notification.title;
-      const isLocalhost = self.location.hostname === 'localhost';
-      const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
-      
-      const notificationOptions = {
-        body: payload.notification.body,
-        icon: iconPath,
-        badge: iconPath,
-        vibrate: [200, 100, 200],
-        data: payload.data,
-        actions: [{ action: 'open', title: '開く' }]
-      };
-      
-      try {
-        self.registration.showNotification(notificationTitle, notificationOptions);
-        console.log('[sw.js] 通知表示成功:', notificationTitle);
-      } catch (error) {
-        console.error('[sw.js] 通知表示エラー:', error);
-      }
-    });
-  }).catch(error => {
-    console.error('[sw.js] FCM初期化エラー:', error);
-    self.clients.matchAll().then(clients => {
-      clients.forEach(client => {
-        client.postMessage({ type: 'ERROR', message: 'Service Worker の初期化に失敗しました: ' + error.message });
-      });
-    });
-  });
-} catch (error) {
-  console.error('[sw.js] 初期化エラー:', error);
-}
-
-self.addEventListener('notificationclick', (event) => {
-  console.log('[sw.js] 通知クリック:', event);
-  event.notification.close();
-  const url = event.notification.data?.url || 'https://soysourcetan.github.io/chat/';
-  
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      for (const client of clientList) {
-        if (client.url === url && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(url);
-      }
-    })
-  );
-});
-
-self.addEventListener('pushsubscriptionchange', (event) => {
-  console.log('[sw.js] プッシュサブスクリプション変更:', event);
-  // 必要に応じて再サブスクライブ処理を追加
-});
