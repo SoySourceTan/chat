@@ -1,10 +1,10 @@
+// script.js（冒頭のインポートを修正）
+import { initNotifications as initNotify, notifyNewMessage } from './notify.js';
+import { initNotifications as initFCM, sendNotification } from './chat/fcmpush.js'
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
-import { initNotifications, notifyNewMessage } from './notify.js';
-import { sendNotification } from './chat/fcmpush.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
-
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
     try {
@@ -1647,33 +1647,31 @@ if (newMessageBtn) {
         }
     });
 }
-// script.js（末尾の既存コードを置き換え）
-import { initNotifications } from './fcmpush.js';
+// script.js（末尾）
+import { initNotifications } from './chat/fcmpush.js';
 
-// グローバルに公開（コンソールでの手動実行用）
-window.initNotifications = initNotifications;
+// グローバルに公開（fcmpush.jsのinitNotificationsを優先）
+window.initNotifications = initFCM;
 
-// ページロード時に自動実行
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[script.js] ページロード完了');
   try {
     if (auth.currentUser) {
-      await initNotifications();
-      console.log('[script.js] initNotifications 実行成功');
+      await initFCM(); // fcmpush.jsのinitNotifications
+      console.log('[script.js] initFCM 実行成功');
     } else {
-      console.log('[script.js] 未ログインのためinitNotificationsをスキップ');
-      // 認証状態変更を待機
+      console.log('[script.js] 未ログインのためinitFCMをスキップ');
       auth.onAuthStateChanged((user) => {
         if (user) {
-          initNotifications().catch(error => {
-            console.error('[script.js] initNotificationsエラー（認証後）:', error);
+          initFCM().catch(error => {
+            console.error('[script.js] initFCMエラー（認証後）:', error);
             showError('通知の初期化に失敗しました: ' + error.message);
           });
         }
-      }, { once: true }); // 1回だけ実行
+      }, { once: true });
     }
   } catch (error) {
-    console.error('[script.js] initNotificationsエラー:', error);
+    console.error('[script.js] initFCMエラー:', error);
     showError('通知の初期化に失敗しました: ' + error.message);
   }
 });
