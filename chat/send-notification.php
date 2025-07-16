@@ -129,11 +129,11 @@ try {
 
         // 非アクティブユーザーの判定（最後のアクティビティが5分以上前）
         $isOnline = isset($onlineUsers[$targetUserId]) && ($onlineUsers[$targetUserId]['timestamp'] ?? 0) > (time() * 1000 - 5 * 60 * 1000);
-        if ($isOnline) {
-            error_log("ユーザー $targetUserId はオンラインのためスキップ");
-            $skippedCount++;
-            continue;
-        }
+//        if ($isOnline) {
+//            error_log("ユーザー $targetUserId はオンラインのためスキップ");
+//            $skippedCount++;
+//            continue;
+//        }
 
         // 通知メッセージの作成
         $message = CloudMessage::withTarget('token', $userData['fcmToken'])
