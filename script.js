@@ -1647,3 +1647,16 @@ if (newMessageBtn) {
         }
     });
 }
+// script.js（末尾または適切な場所に追加）
+import { initNotifications } from './fcmpush.js';
+
+// グローバルに公開（コンソールでの手動実行用）
+window.initNotifications = initNotifications;
+
+// ページロード時に自動実行
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[script.js] ページロード完了、initNotificationsを実行');
+  initNotifications().catch(error => {
+    console.error('[script.js] initNotificationsエラー:', error);
+  });
+});
