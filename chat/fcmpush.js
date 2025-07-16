@@ -45,29 +45,15 @@ async function initializeFCM() {
         console.log('FCM初期化成功:', { app, messaging, database, auth });
 
         const isLocalhost = window.location.hostname === 'localhost';
-// fcmpush.js
-const serviceWorkerPath = isLocalhost
-    ? '/learning/english-words/chat/firebase-messaging-sw.js'
-    : '/chat/firebase-messaging-sw.js';
-const serviceWorkerScope = isLocalhost
-    ? '/learning/english-words/chat/'
-    : '/chat/';
+        const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
 
-        if ('serviceWorker' in navigator) {
-            const registration = await navigator.serviceWorker.register(serviceWorkerPath, {
-                scope: serviceWorkerScope,
-            });
-            console.log('サービスワーカー登録成功:', registration);
-        } else {
-            console.warn('サービスワーカーがサポートされていません');
-            showError('このブラウザはプッシュ通知をサポートしていません。');
-        }
+        // サービスワーカー登録はsw.jsに統合済みのため削除
 
         onMessage(messaging, (payload) => {
             console.log('フォアグラウンドメッセージ受信:', payload);
             const notification = new Notification(payload.notification.title, {
                 body: payload.notification.body,
-                icon: payload.data?.icon || '/chat/images/icon.png',
+                icon: iconPath,
                 data: payload.data
             });
             notification.onclick = () => {
@@ -94,9 +80,7 @@ async function requestNotificationPermission() {
             return null;
         }
         const isLocalhost = window.location.hostname === 'localhost';
-        const serviceWorkerScope = isLocalhost
-            ? '/learning/english-words/chat/firebase-cloud-messaging-push-scope'
-            : '/chat/firebase-cloud-messaging-push-scope';
+        const serviceWorkerScope = isLocalhost ? '/learning/english-words/chat/' : '/chat/';
         const token = await getToken(messaging, {
             vapidKey: 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw',
             serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(serviceWorkerScope),
@@ -131,14 +115,14 @@ export async function sendNotification(userId, title, body, data = {}, senderUse
             userId: userId || null,
             title: title || '',
             body: body || '',
-            data: { ...data, url: data.url || 'https://trextacy.com/chat' },
+            data: { ...data, url: data.url || 'https://soysourcetan.github.io/chat/' },
             senderUserId: senderUserId || null
         };
         console.log('通知送信リクエスト:', payload);
         const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json; charset=utf-8', // UTF-8を明示
+                'Content-Type': 'application/json; charset=utf-8',
                 'Accept': 'application/json',
             },
             body: JSON.stringify(payload),
