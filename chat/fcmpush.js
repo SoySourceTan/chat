@@ -14,7 +14,7 @@ async function loadFirebaseConfig() {
         }
         return await response.json();
     } catch (error) {
-        console.error('Firebase設定取得エラー:', error);
+        console.error('[fcmpush.js] Firebase設定取得エラー:', error);
         throw error;
     }
 }
@@ -30,7 +30,7 @@ function showError(message) {
             errorAlert.removeAttribute('role');
         }, 6000);
     } else {
-        console.warn('エラーアラート要素が見つかりません');
+        console.warn('[fcmpush.js] エラーアラート要素が見つかりません');
     }
 }
 
