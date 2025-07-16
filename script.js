@@ -1,10 +1,9 @@
 // script.js（冒頭のインポートを修正）
-// script.js（冒頭）
-import { notifyNewMessage } from './notify.js'; // initNotificationsを削除
-import { sendNotification } from './chat/fcmpush.js';
+import { initNotifications as initNotify, notifyNewMessage } from './notify.js';
+import { initNotifications as initFCM, sendNotification } from './chat/fcmpush.js'
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, signInWithRedirect } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js';
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
@@ -470,7 +469,14 @@ async function updateUserUI(user) {
             userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
             let username = userData.username || user.displayName || 'ゲスト';
             username = username.length > 7 ? username.substring(0, 7) + "..." : username;
-            // ... ユーザーUI更新
+            if (userInfo) {
+                userInfo.innerHTML = `<span class="status-dot status-active"></span>${escapeHTMLAttribute(username)}<i class="fas fa-pencil-alt ms-1"></i>`;
+            }
+            if (loginBtn) {
+                loginBtn.innerHTML = '<i class="fa fa-sign-out"></i>';
+            }
+            loginModal.hide();
+            loginModalEl.setAttribute('inert', '');
             if ((user.isAnonymous || !userData.username) && !isLoggingIn) {
                 unameInput.value = userData.username || '';
                 unameModalEl.removeAttribute('inert');
@@ -488,9 +494,22 @@ async function updateUserUI(user) {
             } catch (error) {
                 console.error('オンラインステータス更新エラー:', error);
             }
-            // ... 他の処理
+            updateStatusIndicator();
+            await updateOnlineUsers();
+            await loadInitialMessages();
         } else {
-            // ... 未ログイン時の処理
+            if (userInfo) {
+                userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
+            }
+            if (loginBtn) {
+                loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
+            }
+            unameModalEl.setAttribute('inert', '');
+            loginModalEl.removeAttribute('inert');
+            loginModal.show();
+            setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
+            if (progressOverlay) progressOverlay.classList.add('d-none');
+            await updateOnlineUsers();
         }
     } catch (error) {
         console.error('ユーザーUI更新エラー:', error);
@@ -1629,32 +1648,30 @@ if (newMessageBtn) {
     });
 }
 // script.js（末尾）
-// script.js（末尾）
-import { initNotifications } from './fcmpush.js';
+import { initNotifications } from './chat/fcmpush.js';
 
-// グローバルに公開（コンソールでの手動実行用）
-window.initNotifications = initNotifications;
+// グローバルに公開（fcmpush.jsのinitNotificationsを優先）
+window.initNotifications = initFCM;
 
-// ページロード時に自動実行
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('[script.js] ページロード完了');
-    try {
-        if (auth.currentUser) {
-            await initNotifications();
-            console.log('[script.js] initNotifications 実行成功');
-        } else {
-            console.log('[script.js] 未ログインのためinitNotificationsをスキップ');
-            auth.onAuthStateChanged((user) => {
-                if (user) {
-                    initNotifications().catch(error => {
-                        console.error('[script.js] initNotificationsエラー（認証後）:', error);
-                        showError('通知の初期化に失敗しました: ' + error.message);
-                    });
-                }
-            }, { once: true });
+  console.log('[script.js] ページロード完了');
+  try {
+    if (auth.currentUser) {
+      await initFCM(); // fcmpush.jsのinitNotifications
+      console.log('[script.js] initFCM 実行成功');
+    } else {
+      console.log('[script.js] 未ログインのためinitFCMをスキップ');
+      auth.onAuthStateChanged((user) => {
+        if (user) {
+          initFCM().catch(error => {
+            console.error('[script.js] initFCMエラー（認証後）:', error);
+            showError('通知の初期化に失敗しました: ' + error.message);
+          });
         }
-    } catch (error) {
-        console.error('[script.js] initNotificationsエラー:', error);
-        showError('通知の初期化に失敗しました: ' + error.message);
+      }, { once: true });
     }
+  } catch (error) {
+    console.error('[script.js] initFCMエラー:', error);
+    showError('通知の初期化に失敗しました: ' + error.message);
+  }
 });
