@@ -1,7 +1,7 @@
 const CACHE_NAME = 'aura-chat-v3';
 
 const urlsToCache = [
-  '', // ルート（例: /chat/ や /learning/english-words/chat/）
+  '', // ルート（/chat/）
   'index.html',
   'style.css',
   'script.js',
@@ -13,6 +13,7 @@ const urlsToCache = [
 
 // インストールイベント
 self.addEventListener('install', (event) => {
+  console.log('[sw.js] インストール開始');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[sw.js] キャッシュをオープン');
@@ -26,7 +27,7 @@ self.addEventListener('install', (event) => {
             return cache.put(url, response);
           }).catch((error) => {
             console.error(`[sw.js] リソース追加エラー: ${url}, エラー: ${error}`);
-            throw error;
+            return null; // エラーをスキップして続行
           });
         })
       ).then(() => {
@@ -41,6 +42,7 @@ self.addEventListener('install', (event) => {
 
 // アクティベートイベント
 self.addEventListener('activate', (event) => {
+  console.log('[sw.js] アクティベート開始');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -88,12 +90,12 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// FCMの処理をトップレベルで設定
+// FCMの処理
 try {
   importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');
   importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
 
-  // ハードコーディングしたfirebaseConfig（テスト用）
+  // テスト用にハードコーディング（後でfirebase-config.phpに戻す）
   const firebaseConfig = {
     apiKey: 'AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc',
     authDomain: 'gentle-brace-458923-k9.firebaseapp.com',
@@ -110,8 +112,13 @@ try {
   console.log('[sw.js] Messaging 初期化成功');
 
   // バックグラウンド通知
-  messaging.onBackgroundMessage((payload) => {
-    console.log('[sw.js] バックグラウンドメッセージ受信:', payload);
+  self.addEventListener('push', (event) => {
+    if (!event.data) {
+      console.warn('[sw.js] プッシュイベントにデータがありません');
+      return;
+    }
+    const payload = event.data.json();
+    console.log('[sw.js] プッシュイベント受信:', payload);
     const notificationTitle = payload.notification.title;
     const isLocalhost = self.location.hostname === 'localhost';
     const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
@@ -125,12 +132,13 @@ try {
       actions: [{ action: 'open', title: '開く' }]
     };
     
-    try {
-      self.registration.showNotification(notificationTitle, notificationOptions);
-      console.log('[sw.js] 通知表示成功:', notificationTitle);
-    } catch (error) {
-      console.error('[sw.js] 通知表示エラー:', error);
-    }
+    event.waitUntil(
+      self.registration.showNotification(notificationTitle, notificationOptions).then(() => {
+        console.log('[sw.js] 通知表示成功:', notificationTitle);
+      }).catch(error => {
+        console.error('[sw.js] 通知表示エラー:', error);
+      })
+    );
   });
 
   self.addEventListener('notificationclick', (event) => {
@@ -154,7 +162,7 @@ try {
 
   self.addEventListener('pushsubscriptionchange', (event) => {
     console.log('[sw.js] プッシュサブスクリプション変更:', event);
-    // 必要に応じて再サブスクライブ処理を追加
+    // 再サブスクライブ処理を追加可能
   });
 } catch (error) {
   console.error('[sw.js] FCM初期化エラー:', error);
