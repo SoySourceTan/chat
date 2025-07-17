@@ -1,7 +1,6 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
-import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging.js';
-import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-messaging.js';
+import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 
 async function loadFirebaseConfig() {
     try {
@@ -35,7 +34,7 @@ function showError(message) {
 }
 
 let app, messaging, database, auth;
-let isFCMInitialized = false;
+let isFCMInitialized = false; // FCM初期化フラグ
 
 async function initializeFCM() {
     if (isFCMInitialized) {
@@ -93,12 +92,18 @@ async function requestNotificationPermission() {
         const serviceWorkerScope = isLocalhost ? '/learning/english-words/chat/' : '/chat/';
         console.log('[fcmpush.js] サービスワーカースコープ:', serviceWorkerScope);
 
-        let registration = await navigator.serviceWorker.getRegistration(serviceWorkerScope);
+        // サービスワーカーを明示的に登録
+        // サービスワーカーを登録する際に、モジュールのタイプを指定します
+        let registration = await navigator.serviceWorker.register('/learning/english-words/chat/sw.js', { 
+            scope: '/learning/english-words/chat/'
+        });
+
         if (!registration) {
-            console.error('[fcmpush.js] サービスワーカーが登録されていません。アプリケーションの初期化を確認してください。');
-            showError('サービスワーカーが登録されていません。ページをリロードしてください。');
+            console.error('[fcmpush.js] サービスワーカー登録失敗');
+            showError('サービスワーカーの登録に失敗しました。');
             return null;
         }
+        console.log('[fcmpush.js] サービスワーカー登録成功:', registration);
 
         const token = await getToken(messaging, {
             vapidKey: 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw',
