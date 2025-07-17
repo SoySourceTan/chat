@@ -30,8 +30,8 @@ async function initializeFirebase() {
         return;
     }
     try {
-        importScripts('https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js');
-        importScripts('https://www.gstatic.com/firebasejs/11.2.0/firebase-messaging.js');
+        importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+        importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js');
 
         const firebaseConfig = await fetch('https://trextacy.com/chat/firebase-config.php')
             .then(res => {
@@ -49,7 +49,7 @@ async function initializeFirebase() {
             const notificationTitle = payload.notification?.title || 'New Message';
             const notificationOptions = {
                 body: payload.notification?.body || '新しいメッセージがあります',
-                icon: self.location.hostname === 'localhost' ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png',
+                icon: '/chat/images/icon.png',
                 data: payload.data || {}
             };
             self.registration.showNotification(notificationTitle, notificationOptions);
@@ -77,7 +77,7 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            const url = event.notification.data.url || (self.location.hostname === 'localhost' ? 'https://localhost/learning/english-words/chat/' : 'https://soysourcetan.github.io/chat/');
+            const url = event.notification.data.url || 'https://soysourcetan.github.io/chat/';
             for (const client of clientList) {
                 if (client.url === url && 'focus' in client) {
                     return client.focus();
