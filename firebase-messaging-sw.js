@@ -1,9 +1,10 @@
 try {
-    importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');
-    importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
+    importScripts('https://www.gstatic.com/firebasejs/11.2.0/firebase-app-compat.js');
+    importScripts('https://www.gstatic.com/firebasejs/11.2.0/firebase-messaging-compat.js');
 } catch (error) {
     console.error('[firebase-messaging-sw.js] importScriptsエラー:', error);
     self.clients.matchAll().then(clients => {
+
         clients.forEach(client => {
             client.postMessage({ type: 'ERROR', message: 'スクリプトの読み込みに失敗しました: ' + error.message });
         });
@@ -56,6 +57,7 @@ if (messaging) {
     messaging.onBackgroundMessage((payload) => {
         console.log('[firebase-messaging-sw.js] バックグラウンドメッセージ受信:', payload);
         const notificationTitle = payload.notification.title;
+
         
         const notificationOptions = {
             body: payload.notification.body,
@@ -63,6 +65,7 @@ if (messaging) {
             data: payload.data,
         };
         try {
+
             self.registration.showNotification(notificationTitle, notificationOptions);
             console.log('[firebase-messaging-sw.js] 通知表示成功:', notificationTitle);
         } catch (error) {
