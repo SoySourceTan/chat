@@ -1,6 +1,7 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-messaging.js';
-import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js';
+import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 
 async function loadFirebaseConfig() {
     try {
@@ -34,7 +35,7 @@ function showError(message) {
 }
 
 let app, messaging, database, auth;
-let isFCMInitialized = false; // FCM初期化フラグ
+let isFCMInitialized = false;
 
 async function initializeFCM() {
     if (isFCMInitialized) {
@@ -51,7 +52,8 @@ async function initializeFCM() {
         console.log('[fcmpush.js] FCM初期化成功:', { app, messaging, database, auth });
 
         const isLocalhost = window.location.hostname === 'localhost';
-        const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
+        const basePath = isLocalhost ? '/learning/english-words/chat' : '/chat';
+        const iconPath = `${basePath}/images/icon.png`;
 
         onMessage(messaging, (payload) => {
             console.log('[fcmpush.js] フォアグラウンドメッセージ受信:', payload);
@@ -89,15 +91,12 @@ async function requestNotificationPermission() {
             return null;
         }
         const isLocalhost = window.location.hostname === 'localhost';
-        const serviceWorkerScope = isLocalhost ? '/learning/english-words/chat/' : '/chat/';
+        const basePath = isLocalhost ? '/learning/english-words/chat' : '/chat';
+        const serviceWorkerPath = `${basePath}/sw.js`;
+        const serviceWorkerScope = basePath + '/';
         console.log('[fcmpush.js] サービスワーカースコープ:', serviceWorkerScope);
 
-        // サービスワーカーを明示的に登録
-        // サービスワーカーを登録する際に、モジュールのタイプを指定します
-        let registration = await navigator.serviceWorker.register('/learning/english-words/chat/sw.js', { 
-            scope: '/learning/english-words/chat/'
-        });
-
+        let registration = await navigator.serviceWorker.register(serviceWorkerPath, { scope: serviceWorkerScope });
         if (!registration) {
             console.error('[fcmpush.js] サービスワーカー登録失敗');
             showError('サービスワーカーの登録に失敗しました。');
