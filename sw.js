@@ -1,174 +1,258 @@
-const CACHE_NAME = 'aura-chat-v3';
-
-const urlsToCache = [
-  '', // ルート（/chat/）
-  'index.html',
-  'style.css',
-  'script.js',
-  'notify.js',
-  'images/icon-192x192.png',
-  'images/icon-512x512.png',
-  'images/icon.png'
-];
+// キャッシュ管理と最小限のイベント処理のみ
+const CACHE_NAME = 'chat-cache-v1';
 
 // インストールイベント
 self.addEventListener('install', (event) => {
-  console.log('[sw.js] インストール開始');
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[sw.js] キャッシュをオープン');
-      return Promise.all(
-        urlsToCache.map((url) => {
-          return fetch(url, { cache: 'no-store' }).then((response) => {
-            if (!response.ok) {
-              console.error(`[sw.js] フェッチ失敗: ${url}, ステータス: ${response.status}`);
-              throw new Error(`フェッチ失敗: ${url}`);
-            }
-            return cache.put(url, response);
-          }).catch((error) => {
-            console.error(`[sw.js] リソース追加エラー: ${url}, エラー: ${error}`);
-            return null; // エラーをスキップして続行
-          });
-        })
-      ).then(() => {
-        console.log('[sw.js] すべてのリソースをキャッシュ完了');
-      });
-    }).catch((error) => {
-      console.error('[sw.js] キャッシュ追加エラー:', error);
-    })
-  );
-  self.skipWaiting();
+    console.log('[sw.js] サービスワーカーインストール');
+    event.waitUntil(self.skipWaiting());
 });
 
 // アクティベートイベント
 self.addEventListener('activate', (event) => {
-  console.log('[sw.js] アクティベート開始');
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[sw.js] 古いキャッシュを削除:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => {
-      console.log('[sw.js] アクティベート完了');
-      return self.clients.claim();
-    }).catch((error) => {
-      console.error('[sw.js] アクティベートエラー:', error);
-    })
-  );
+    console.log('[sw.js] サービスワーカーアクティベート');
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('[sw.js] 古いキャッシュ削除:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        }).then(() => self.clients.claim())
+    );
 });
 
-// フェッチイベント（ネットワーク優先）
-self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('firebase')) {
-    event.respondWith(
-      fetch(event.request).catch((error) => {
-        console.error('[sw.js] Firebase フェッチエラー:', error);
-        return new Response('Network error', { status: 503 });
-      })
-    );
-    return;
-  }
-  event.respondWith(
-    fetch(event.request).then((networkResponse) => {
-      if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
-        return caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, networkResponse.clone());
-          return networkResponse;
+// プッシュイベント
+self.addEventListener('push', (event) => {
+
+// fcmpush.js
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
+import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging.js';
+import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+
+async function loadFirebaseConfig() {
+    try {
+        const response = await fetch('https://trextacy.com/chat/firebase-config.php', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
         });
-      }
-      return networkResponse;
-    }).catch(() => {
-      return caches.match(event.request).then((response) => {
-        return response || caches.match('index.html');
-      });
-    })
-  );
-});
-
-// FCMの処理
-try {
-  importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
-
-  // テスト用にハードコーディング（後でfirebase-config.phpに戻す）
-  const firebaseConfig = {
-    apiKey: 'AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc',
-    authDomain: 'gentle-brace-458923-k9.firebaseapp.com',
-    databaseURL: 'https://gentle-brace-458923-k9-default-rtdb.firebaseio.com',
-    projectId: 'gentle-brace-458923-k9',
-    storageBucket: 'gentle-brace-458923-k9.firebasestorage.app',
-    messagingSenderId: '426876531009',
-    appId: '1:426876531009:web:021b23c449bce5d72031c0',
-    measurementId: 'G-2B5KWNHYED'
-  };
-
-  firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
-  console.log('[sw.js] Messaging 初期化成功');
-
-  // バックグラウンド通知
-  self.addEventListener('push', (event) => {
-    if (!event.data) {
-      console.warn('[sw.js] プッシュイベントにデータがありません');
-      return;
+        if (!response.ok) {
+            throw new Error(`HTTPエラー: ステータス ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('[fcmpush.js] Firebase設定取得エラー:', error);
+        throw error;
     }
-    const payload = event.data.json();
-    console.log('[sw.js] プッシュイベント受信:', payload);
-    const notificationTitle = payload.notification.title;
-    const isLocalhost = self.location.hostname === 'localhost';
-    const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
-    
-    const notificationOptions = {
-      body: payload.notification.body,
-      icon: iconPath,
-      badge: iconPath,
-      vibrate: [200, 100, 200],
-      data: payload.data,
-      actions: [{ action: 'open', title: '開く' }]
-    };
-    
-    event.waitUntil(
-      self.registration.showNotification(notificationTitle, notificationOptions).then(() => {
-        console.log('[sw.js] 通知表示成功:', notificationTitle);
-      }).catch(error => {
-        console.error('[sw.js] 通知表示エラー:', error);
-      })
-    );
-  });
+}
 
-  self.addEventListener('notificationclick', (event) => {
-    console.log('[sw.js] 通知クリック:', event);
-    event.notification.close();
-    const url = event.notification.data?.url || 'https://soysourcetan.github.io/chat/';
-    
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-        for (const client of clientList) {
-          if (client.url === url && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        if (clients.openWindow) {
-          return clients.openWindow(url);
-        }
-      })
-    );
-  });
+function showError(message) {
+    const errorAlert = document.getElementById('error-alert');
+    if (errorAlert) {
+        errorAlert.textContent = message;
+        errorAlert.classList.remove('d-none');
+        errorAlert.setAttribute('role', 'alert');
+        setTimeout(() => {
+            errorAlert.classList.add('d-none');
+            errorAlert.removeAttribute('role');
+        }, 6000);
+    } else {
+        console.warn('[fcmpush.js] エラーアラート要素が見つかりません');
+    }
+}
 
-  self.addEventListener('pushsubscriptionchange', (event) => {
-    console.log('[sw.js] プッシュサブスクリプション変更:', event);
-    // 再サブスクライブ処理を追加可能
-  });
-} catch (error) {
-  console.error('[sw.js] FCM初期化エラー:', error);
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({ type: 'ERROR', message: 'Service Worker の初期化に失敗しました: ' + error.message });
-    });
-  });
+let app, messaging, database, auth;
+let isFCMInitialized = false; // FCM初期化フラグ
+async function initializeFCM() {
+    if (isFCMInitialized) {
+        console.log('[fcmpush.js] FCMは既に初期化済み、スキップ');
+        return true;
+    }
+    try {
+        console.log('[fcmpush.js] FCM初期化開始');
+        const firebaseConfig = await loadFirebaseConfig();
+        app = initializeApp(firebaseConfig);
+        messaging = getMessaging(app);
+        database = getDatabase(app);
+        auth = getAuth(app);
+        console.log('[fcmpush.js] FCM初期化成功:', { app, messaging, database, auth });
+
+        const isLocalhost = window.location.hostname === 'localhost';
+        const iconPath = isLocalhost ? '/learning/english-words/chat/images/icon.png' : '/chat/images/icon.png';
+
+        onMessage(messaging, (payload) => {
+            console.log('[fcmpush.js] フォアグラウンドメッセージ受信:', payload);
+            const notification = new Notification(payload.notification.title, {
+                body: payload.notification.body,
+                icon: iconPath,
+                data: payload.data
+            });
+            notification.onclick = () => {
+                window.focus();
+                if (payload.data?.url) {
+                    window.location.href = payload.data.url;
+                }
+                notification.close();
+            };
+        });
+        isFCMInitialized = true;
+        return true;
+    } catch (error) {
+        console.error('[fcmpush.js] FCM初期化エラー:', error);
+        showError('通知の初期化に失敗しました。');
+        return false;
+    }
+}
+
+async function requestNotificationPermission() {
+    try {
+        console.log('[fcmpush.js] 通知許可リクエスト開始');
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.warn('[fcmpush.js] 通知許可が拒否されました:', permission);
+            showError('通知の許可が拒否されました。');
+            return null;
+        }
+const isLocalhost = window.location.hostname === 'localhost';
+const serviceWorkerScope = isLocalhost ? '/learning/english-words/chat/' : '/chat/';
+console.log('[fcmpush.js] サービスワーカースコープ:', serviceWorkerScope);
+
+let registration = await navigator.serviceWorker.getRegistration(serviceWorkerScope);
+if (!registration) {
+    console.error('[fcmpush.js] サービスワーカーが登録されていません。アプリケーションの初期化を確認してください。');
+    showError('サービスワーカーが登録されていません。ページをリロードしてください。');
+    return null;
+}
+
+        const token = await getToken(messaging, {
+            vapidKey: 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw',
+            serviceWorkerRegistration: registration,
+        });
+        if (!token) {
+            console.warn('[fcmpush.js] 通知トークンの取得に失敗しました');
+            showError('通知トークンの取得に失敗しました。');
+            return null;
+        }
+        console.log('[fcmpush.js] 通知トークン取得成功:', token);
+        return token;
+    } catch (error) {
+        console.error('[fcmpush.js] 通知許可エラー:', error);
+        showError('通知許可の取得に失敗しました。');
+        return null;
+    }
+}
+
+async function saveFCMToken(userId, token) {
+    try {
+        // バリデーション
+        if (!userId || typeof userId !== 'string' || /[.#$[\]]/.test(userId)) {
+            throw new Error(`無効な userId: ${userId}`);
+        }
+        if (!token || typeof token !== 'string' || token.length === 0) {
+            throw new Error(`無効なトークン: ${token}`);
+        }
+
+        console.log('[fcmpush.js] Saving FCM token for userId:', userId);
+        console.log('[fcmpush.js] Token type:', typeof token, 'Token length:', token.length);
+
+        // 既存トークンの確認
+        const tokenRef = ref(database, `users/${userId}/fcmToken`);
+        const snapshot = await get(tokenRef);
+        const existingToken = snapshot.exists() ? snapshot.val() : null;
+        console.log('[fcmpush.js] 既存のFCMトークン:', existingToken);
+
+        if (existingToken === token) {
+            console.log('[fcmpush.js] 同一トークンのため保存をスキップ');
+            return;
+        }
+
+        // データベースへの書き込み
+        await set(tokenRef, token);
+        console.log('[fcmpush.js] FCMトークンを保存:', token);
+    } catch (error) {
+        console.error('[fcmpush.js] FCMトークン保存エラー:', {
+            message: error.message,
+            stack: error.stack,
+            userId,
+            tokenType: typeof token,
+            tokenSnippet: token ? token.substring(0, 50) + '...' : 'undefined',
+            databasePath: `users/${userId}/fcmToken`
+        });
+        showError('通知トークンの保存に失敗しました: ' + error.message);
+        throw error;
+    }
+}
+
+export async function sendNotification(userId, title, body, data = {}, senderUserId = null) {
+    try {
+        const url = 'https://trextacy.com/chat/send-notification.php';
+        const payload = {
+            userId: userId || null,
+            title: title || '',
+            body: body || '',
+            data: { ...data, url: data.url || 'https://soysourcetan.github.io/chat/' },
+            senderUserId: senderUserId || null
+        };
+        console.log('[fcmpush.js] 通知送信リクエスト:', payload);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`通知送信エラー: ステータス ${response.status}, 詳細: ${errorText}`);
+        }
+        const result = await response.json();
+        console.log('[fcmpush.js] 通知送信成功:', result);
+        return result;
+    } catch (error) {
+        console.error('[fcmpush.js] 通知送信エラー:', error);
+        showError(`通知の送信に失敗しました: ${error.message}`);
+        throw error;
+    }
+}
+
+let isNotificationsInitialized = false; // initNotifications の重複防止
+export async function initNotifications() {
+    if (isNotificationsInitialized) {
+        console.log('[fcmpush.js] initNotifications は既に実行済み、スキップ');
+        return;
+    }
+    isNotificationsInitialized = true;
+    console.log('[fcmpush.js] initNotifications 開始');
+    const initialized = await initializeFCM();
+    if (!initialized) {
+        console.error('[fcmpush.js] FCM初期化に失敗したため、処理を中断します。');
+        return;
+    }
+    if (auth) {
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            try {
+                console.log('[fcmpush.js] 認証状態変更:', user ? user.uid : '未ログイン');
+                if (user) {
+                    const token = await requestNotificationPermission();
+                    if (token) {
+                        await saveFCMToken(user.uid, token);
+                    }
+                } else {
+                    console.log('[fcmpush.js] ユーザーが未ログインのため、FCMトークンを取得しません。');
+                }
+            } catch (error) {
+                console.error('[fcmpush.js] 認証状態変更エラー:', error);
+                showError('認証状態の処理に失敗しました。');
+            } finally {
+                unsubscribe(); // リスナーを解除
+            }
+        });
+    } else {
+        console.error('[fcmpush.js] authが未定義です。FCM初期化を確認してください。');
+        showError('認証モジュールの初期化に失敗しました。');
+    }
 }
