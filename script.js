@@ -91,6 +91,8 @@ let isSending = false;
 let isLoggingIn = false;
 let isUserScrolledUp = false;
 let isEnterSendMode = getCookie('enterSendMode') === 'true';
+let messagesElScrollHandler = null;
+let scrollTimeout = null; // スクロールイベントのデバウンス用
 let isLoading = false;
 let lastTimestamp = null;
 let latestInitialTimestamp = null;
@@ -716,7 +718,7 @@ window.addEventListener('scroll', () => {
                     lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
                     if (lastTimestamp) {
                         const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-                        const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - b[1].timestamp) : [];
+                        const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
                         const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
                         const userDataPromises = userIds.map(async userId => {
                             if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
@@ -1624,82 +1626,147 @@ if (cancelDeleteBtn) {
 
 // ====== ここから新しい「削除処理」コードブロック ======
 
-// messagesEl のクリックイベントリスナー（メッセージ削除ボタンのクリックを検知）
-// このブロックが、現在の「// 削除処理」と書かれている部分を置き換えます。
-// 削除確認モーダルは表示せず、直接削除処理を実行します。
+// メッセージスクロール処理
 if (messagesEl) {
-    messagesEl.addEventListener('click', async (e) => {
+    // 既存のイベントリスナーがあれば削除（重複登録防止）
+    if (messagesElScrollHandler) {
+        messagesEl.removeEventListener('scroll', messagesElScrollHandler);
+    }
+
+    // messagesEl (チャットメッセージコンテナ) のスクロールイベントを監視
+    messagesElScrollHandler = async () => {
         try {
-            // イベントのターゲットが .delete-message クラスを持つ要素、またはその子孫であるか確認
-            const deleteButton = e.target.closest('.delete-message');
-            if (deleteButton) {
-                const messageId = deleteButton.getAttribute('data-message-id');
+            // スクロール検知後に一定時間待ってから処理を実行するデバウンス
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(async () => {
+                // messagesElのスクロール位置をチェック
+                // messagesEl.scrollTop: 現在のスクロール位置 (上端からの距離)
+                // messagesEl.scrollHeight: コンテンツ全体の高さ
+                // messagesEl.clientHeight: 表示されている領域の高さ
 
-                if (!messageId) {
-                    showError('メッセージの削除に失敗しました: IDが見つかりません');
-                    return;
+                // ユーザーが一番上（古いメッセージ側）から10px以上離れているか
+                // 「新しいメッセージが上、古いメッセージが下」なので、ユーザーが下（最新メッセージ）から離れて上にスクロールしたときに表示するボタン
+                isUserScrolledUp = messagesEl.scrollTop > 10;
+                // newMessageBtnは「最新のメッセージへ」のようなボタンと仮定し、
+                // ユーザーが最新メッセージから離れたら表示する
+                newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
+
+                // ユーザーが一番上（古いメッセージ側）に近づいたら過去のメッセージをロード
+                // messagesEl.scrollTop が 200px 未満 (つまり上端から200px以内) で、かつロード中でない場合
+                if (messagesEl.scrollTop < 200 && !isLoading) {
+                    console.log('ローディング開始');
+                    isLoading = true;
+                    loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
+                    loadingIndicator.style.display = 'block';
+
+                    try {
+                        // 現在表示されているメッセージの中で最も古いタイムスタンプを取得
+                        // messagesEl.querySelectorAll('[data-timestamp]')は既存のメッセージ要素を取得
+                        const currentMessages = messagesEl.querySelectorAll('[data-timestamp]');
+                        lastTimestamp = currentMessages.length ?
+                            Math.min(...Array.from(currentMessages).map(m => Number(m.getAttribute('data-timestamp')))) :
+                            null;
+
+                        if (lastTimestamp) {
+                            // FirebaseからlastTimestampより厳密に古いメッセージを10件取得
+                            // orderByChild('timestamp')で昇順、endAt(lastTimestamp - 1)で指定タイムスタンプより古いものに限定
+                            // limitToLast(10)でその中から最後の10件（つまり最も新しい10件）を取得
+                            const olderMessagesSnapshot = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+
+                            const olderMessagesData = olderMessagesSnapshot.val();
+                            let olderMessagesArray = [];
+
+                            if (olderMessagesData) {
+                                // 取得したデータを配列に変換し、タイムスタンプの降順（新しい順）にソート
+                                olderMessagesArray = Object.entries(olderMessagesData);
+                                olderMessagesArray.sort((a, b) => b[1].timestamp - a[1].timestamp); // 新しい順にソート
+                            }
+
+                            // 取得した古いメッセージがない場合、それ以上ロードするものはない
+                            if (olderMessagesArray.length === 0) {
+                                loadingIndicator.textContent = 'これ以上古いメッセージはありません。';
+                                setTimeout(() => loadingIndicator.style.display = 'none', 1500);
+                                isLoading = false;
+                                return; // ロード処理を終了
+                            }
+
+                            // 関連するユーザーデータを取得（キャッシュ優先）
+                            const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
+                            const userDataPromises = userIds.map(async userId => {
+                                if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
+                                const snapshot = await get(ref(database, `users/${userId}`));
+                                const data = snapshot.val() || {};
+                                userCache.set(userId, data);
+                                return { userId, data };
+                            });
+                            const userDataArray = await Promise.all(userDataPromises);
+                            const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+
+                            // 新しく読み込んだメッセージをメッセージリストの**先頭**に追加し、スクロール位置を調整
+                            const oldScrollHeight = messagesEl.scrollHeight; // 追加前のスクロール高さ
+
+                            for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
+                                // 既に表示されているメッセージはスキップ
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+
+                                const photoURL = userDataMap[userId]?.photoURL;
+                                const li = document.createElement('li');
+                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
+                                li.setAttribute('data-message-id', key);
+                                li.setAttribute('role', 'listitem');
+                                li.setAttribute('data-timestamp', timestamp);
+                                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+                                const formattedMessage = formatMessage(message);
+
+                                li.innerHTML = `
+                                    <div class="message bg-transparent p-2 row">
+                                        <div class="col-auto profile-icon">
+                                            ${photoURL ?
+                                                `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
+                                                `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+                                        </div>
+                                        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                                            <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
+                                            <small class="text-muted ms-2">${date}</small>
+                                            ${auth.currentUser && auth.currentUser.uid === userId ?
+                                                `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>` : ''}
+                                        </div>
+                                        <div class="col-12 message-body mt-2">
+                                            ${formattedMessage}
+                                        </div>
+                                    </div>`;
+
+                                // **重要な修正点: appendChild から prepend に変更**
+                                messagesEl.prepend(li);
+                                setTimeout(() => li.classList.add('show'), 10); // フェードインアニメーション
+                            }
+
+                            // スクロール位置を調整し、読み込んだメッセージ群の先頭が見えるようにする
+                            // 新しいメッセージが追加された分だけスクロール位置を調整する
+                            const newScrollHeight = messagesEl.scrollHeight;
+                            messagesEl.scrollTop += (newScrollHeight - oldScrollHeight);
+                        }
+                    } catch (error) {
+                        console.error('過去メッセージ取得エラー:', error);
+                        showError('過去のメッセージが取得できませんでした。');
+                    } finally {
+                        isLoading = false;
+                        loadingIndicator.textContent = 'ロード完了'; // ロード完了を短時間表示
+                        setTimeout(() => {
+                            loadingIndicator.style.display = 'none';
+                            loadingIndicator.textContent = 'ロード中...'; // 次回のためにリセット
+                        }, 500);
+                    }
                 }
-
-                // ユーザーに削除の意図を最終確認する (ブラウザのconfirmダイアログ)
-                // ※ ここは一時的な確認手段であり、後でトーストON/OFF機能実装時に調整可能です。
-                if (!confirm('本当にこのメッセージを削除しますか？')) {
-                    return; // ユーザーがキャンセルしたら処理を中断
-                }
-
-                try {
-                    const messageRef = ref(database, `messages/${messageId}`);
-                    const snapshot = await get(messageRef);
-
-                    if (!snapshot.exists()) {
-                        showError('メッセージが見つかりません');
-                        return;
-                    }
-                    if (auth.currentUser && snapshot.val().userId !== auth.currentUser.uid) { // auth.currentUser の存在チェックを追加
-                        showError('自分のメッセージのみ削除できます');
-                        return;
-                    }
-
-                    await remove(messageRef); // Firebaseからメッセージを削除
-                    
-                    // DOM上のメッセージ要素を削除
-                    const messageEl = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
-                    if (messageEl) {
-                        messageEl.classList.remove('show'); // フェードアウトなどのアニメーション用
-                        setTimeout(() => messageEl.remove(), 300); // 300ms後に要素をDOMから削除
-                    }
-
-                    // アクションログに削除イベントを記録 (必要であれば)
-                    if (auth.currentUser) { // auth.currentUser の存在チェックを追加
-                        await push(actionsRef, {
-                            type: 'deleteMessage',
-                            userId: auth.currentUser.uid,
-                            username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(), // userInfo が取得できている前提
-                            messageId: messageId,
-                            timestamp: Date.now()
-                        });
-                    }
-
-                    // トースト通知を表示 (暫定的に必要)
-                    // トーストのON/OFF機能は、別途設定を保存するメカニズム (Cookie, localStorage, Firebaseなど) と
-                    // それを参照するロジック (例: if (isToastEnabled) { showSuccess(...) }) が必要です。
-                    showSuccess('メッセージを削除しました。');
-
-                } catch (error) {
-                    console.error('メッセージ削除エラー:', error);
-                    showError(`メッセージの削除に失敗しました: ${error.message}`);
-                } finally {
-                    // 削除確認モーダルは表示しないので、閉じる処理は不要
-                    // 代わりに、入力フィールドにフォーカスを戻すなど、次の操作への準備を行う
-                    if (inputEl) { // inputEl の存在チェックを追加
-                       inputEl.focus();
-                    }
-                }
-            }
+            }, 200); // デバウンス時間
         } catch (error) {
-            console.error('メッセージリストクリックイベント処理エラー:', error);
-            showError('メッセージの削除処理中にエラーが発生しました。');
+            console.error('スクロール処理エラー:', error);
         }
-    });
+    };
+    // messagesElにイベントリスナーを登録
+    messagesEl.addEventListener('scroll', messagesElScrollHandler);
 }
 
 // ====== ここまで新しい「削除処理」コードブロック ======
