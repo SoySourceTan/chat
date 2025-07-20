@@ -1626,71 +1626,42 @@ if (cancelDeleteBtn) {
 
 // ====== ここから新しい「削除処理」コードブロック ======
 
-// メッセージスクロール処理
+// messagesEl が存在する場合のみ処理
 if (messagesEl) {
-    // 既存のイベントリスナーがあれば削除（重複登録防止）
-    if (messagesElScrollHandler) {
-        messagesEl.removeEventListener('scroll', messagesElScrollHandler);
+    // 既存のイベントリスナーがあれば削除 (重複登録防止)
+    // messagesEl._scrollHandler が定義されていることを前提とする
+    if (messagesEl._scrollHandler) {
+        messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
     }
 
-    // messagesEl (チャットメッセージコンテナ) のスクロールイベントを監視
-    messagesElScrollHandler = async () => {
+    // スクロールハンドラーを定義
+    messagesEl._scrollHandler = async () => {
         try {
-            // スクロール検知後に一定時間待ってから処理を実行するデバウンス
+            // setTimeout によるデバウンス処理はそのまま残しても良いですが、
+            // messagesEl のスクロールイベント自体に直接 `async` を付けても動作します。
+            // ここでは元のsetTimeout構造を尊重しつつ、window.scrollYのチェックを削除します。
             if (scrollTimeout) clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(async () => {
-                // messagesElのスクロール位置をチェック
-                // messagesEl.scrollTop: 現在のスクロール位置 (上端からの距離)
-                // messagesEl.scrollHeight: コンテンツ全体の高さ
-                // messagesEl.clientHeight: 表示されている領域の高さ
-
-                // ユーザーが一番上（古いメッセージ側）から10px以上離れているか
-                // 「新しいメッセージが上、古いメッセージが下」なので、ユーザーが下（最新メッセージ）から離れて上にスクロールしたときに表示するボタン
-                isUserScrolledUp = messagesEl.scrollTop > 10;
-                // newMessageBtnは「最新のメッセージへ」のようなボタンと仮定し、
-                // ユーザーが最新メッセージから離れたら表示する
-                newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-
-                // ユーザーが一番上（古いメッセージ側）に近づいたら過去のメッセージをロード
-                // messagesEl.scrollTop が 200px 未満 (つまり上端から200px以内) で、かつロード中でない場合
-                if (messagesEl.scrollTop < 200 && !isLoading) {
+                // messagesEl.scrollTop が messagesEl の一番下近くに到達したかをチェック
+                const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
+                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
                     console.log('ローディング開始');
                     isLoading = true;
                     loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
                     loadingIndicator.style.display = 'block';
 
                     try {
-                        // 現在表示されているメッセージの中で最も古いタイムスタンプを取得
-                        // messagesEl.querySelectorAll('[data-timestamp]')は既存のメッセージ要素を取得
-                        const currentMessages = messagesEl.querySelectorAll('[data-timestamp]');
-                        lastTimestamp = currentMessages.length ?
-                            Math.min(...Array.from(currentMessages).map(m => Number(m.getAttribute('data-timestamp')))) :
-                            null;
+                        const messages = messagesEl.querySelectorAll('[data-timestamp]');
+                        // lastTimestamp は現在表示されているメッセージの中で最も古いものを取得
+                        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
 
                         if (lastTimestamp) {
-                            // FirebaseからlastTimestampより厳密に古いメッセージを10件取得
-                            // orderByChild('timestamp')で昇順、endAt(lastTimestamp - 1)で指定タイムスタンプより古いものに限定
-                            // limitToLast(10)でその中から最後の10件（つまり最も新しい10件）を取得
-                            const olderMessagesSnapshot = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+                            // Firebaseから過去のメッセージを10件取得
+                            const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+                            // 取得したメッセージをタイムスタンプの新しい順（降順）にソート
+                            const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
 
-                            const olderMessagesData = olderMessagesSnapshot.val();
-                            let olderMessagesArray = [];
-
-                            if (olderMessagesData) {
-                                // 取得したデータを配列に変換し、タイムスタンプの降順（新しい順）にソート
-                                olderMessagesArray = Object.entries(olderMessagesData);
-                                olderMessagesArray.sort((a, b) => b[1].timestamp - a[1].timestamp); // 新しい順にソート
-                            }
-
-                            // 取得した古いメッセージがない場合、それ以上ロードするものはない
-                            if (olderMessagesArray.length === 0) {
-                                loadingIndicator.textContent = 'これ以上古いメッセージはありません。';
-                                setTimeout(() => loadingIndicator.style.display = 'none', 1500);
-                                isLoading = false;
-                                return; // ロード処理を終了
-                            }
-
-                            // 関連するユーザーデータを取得（キャッシュ優先）
+                            // ユーザーデータの取得とキャッシュはそのまま
                             const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
                             const userDataPromises = userIds.map(async userId => {
                                 if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
@@ -1702,13 +1673,9 @@ if (messagesEl) {
                             const userDataArray = await Promise.all(userDataPromises);
                             const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
 
-                            // 新しく読み込んだメッセージをメッセージリストの**先頭**に追加し、スクロール位置を調整
-                            const oldScrollHeight = messagesEl.scrollHeight; // 追加前のスクロール高さ
-
+                            // 新しいメッセージをリストの末尾に追加
                             for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                                // 既に表示されているメッセージはスキップ
-                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複チェック
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
                                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
@@ -1717,7 +1684,6 @@ if (messagesEl) {
                                 li.setAttribute('data-timestamp', timestamp);
                                 const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
                                 const formattedMessage = formatMessage(message);
-
                                 li.innerHTML = `
                                     <div class="message bg-transparent p-2 row">
                                         <div class="col-auto profile-icon">
@@ -1737,27 +1703,17 @@ if (messagesEl) {
                                             ${formattedMessage}
                                         </div>
                                     </div>`;
-
-                                // **重要な修正点: appendChild から prepend に変更**
-                                messagesEl.prepend(li);
-                                setTimeout(() => li.classList.add('show'), 10); // フェードインアニメーション
+                                messagesEl.appendChild(li); // 新しいものから古いものが上から下に並ぶよう、末尾に追加
+                                setTimeout(() => li.classList.add('show'), 10);
                             }
-
-                            // スクロール位置を調整し、読み込んだメッセージ群の先頭が見えるようにする
-                            // 新しいメッセージが追加された分だけスクロール位置を調整する
-                            const newScrollHeight = messagesEl.scrollHeight;
-                            messagesEl.scrollTop += (newScrollHeight - oldScrollHeight);
                         }
                     } catch (error) {
                         console.error('過去メッセージ取得エラー:', error);
                         showError('過去のメッセージが取得できませんでした。');
                     } finally {
                         isLoading = false;
-                        loadingIndicator.textContent = 'ロード完了'; // ロード完了を短時間表示
-                        setTimeout(() => {
-                            loadingIndicator.style.display = 'none';
-                            loadingIndicator.textContent = 'ロード中...'; // 次回のためにリセット
-                        }, 500);
+                        loadingIndicator.textContent = 'ロード中...';
+                        loadingIndicator.style.display = 'none';
                     }
                 }
             }, 200); // デバウンス時間
@@ -1765,8 +1721,8 @@ if (messagesEl) {
             console.error('スクロール処理エラー:', error);
         }
     };
-    // messagesElにイベントリスナーを登録
-    messagesEl.addEventListener('scroll', messagesElScrollHandler);
+
+    messagesEl.addEventListener('scroll', messagesEl._scrollHandler);
 }
 
 // ====== ここまで新しい「削除処理」コードブロック ======
@@ -1912,4 +1868,19 @@ setInterval(() => {
 // 初回ロード時にProgress Overlayを表示 (変更なし)
 document.addEventListener('DOMContentLoaded', () => {
     showProgressOverlay();
+});
+document.addEventListener('DOMContentLoaded', () => {
+    const interactionButton = document.getElementById('interaction-button');
+
+    if (interactionButton) {
+        interactionButton.addEventListener('click', () => {
+            // ボタンを非表示にする
+            interactionButton.style.display = 'none';
+            // または、Bootstrapのd-noneクラスを使う場合
+            // interactionButton.classList.add('d-none');
+
+            // ここに通知音を有効にするための処理を追加する
+            console.log('通知音を有効にしました。ボタンを非表示にします。');
+        });
+    }
 });
