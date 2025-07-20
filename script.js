@@ -1622,34 +1622,87 @@ if (cancelDeleteBtn) {
 }
 
 
+// ====== ここから新しい「削除処理」コードブロック ======
+
 // messagesEl のクリックイベントリスナー（メッセージ削除ボタンのクリックを検知）
 // このブロックが、現在の「// 削除処理」と書かれている部分を置き換えます。
+// 削除確認モーダルは表示せず、直接削除処理を実行します。
 if (messagesEl) {
     messagesEl.addEventListener('click', async (e) => {
         try {
-            if (e.target.closest('.delete-message')) {
-                const button = e.target.closest('.delete-message');
-                const messageId = button.getAttribute('data-message-id');
+            // イベントのターゲットが .delete-message クラスを持つ要素、またはその子孫であるか確認
+            const deleteButton = e.target.closest('.delete-message');
+            if (deleteButton) {
+                const messageId = deleteButton.getAttribute('data-message-id');
+
                 if (!messageId) {
                     showError('メッセージの削除に失敗しました: IDが見つかりません');
                     return;
                 }
 
-                // 削除対象のメッセージIDを一時変数に保存
-                currentMessageIdToDelete = messageId;
-                // 確認モーダルを表示
-                deleteConfirmModal.show();
-                // 確認ボタンにフォーカスを当てる（アクセシビリティのため）
-                confirmDeleteBtn.focus();
+                // ユーザーに削除の意図を最終確認する (ブラウザのconfirmダイアログ)
+                // ※ ここは一時的な確認手段であり、後でトーストON/OFF機能実装時に調整可能です。
+                if (!confirm('本当にこのメッセージを削除しますか？')) {
+                    return; // ユーザーがキャンセルしたら処理を中断
+                }
+
+                try {
+                    const messageRef = ref(database, `messages/${messageId}`);
+                    const snapshot = await get(messageRef);
+
+                    if (!snapshot.exists()) {
+                        showError('メッセージが見つかりません');
+                        return;
+                    }
+                    if (auth.currentUser && snapshot.val().userId !== auth.currentUser.uid) { // auth.currentUser の存在チェックを追加
+                        showError('自分のメッセージのみ削除できます');
+                        return;
+                    }
+
+                    await remove(messageRef); // Firebaseからメッセージを削除
+                    
+                    // DOM上のメッセージ要素を削除
+                    const messageEl = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+                    if (messageEl) {
+                        messageEl.classList.remove('show'); // フェードアウトなどのアニメーション用
+                        setTimeout(() => messageEl.remove(), 300); // 300ms後に要素をDOMから削除
+                    }
+
+                    // アクションログに削除イベントを記録 (必要であれば)
+                    if (auth.currentUser) { // auth.currentUser の存在チェックを追加
+                        await push(actionsRef, {
+                            type: 'deleteMessage',
+                            userId: auth.currentUser.uid,
+                            username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(), // userInfo が取得できている前提
+                            messageId: messageId,
+                            timestamp: Date.now()
+                        });
+                    }
+
+                    // トースト通知を表示 (暫定的に必要)
+                    // トーストのON/OFF機能は、別途設定を保存するメカニズム (Cookie, localStorage, Firebaseなど) と
+                    // それを参照するロジック (例: if (isToastEnabled) { showSuccess(...) }) が必要です。
+                    showSuccess('メッセージを削除しました。');
+
+                } catch (error) {
+                    console.error('メッセージ削除エラー:', error);
+                    showError(`メッセージの削除に失敗しました: ${error.message}`);
+                } finally {
+                    // 削除確認モーダルは表示しないので、閉じる処理は不要
+                    // 代わりに、入力フィールドにフォーカスを戻すなど、次の操作への準備を行う
+                    if (inputEl) { // inputEl の存在チェックを追加
+                       inputEl.focus();
+                    }
+                }
             }
         } catch (error) {
-            console.error('削除処理エラー:', error);
-            showError('メッセージの削除に失敗しました。');
+            console.error('メッセージリストクリックイベント処理エラー:', error);
+            showError('メッセージの削除処理中にエラーが発生しました。');
         }
     });
 }
 
-// ====== ここまで修正・追加するコードブロック ======
+// ====== ここまで新しい「削除処理」コードブロック ======
 // 認証状態変更リスナー
 auth.onAuthStateChanged(async (user) => {
     try {
