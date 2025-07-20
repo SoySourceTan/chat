@@ -12,11 +12,10 @@ try {
     throw error;
 }
 
-// Firebase設定を外部PHPから取得
+// Firebase設定を外部PHPから取得 (trextacy.com から取得)
 async function loadFirebaseConfig() {
     try {
-        // ★修正: URLに '/chat/' を追加
-        const response = await fetch('https://trextacy.com/chat/firebase-config.php', {
+        const response = await fetch('https://trextacy.com/chat/firebase-config.php', { // PHPファイルはtrextacy.comから取得
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         });
@@ -53,69 +52,45 @@ async function initializeFirebase() {
         firebaseApp = firebase.initializeApp(firebaseConfig);
         messaging = firebase.messaging(); // Firebase Messagingサービスを取得
         console.log('[firebase-messaging-sw.js] Firebase初期化成功。');
+
+        // Firebase初期化後に onBackgroundMessage を直接設定
+        messaging.onBackgroundMessage((payload) => {
+            console.log('[firebase-messaging-sw.js] バックグラウンドプッシュメッセージ受信 (onBackgroundMessage):', payload);
+            const notificationTitle = payload.notification?.title || '新しいメッセージ';
+            const notificationOptions = {
+                body: payload.notification?.body || '新しいメッセージがあります',
+                // アイコンパスはService Workerのスコープからの相対パスまたは絶対パス
+                // GitHub Pagesの実行環境を考慮し、/chat/images/icon.png に対応
+                icon: payload.notification?.icon || './images/icon.png', 
+                data: payload.data || {}, // カスタムデータを渡す
+            };
+            try {
+                self.registration.showNotification(notificationTitle, notificationOptions);
+                console.log('[firebase-messaging-sw.js] 通知表示成功:', notificationTitle);
+            } catch (error) {
+                console.error('[firebase-messaging-sw.js] 通知表示エラー:', error);
+            }
+        });
+
     } catch (error) {
         console.error('[firebase-messaging-sw.js] Firebase初期化エラー:', error);
         throw error;
     }
 }
 
-// サービスワーカーのイベントリスナーはトップレベルに配置
-self.addEventListener('install', (event) => {
-    console.log('[sw.js] サービスワーカーインストール');
-    event.waitUntil(self.skipWaiting());
-});
+// サービスワーカーのライフサイクルイベントはメインの sw.js で処理するため、ここから削除します。
+// self.addEventListener('install', ...) は削除
+// self.addEventListener('activate', ...) は削除
 
-self.addEventListener('activate', (event) => {
-    console.log('[sw.js] サービスワーカーアクティベート');
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    // CACHE_NAMEはsw.jsで定義されているため、ここでは使用しません。
-                    // firebase-messaging-sw.jsはメッセージング専用なので、キャッシュ管理はsw.jsに任せます。
-                    // ここでは特にキャッシュを削除しない
-                })
-            );
-        }).then(() => self.clients.claim())
-    );
-});
-
-
-// onBackgroundMessage を使用してバックグラウンドメッセージを処理
-// Firebase SDK v9+の互換レイヤーでは、`firebase.messaging().onBackgroundMessage`を使用します。
-// これは、サービスワーカーがFirebase SDKを初期化した後に設定する必要があります。
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'INIT_FCM_IN_SW') {
-        initializeFirebase().then(() => {
-            if (messaging) {
-                messaging.onBackgroundMessage((payload) => {
-                    console.log('[firebase-messaging-sw.js] バックグラウンドプッシュメッセージ受信:', payload);
-                    const notificationTitle = payload.notification.title;
-                    const notificationOptions = {
-                        body: payload.notification.body,
-                        icon: payload.notification.icon || '/learning/english-words/chat/images/icon.png',
-                        data: payload.data, // カスタムデータを渡す
-                    };
-                    try {
-                        self.registration.showNotification(notificationTitle, notificationOptions);
-                        console.log('[firebase-messaging-sw.js] 通知表示成功:', notificationTitle);
-                    } catch (error) {
-                        console.error('[firebase-messaging-sw.js] 通知表示エラー:', error);
-                    }
-                });
-            }
-        }).catch(error => {
-            console.error('[firebase-messaging-sw.js] FCM初期化エラー (message event):', error);
-        });
-    }
-});
-
+// 'message' イベントリスナーは onBackgroundMessage を直接初期化関数内で登録するため不要になります。
+// self.addEventListener('message', ...) は削除
 
 // 通知クリックハンドラ（トップレベル）
 self.addEventListener('notificationclick', (event) => {
     console.log('[firebase-messaging-sw.js] 通知クリック:', event);
     event.notification.close();
-    const url = event.notification.data?.url || 'https://soysourcetan.github.io/chat/';
+    // notification.data.url が存在しない場合のデフォルトURLを確実に指定
+    const url = event.notification.data?.url || 'https://soysourcetan.github.io/chat/'; // 実行環境のURLを指定
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
             for (const client of clientList) {
@@ -136,11 +111,8 @@ self.addEventListener('pushsubscriptionchange', (event) => {
     event.waitUntil(
         initializeFirebase().then(() => {
             if (messaging) {
-                // 新しいサブスクリプションを再登録するロジック
-                // getToken() を呼び出すことで、新しいトークンが自動的に生成され、
-                // onTokenRefresh (もし設定されていれば) または getToken() の解決によって取得できます。
-                // その後、新しいトークンをサーバーに送信して更新する必要があります。
-                // ここではクライアントサイドのgetToken()が処理するため、特別な処理は不要です。
+                // 新しいサブスクリプションを再登録するロジックは、クライアントサイドの getToken() が処理するため、
+                // ここでは特に特別な処理は不要です。
                 console.log('[firebase-messaging-sw.js] FCMトークンを再取得し、サーバーに送信してください。');
             }
         }).catch(error => {
