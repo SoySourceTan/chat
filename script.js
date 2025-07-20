@@ -1,9 +1,42 @@
 // 既存のコード（変更なし）
-import { initNotifications as initFCM, sendNotification } from './chat/fcmpush.js';
+import { initNotifications as initFCM, sendNotification, requestNotificationPermission, saveFCMToken } from './chat/fcmpush.js';
 import { initNotify, notifyNewMessage } from './notifysound.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+
+// --- タブ点滅機能のための追加変数と関数 ---
+let originalDocTitle = document.title;
+let blinkingInterval = null;
+
+function startTabBlinking(messageTitle = "新着メッセージ！") {
+  console.log('[タブ点滅デバッグ] startTabBlinkingが呼び出されました。'); // ここを追加
+    if (blinkingInterval) return; // 既に点滅中の場合は何もしない
+    originalDocTitle = document.title; // 現在のタイトルを保存
+    let isOriginal = true;
+    blinkingInterval = setInterval(() => {
+        document.title = isOriginal ? `(${messageTitle})` : originalDocTitle;
+        isOriginal = !isOriginal;
+        console.log(`[タブ点滅デバッグ] タブタイトル更新: ${document.title}`); // ここも追加
+    }, 800); // 0.8秒ごとに切り替え
+}
+
+function stopTabBlinking() {
+    if (blinkingInterval) {
+      console.log('[タブ点滅デバッグ] 既に点滅中のため、スキップします。'); // ここを追加
+        clearInterval(blinkingInterval);
+        blinkingInterval = null;
+        document.title = originalDocTitle; // 元のタイトルに戻す
+    }
+}
+
+// ページが表示状態になったら点滅を停止
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        stopTabBlinking();
+    }
+});
+// --- タブ点滅機能のための追加変数と関数 終わり ---
 
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
@@ -117,7 +150,6 @@ let colorAssignmentMode = getCookie('colorAssignmentMode') || 'user-selected';
 function assignUserBackgroundColor(userId) {
     try {
         if (userColorMap.has(userId)) {
-            console.log(`ユーザー ${userId} の既存色: ${userColorMap.get(userId)}`);
             return userColorMap.get(userId);
         }
 
@@ -416,6 +448,7 @@ async function updateUserUI(user) {
         if (user) {
             userCache.delete(user.uid);
             userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
+            console.log('updateUserUIで取得されたuserData:', userData); 
             let username = userData.username || user.displayName || 'ゲスト';
             username = username.length > 7 ? username.substring(0, 7) + "..." : username;
             if (userInfo) {
@@ -1153,7 +1186,8 @@ if (confirmName) {
 
 // メッセージ送信（修正部分）
 if (formEl) {
-    formEl.removeEventListener('submit', formEl._submitHandler);
+    // 既存のイベントリスナーを削除し、新しいハンドラを設定
+    // formEl.removeEventListener('submit', formEl._submitHandler); // この行は既に存在するか、不要な場合があるため注意
     formEl._submitHandler = async (e) => {
         try {
             e.preventDefault();
@@ -1204,18 +1238,33 @@ if (formEl) {
                 timestamp
             });
 
-            // 通知送信
+            // 通知送信ロジックを修正
             try {
                 const notificationTitle = `新しいメッセージ from ${username}`;
                 const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
-                await sendNotification(
-                    null,
-                    notificationTitle,
-                    notificationBody,
-                    { url: 'https://soysourcetan.github.io/chat', icon: '/learning/english-words/chat/images/icon.png' },
-                    auth.currentUser.uid
-                );
-                console.log('[script.js] 通知送信成功:', { title: notificationTitle, body: notificationBody });
+
+                // オンラインユーザーを取得
+                const onlineUsers = await fetchOnlineUsers();
+                console.log('[script.js] オンラインユーザー:', onlineUsers);
+
+                // 自分以外のオンラインユーザー全員に通知を送信
+                for (const onlineUser of onlineUsers) {
+                    // ログイン中のユーザーIDとオンラインユーザーのIDが異なる場合のみ通知を送信
+                    if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
+                        console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
+                        await sendNotification(
+                            onlineUser.userId, // ★ここを修正: 受信者のuserIdを渡す
+                            notificationTitle,
+                            notificationBody,
+                            { url: 'https://soysourcetan.github.io/chat', icon: onlineUser.photoURL || '/learning/english-words/chat/images/icon.png' }, // 受信者のアイコン、またはデフォルト
+                            auth.currentUser.uid, // 送信者のuserId
+                            username // 送信者のusername
+                        );
+                    } else {
+                        console.log(`[script.js] 通知スキップ: ユーザー ${onlineUser.userId} は送信者自身か、無効なIDです。`);
+                    }
+                }
+                console.log('[script.js] 全ての通知送信処理が完了しました。');
             } catch (notificationError) {
                 console.error('[script.js] 通知送信エラー:', notificationError);
                 showError('通知の送信に失敗しました。');
@@ -1391,8 +1440,24 @@ function setupMessageListener() {
                     newMessageBtn.classList.remove('d-none');
                 }
                 // 現在のユーザー以外のメッセージで通知
-                if (auth.currentUser && userId !== auth.currentUser.uid) {
-                  notifyNewMessage({ title: username, body: message });
+                // ここから追加するデバッグログ
+                console.log('[タブ点滅デバッグ] document.hidden:', document.hidden);
+                console.log('[タブ点滅デバッグ] auth.currentUser.uid:', auth.currentUser ? auth.currentUser.uid : '未ログイン');
+                console.log('[タブ点滅デバッグ] message.userId:', userId); // snapshot.val().userIdではなく、userId変数を使用
+
+                const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
+                if (document.hidden && userId !== currentUserId) {
+                    console.log('[タブ点滅デバッグ] 通知条件を満たしました: タブ非表示 AND 他ユーザーからのメッセージ');
+                    startTabBlinking();
+                    notifyNewMessage({ title: username, body: message }); // 通知音を鳴らす
+                } else {
+                    console.log('[タブ点滅デバッグ] 通知条件を満たしませんでした。');
+                    if (!document.hidden) {
+                        console.log('理由: タブが表示されているため。');
+                    }
+                    if (userId === currentUserId) {
+                        console.log('理由: 自身のメッセージであるため。');
+                    }
                 }
             } catch (error) {
                 console.error('[script.js] 新メッセージ追加エラー:', error);
@@ -1419,6 +1484,7 @@ function setupMessageListener() {
         console.error('メッセージリスナー設定エラー:', error);
     }
 }
+
 
 // 削除処理
 if (messagesEl) {
@@ -1557,3 +1623,25 @@ if (newMessageBtn) {
         }
     });
 }
+
+// アクティビティトラッキング（ユーザーの離席状態を検知）
+function resetActivityTimer() {
+    lastActivity = Date.now();
+}
+
+['mousemove', 'keydown', 'click', 'scroll'].forEach(eventType => {
+    document.addEventListener(eventType, resetActivityTimer);
+});
+
+// アイドル状態になったらタブ点滅を停止（メッセージ受信時以外）
+// 不要な場合にタイトルが点滅し続けるのを防ぐため、明示的に停止
+setInterval(() => {
+    if (!document.hidden && blinkingInterval) {
+        stopTabBlinking();
+    }
+}, 5000); // 5秒ごとにチェック
+
+// 初回ロード時にProgress Overlayを表示
+document.addEventListener('DOMContentLoaded', () => {
+    showProgressOverlay();
+});
