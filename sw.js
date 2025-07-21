@@ -1,3 +1,7 @@
+// sw.js の先頭付近にでも追加
+// Version 2.0.1 (または日付など)
+console.log('Service Worker is running. Version: 2.0.1');
+
 // sw.js
 // このファイルは /chat/sw.js (GitHub Pages) または /learning/english-words/chat/sw.js (localhost) に配置されます。
 

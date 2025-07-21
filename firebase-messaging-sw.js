@@ -1,3 +1,7 @@
+// firebase-messaging-sw.js の先頭付近にでも追加
+// Version 2.0.1 (または日付など)
+console.log('Service Worker is running. Version: 2.0.1');
+
 try {
     // Firebase SDKのバージョンを11.0.1に統一
     importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');

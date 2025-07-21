@@ -1726,6 +1726,8 @@ if (messagesEl) {
 }
 
 // ====== ここまで新しい「削除処理」コードブロック ======
+
+
 // 認証状態変更リスナー
 auth.onAuthStateChanged(async (user) => {
     try {
@@ -1774,7 +1776,7 @@ auth.onAuthStateChanged(async (user) => {
 
             // ログアウト時のUIリセット
             userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
-            loginBtn.textContent = `<i class="fas fa-sign-in-alt"></i>`;
+            loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
             loginModal.show();
             loginModalEl.removeAttribute('inert');
             unameModalEl.setAttribute('inert', '');
@@ -1796,7 +1798,7 @@ auth.onAuthStateChanged(async (user) => {
         console.error('[script.js] 認証状態変更エラー:', error);
         showError('認証状態の更新に失敗しました。ページをリロードしてください。');
         userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
-        loginBtn.textContent = `<i class="fas fa-sign-in-alt"></i>`;
+        loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
         loginModal.show();
         loginModalEl.removeAttribute('inert');
         unameModalEl.setAttribute('inert', '');
@@ -1869,18 +1871,6 @@ setInterval(() => {
 document.addEventListener('DOMContentLoaded', () => {
     showProgressOverlay();
 });
-document.addEventListener('DOMContentLoaded', () => {
-    const interactionButton = document.getElementById('interaction-button');
 
-    if (interactionButton) {
-        interactionButton.addEventListener('click', () => {
-            // ボタンを非表示にする
-            interactionButton.style.display = 'none';
-            // または、Bootstrapのd-noneクラスを使う場合
-            // interactionButton.classList.add('d-none');
 
-            // ここに通知音を有効にするための処理を追加する
-            console.log('通知音を有効にしました。ボタンを非表示にします。');
-        });
-    }
-});
+
