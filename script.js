@@ -1,3 +1,6 @@
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Initial body content:', document.body.innerHTML);
+});
 // 既存のコード（変更なし）
 import { initNotifications as initFCM, sendNotification, requestNotificationPermission, saveFCMToken } from './chat/fcmpush.js';
 import { initNotify, notifyNewMessage } from './notifysound.js';
@@ -194,9 +197,6 @@ try {
     app = initializeApp(firebaseConfig);
     database = getDatabase(app);
     auth = getAuth(app);
-
-    // 通知音の初期化
-    await initNotify();
     console.log('[script.js] initNotify 実行成功');
 } catch (error) {
     console.error('[script.js] 初期化エラー:', error);
@@ -1553,26 +1553,46 @@ function setupMessageListener() {
 // 削除対象のメッセージIDを一時的に保持する変数
 // この変数は、スクリプトの他の部分からもアクセスできるよう、
 // グローバルスコープ、または関連する関数群を囲む上位スコープに配置してください。
+// グローバル変数
 let currentMessageIdToDelete = null;
 
-// HTMLからモーダル要素とボタン要素を取得します。
-// これらの要素は、ページの読み込み時に一度だけ取得されるべきです。
-// 例えば、DOMContentLoadedイベントリスナーの内部など、初期化処理の場所で定義してください。
+// モーダル要素の取得と初期化
 const deleteConfirmModalEl = document.getElementById('deleteConfirmModal');
-const deleteConfirmModal = new bootstrap.Modal(deleteConfirmModalEl); // Bootstrapモーダルインスタンス
-
+const deleteConfirmModal = new bootstrap.Modal(deleteConfirmModalEl);
 const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-const cancelDeleteBtn = document.getElementById('cancelDeleteBtn'); // モーダル内のキャンセルボタンも取得することを推奨
+const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
 
-// 削除実行ボタン (confirmDeleteBtn) のイベントリスナーを一度だけ登録
-// これにより、クリックされるたびにイベントリスナーが重複して登録されるのを防ぎます。
+// 削除ボタンのクリックイベント（messagesEl にイベント委譲）
+if (messagesEl) {
+    messagesEl.addEventListener('click', async (e) => {
+        const deleteBtn = e.target.closest('.delete-message');
+        if (deleteBtn) {
+            const messageId = deleteBtn.getAttribute('data-message-id');
+            if (!messageId) {
+                console.error('[script.js] 削除ボタンに data-message-id がありません');
+                showError('メッセージの削除に失敗しました。');
+                return;
+            }
+
+            currentMessageIdToDelete = messageId;
+            try {
+                deleteConfirmModal.show();
+                console.log('[script.js] 削除確認モーダルを表示: messageId =', messageId);
+            } catch (error) {
+                console.error('[script.js] モーダル表示エラー:', error);
+                showError('モーダルの表示に失敗しました。');
+            }
+        }
+    });
+}
+
+// 削除確認ボタンのイベントリスナー
 if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener('click', async () => {
-        // currentMessageIdToDelete が設定されていることを確認
         if (!currentMessageIdToDelete) {
-            console.error('削除対象のメッセージIDが設定されていません。');
+            console.error('[script.js] 削除対象のメッセージIDが設定されていません。');
             showError('メッセージの削除に失敗しました。');
-            deleteConfirmModal.hide(); // モーダルを閉じる
+            deleteConfirmModal.hide();
             return;
         }
 
@@ -1581,87 +1601,97 @@ if (confirmDeleteBtn) {
             const snapshot = await get(messageRef);
 
             if (!snapshot.exists()) {
-                showError('メッセージが見つかりません');
-                return;
-            }
-            if (snapshot.val().userId !== auth.currentUser.uid) {
-                showError('自分のメッセージのみ削除できます');
+                console.error('[script.js] メッセージが見つかりません: ', currentMessageIdToDelete);
+                showError('メッセージが見つかりません。');
+                deleteConfirmModal.hide();
                 return;
             }
 
-            await remove(messageRef); // Firebaseからメッセージを削除
+            const messageData = snapshot.val();
+            if (messageData.userId !== auth.currentUser.uid) {
+                console.error('[script.js] 権限エラー: 自分のメッセージのみ削除可能です');
+                showError('自分のメッセージのみ削除できます。');
+                deleteConfirmModal.hide();
+                return;
+            }
+
+            await remove(messageRef);
+            console.log('[script.js] メッセージをFirebaseから削除: ', currentMessageIdToDelete);
+
             const messageEl = messagesEl.querySelector(`[data-message-id="${currentMessageIdToDelete}"]`);
             if (messageEl) {
                 messageEl.classList.remove('show');
-                setTimeout(() => messageEl.remove(), 300);
+                setTimeout(() => {
+                    messageEl.remove();
+                    console.log('[script.js] メッセージをUIから削除: ', currentMessageIdToDelete);
+                }, 300);
             }
+
+            const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
             await push(actionsRef, {
                 type: 'deleteMessage',
                 userId: auth.currentUser.uid,
-                username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
+                username,
                 messageId: currentMessageIdToDelete,
                 timestamp: Date.now()
             });
-            showSuccess('メッセージを削除しました。'); // 削除成功時のトースト通知
+            console.log('[script.js] 削除アクションを記録: ', currentMessageIdToDelete);
+
+            showSuccess('メッセージを削除しました。');
         } catch (error) {
-            console.error('メッセージ削除エラー:', error);
+            console.error('[script.js] メッセージ削除エラー:', error);
             showError(`メッセージの削除に失敗しました: ${error.message}`);
         } finally {
-            deleteConfirmModal.hide(); // 削除が成功しても失敗してもモーダルを閉じる
-            inputEl.focus(); // 入力フィールドにフォーカスを戻す
-            currentMessageIdToDelete = null; // 保持していたメッセージIDをリセット
+            deleteConfirmModal.hide();
+            currentMessageIdToDelete = null;
+            setTimeout(() => inputEl.focus(), 100);
         }
     });
 }
 
-// キャンセルボタン (cancelDeleteBtn) のイベントリスナーも追加することを推奨
+// キャンセルボタンのイベントリスナー
 if (cancelDeleteBtn) {
     cancelDeleteBtn.addEventListener('click', () => {
-        deleteConfirmModal.hide(); // モーダルを閉じる
-        inputEl.focus(); // 入力フィールドにフォーカスを戻す
-        currentMessageIdToDelete = null; // 保持していたメッセージIDをリセット
+        console.log('[script.js] 削除をキャンセル');
+        deleteConfirmModal.hide();
+        currentMessageIdToDelete = null;
+        setTimeout(() => inputEl.focus(), 100);
     });
 }
 
-
-// ====== ここから新しい「削除処理」コードブロック ======
-
-// messagesEl が存在する場合のみ処理
+// スクロールハンドラー（削除処理との整合性を保つ）
 if (messagesEl) {
-    // 既存のイベントリスナーがあれば削除 (重複登録防止)
-    // messagesEl._scrollHandler が定義されていることを前提とする
     if (messagesEl._scrollHandler) {
         messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
     }
 
-    // スクロールハンドラーを定義
     messagesEl._scrollHandler = async () => {
         try {
-            // setTimeout によるデバウンス処理はそのまま残しても良いですが、
-            // messagesEl のスクロールイベント自体に直接 `async` を付けても動作します。
-            // ここでは元のsetTimeout構造を尊重しつつ、window.scrollYのチェックを削除します。
             if (scrollTimeout) clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(async () => {
-                // messagesEl.scrollTop が messagesEl の一番下近くに到達したかをチェック
+                isUserScrolledUp = messagesEl.scrollTop > 10;
+                newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
                 const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
-                    console.log('ローディング開始');
+                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) {
+                    console.log('[script.js] ローディング開始');
                     isLoading = true;
                     loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
                     loadingIndicator.style.display = 'block';
 
                     try {
                         const messages = messagesEl.querySelectorAll('[data-timestamp]');
-                        // lastTimestamp は現在表示されているメッセージの中で最も古いものを取得
-                        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
+                        lastTimestamp = messages.length
+                            ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp'))))
+                            : null;
 
                         if (lastTimestamp) {
-                            // Firebaseから過去のメッセージを10件取得
-                            const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-                            // 取得したメッセージをタイムスタンプの新しい順（降順）にソート
-                            const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
+                            const olderMessages = await get(
+                                query(messagesRef, orderByChild('timestamp'), endBefore(lastTimestamp), limitToLast(10))
+                            );
+                            const olderMessagesArray = olderMessages.val()
+                                ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp)
+                                : [];
 
-                            // ユーザーデータの取得とキャッシュはそのまま
                             const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
                             const userDataPromises = userIds.map(async userId => {
                                 if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
@@ -1673,9 +1703,8 @@ if (messagesEl) {
                             const userDataArray = await Promise.all(userDataPromises);
                             const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
 
-                            // 新しいメッセージをリストの末尾に追加
                             for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複チェック
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
                                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
@@ -1703,12 +1732,12 @@ if (messagesEl) {
                                             ${formattedMessage}
                                         </div>
                                     </div>`;
-                                messagesEl.appendChild(li); // 新しいものから古いものが上から下に並ぶよう、末尾に追加
+                                messagesEl.appendChild(li);
                                 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
                     } catch (error) {
-                        console.error('過去メッセージ取得エラー:', error);
+                        console.error('[script.js] 過去メッセージ取得エラー:', error);
                         showError('過去のメッセージが取得できませんでした。');
                     } finally {
                         isLoading = false;
@@ -1716,9 +1745,9 @@ if (messagesEl) {
                         loadingIndicator.style.display = 'none';
                     }
                 }
-            }, 200); // デバウンス時間
+            }, 200);
         } catch (error) {
-            console.error('スクロール処理エラー:', error);
+            console.error('[script.js] スクロール処理エラー:', error);
         }
     };
 
