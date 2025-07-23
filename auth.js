@@ -1,6 +1,6 @@
 import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { ref, set, get, push, remove, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { showError, showSuccess, getClientIp } from './utils.js';
+import { showError, showSuccess, getClientIp, cleanPhotoURL } from './utils.js'; // ★修正点: cleanPhotoURL をインポート
 
 let isLoggingIn = false;
 
@@ -13,11 +13,12 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         const user = result.user;
         const twitterProfile = result._tokenResponse || {};
 
-        // Twitterの最新プロフィール画像を優先
-        const photoURL = twitterProfile.photoUrl || user.photoURL || '/chat/images/default-avatar.png';
-        
+        // Twitterの最新プロフィール画像（高解像度）を取得し、クエリパラメータを削除
+        // _normal を削除し、cleanPhotoURL を適用
+        const cleanedPhotoURL = twitterProfile.photoURL ? cleanPhotoURL(twitterProfile.photoURL.replace('_normal', '')) : './images/icon.png';
+
         // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL });
+        await updateProfile(user, { photoURL: cleanedPhotoURL }); // ★修正点: クリーンアップされたURLを使用
 
         // 認証状態の安定を待つ
         await new Promise((resolve) => {
@@ -29,20 +30,51 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
             });
         });
 
+        // ユーザーデータをRealtime Databaseに保存または更新
+        const userRef = ref(database, `users/${user.uid}`);
+        const userDataSnapshot = await get(userRef);
+        const existingUserData = userDataSnapshot.exists() ? userDataSnapshot.val() : {};
+
         const providerId = result.providerId || 'twitter.com';
-        const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-        let username = existingUserData.username || user.displayName || `user${Date.now()}`;
+        let username = existingUserData.username || twitterProfile.displayName || user.displayName || `user${Date.now()}`;
         if (/[.#$/\[\]]/.test(username) || username.length > 50) {
             username = `user${Date.now()}`.slice(0, 50);
         }
         const ipAddress = await getClientIp();
-        const userData = {
+
+        const updates = {};
+        updates[`users/${user.uid}`] = {
             username,
             provider: providerId,
             ipAddress,
-            photoURL,
+            photoURL: cleanedPhotoURL, // ★修正点: クリーンアップされたURLを保存
             email: user.email || null,
-            emailVerified: user.emailVerified || false
+            emailVerified: user.emailVerified || false,
+            createdAt: existingUserData.createdAt || Date.now(), // 初回ログイン時のみ設定
+            providerData: user.providerData.map(p => ({
+                uid: p.uid,
+                displayName: p.displayName,
+                email: p.email,
+                phoneNumber: p.phoneNumber,
+                photoURL: p.photoURL ? cleanPhotoURL(p.photoURL) : null, // ★修正点: providerData内のphotoURLもクリーンアップ
+                providerId: p.providerId
+            }))
+        };
+
+        // onlineUsersにもphotoURLを追加
+        updates[`onlineUsers/${user.uid}`] = {
+            username,
+            timestamp: Date.now(),
+            userId: user.uid,
+            photoURL: cleanedPhotoURL // ★修正点: クリーンアップされたURLを保存
+        };
+
+        const actionRef = push(actionsRef);
+        updates[`actions/${actionRef.key}`] = {
+            type: 'connect',
+            userId: user.uid,
+            username,
+            timestamp: Date.now()
         };
 
         let retries = 3;
@@ -50,7 +82,7 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await set(ref(database, `users/${user.uid}`), userData);
+                await update(ref(database), updates); // update を使用して複数のパスを一度に更新
                 success = true;
             } catch (error) {
                 lastError = error;
@@ -65,12 +97,6 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
             throw lastError || new Error('ユーザーデータの保存に失敗しました');
         }
 
-        await push(actionsRef, {
-            type: 'connect',
-            userId: user.uid,
-            username,
-            timestamp: Date.now()
-        });
         showSuccess('Twitterでログインしました。');
 
         if (onLoginSuccess) {
@@ -92,10 +118,22 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         const provider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
-        const photoURL = user.photoURL || '/chat/images/default-avatar.png';
+
+        // GoogleのphotoURLもクリーンアップ
+        const cleanedPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : '/chat/images/default-avatar.png'; // ★修正点: クリーンアップを適用
 
         // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL });
+        await updateProfile(user, { photoURL: cleanedPhotoURL }); // ★修正点: クリーンアップされたURLを使用
+
+        // 認証状態の安定を待つ
+        await new Promise((resolve) => {
+            const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+                if (currentUser && currentUser.uid === user.uid) {
+                    unsubscribe();
+                    resolve();
+                }
+            });
+        });
 
         const providerId = result.providerId || 'google.com';
         const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
@@ -104,20 +142,39 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
             username = `user${Date.now()}`.slice(0, 50);
         }
         const ipAddress = await getClientIp();
-        const userData = {
+
+        const updates = {};
+        updates[`users/${user.uid}`] = {
             username,
             provider: providerId,
             ipAddress,
-            photoURL,
+            photoURL: cleanedPhotoURL, // ★修正点: クリーンアップされたURLを保存
             email: user.email || null,
             emailVerified: user.emailVerified || false,
+            createdAt: existingUserData.createdAt || Date.now(),
             providerData: user.providerData.map(data => ({
                 providerId: data.providerId,
                 uid: data.uid,
                 displayName: data.displayName,
-                photoURL: data.photoURL,
+                photoURL: data.photoURL ? cleanPhotoURL(data.photoURL) : null, // ★修正点: providerData内のphotoURLもクリーンアップ
                 email: data.email
             }))
+        };
+
+        // onlineUsersにもphotoURLを追加
+        updates[`onlineUsers/${user.uid}`] = {
+            username,
+            timestamp: Date.now(),
+            userId: user.uid,
+            photoURL: cleanedPhotoURL // ★修正点: クリーンアップされたURLを保存
+        };
+
+        const actionRef = push(actionsRef);
+        updates[`actions/${actionRef.key}`] = {
+            type: 'connect',
+            userId: user.uid,
+            username,
+            timestamp: Date.now()
         };
 
         let retries = 3;
@@ -125,7 +182,7 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await set(ref(database, `users/${user.uid}`), userData);
+                await update(ref(database), updates);
                 success = true;
             } catch (error) {
                 lastError = error;
@@ -140,12 +197,6 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
             throw lastError || new Error('ユーザーデータの保存に失敗しました');
         }
 
-        await push(actionsRef, {
-            type: 'connect',
-            userId: user.uid,
-            username,
-            timestamp: Date.now()
-        });
         showSuccess('Googleでログインしました。');
 
         if (onLoginSuccess) {
@@ -166,21 +217,49 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
     try {
         const result = await signInAnonymously(auth);
         const user = result.user;
-        const photoURL = '/chat/images/default-avatar.png';
+        const photoURL = '/chat/images/default-avatar.png'; // 匿名ユーザーのデフォルト画像
 
         // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL });
+        await updateProfile(user, { photoURL: cleanPhotoURL(photoURL) }); // ★修正点: クリーンアップを適用
+
+        // 認証状態の安定を待つ
+        await new Promise((resolve) => {
+            const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+                if (currentUser && currentUser.uid === user.uid) {
+                    unsubscribe();
+                    resolve();
+                }
+            });
+        });
 
         const uniqueUsername = `anon${Date.now()}`;
         const ipAddress = await getClientIp();
-        const userData = {
+
+        const updates = {};
+        updates[`users/${user.uid}`] = {
             username: uniqueUsername,
             provider: 'anonymous',
             ipAddress,
-            photoURL,
+            photoURL: cleanPhotoURL(photoURL), // ★修正点: クリーンアップを適用して保存
             email: null,
             emailVerified: false,
+            createdAt: Date.now(),
             providerData: []
+        };
+
+        updates[`onlineUsers/${user.uid}`] = {
+            username: uniqueUsername,
+            timestamp: Date.now(),
+            userId: user.uid,
+            photoURL: cleanPhotoURL(photoURL) // ★修正点: クリーンアップを適用して保存
+        };
+
+        const actionRef = push(actionsRef);
+        updates[`actions/${actionRef.key}`] = {
+            type: 'connect',
+            userId: user.uid,
+            username: uniqueUsername,
+            timestamp: Date.now()
         };
 
         let retries = 3;
@@ -188,7 +267,7 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await set(ref(database, `users/${user.uid}`), userData);
+                await update(ref(database), updates);
                 success = true;
             } catch (error) {
                 lastError = error;
@@ -203,12 +282,6 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
             throw lastError || new Error('ユーザーデータの保存に失敗しました');
         }
 
-        await push(actionsRef, {
-            type: 'connect',
-            userId: user.uid,
-            username: uniqueUsername,
-            timestamp: Date.now()
-        });
         showSuccess('匿名でログインしました。');
 
         if (onLoginSuccess) {
@@ -271,7 +344,7 @@ export async function updateUsername(auth, database, actionsRef, onlineUsersRef,
             username,
             provider: userData.provider || 'anonymous',
             ipAddress: userData.ipAddress || 'unknown',
-            photoURL: userData.photoURL || '/chat/images/default-avatar.png',
+            photoURL: userData.photoURL ? cleanPhotoURL(userData.photoURL) : '/chat/images/default-avatar.png', // ★修正点: photoURL をクリーンアップして保存
             email: userData.email || null,
             emailVerified: userData.emailVerified || false,
             providerData: userData.providerData || []
@@ -279,7 +352,8 @@ export async function updateUsername(auth, database, actionsRef, onlineUsersRef,
         updates[`onlineUsers/${auth.currentUser.uid}`] = {
             username,
             timestamp: Date.now(),
-            userId: auth.currentUser.uid
+            userId: auth.currentUser.uid,
+            photoURL: userData.photoURL ? cleanPhotoURL(userData.photoURL) : '/chat/images/default-avatar.png' // ★修正点: photoURL をクリーンアップして保存
         };
         const actionRef = push(actionsRef);
         updates[`actions/${actionRef.key}`] = {

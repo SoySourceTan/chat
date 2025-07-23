@@ -3,21 +3,26 @@ import { initNotifications as initFCM, sendNotification, requestNotificationPerm
 import { initializeFirebase } from './firebase-config.js'; // firebase-config.jsから初期化関数をインポート
 import { initNotify, notifyNewMessage } from './notifysound.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute } from './utils.js';
+// ★修正点: cleanPhotoURL を utils.js からインポート
+import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL } from './utils.js';
 import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
-          console.warn(`[script.js] 画像読み込みエラー: userId=${userId}, photoURL=${photoURL}`);
-          imgElement.src = './images/icon.png?t=' + Date.now();
-          imgElement.alt = escapeHTMLAttribute(displayUsername) + 'のプロフィール画像';
-          imgElement.onerror = null;
-          if (userId === auth.currentUser?.uid) {
-              showError('プロフィール画像が無効です。再ログインしてください。');
-          }
-      }
+    try {
+        const initial = displayUsername && typeof displayUsername === 'string' && displayUsername.length > 0
+            ? displayUsername.charAt(0).toUpperCase()
+            : 'A';
+        // photoURLが指定されている場合は、そのURLが壊れている可能性があるので、デフォルトのアバターに切り替える
+        // photoURLがnullの場合は、最初からデフォルトアバターを表示
+        imgElement.outerHTML = `<div class="avatar">${initial}</div>`;
+        console.log(`画像読み込みエラー: userId=${userId}, URL=${photoURL || 'なし'}。デフォルトアバターに切り替えました。`);
+    } catch (error) {
+        console.error('handleImageErrorエラー:', error);
+    }
+}
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -238,7 +243,6 @@ async function getUserData(userId) {
     }
 }
 
-
 function renderOnlineUsers(users) {
     try {
         if (!users || users.length === 0) {
@@ -250,10 +254,11 @@ function renderOnlineUsers(users) {
                 const displayUsername = username && typeof username === 'string' ? username : '匿名';
                 const escapedUserId = escapeHTMLAttribute(userId);
                 const escapedDisplayUsername = escapeHTMLAttribute(displayUsername);
-                const escapedPhotoURL = escapeHTMLAttribute(photoURL || '');
+                // ★修正点: onerror に渡す photoURL も cleanPhotoURL を適用
+                const cleanedPhotoURLForError = escapeHTMLAttribute(cleanPhotoURL(photoURL || ''));
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
                     ${photoURL && typeof photoURL === 'string'
-                        ? `<img src="${escapedPhotoURL}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${escapedPhotoURL}')">`
+                        ? `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${cleanedPhotoURLForError}')">`
                         : `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
                 </span>`;
             })
@@ -802,7 +807,17 @@ if (confirmName) {
         try {
             await updateUsername(auth, database, actionsRef, onlineUsersRef, username, async (updatedUsername) => {
                 // ユーザー名更新成功時のUI更新
-                userInfo.innerHTML = `<span class="status-dot status-active"></span>${escapeHTMLAttribute(updatedUsername)} <i class="fas fa-pencil-alt ms-1"></i>`;
+                // ★修正点: userInfo の更新時に photoURL も考慮する
+                const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+                userInfo.innerHTML = `
+                    <span class="status-dot status-active"></span>
+                    ${userData.photoURL ? 
+                        `<img src="${escapeHTMLAttribute(userData.photoURL)}" alt="${escapeHTMLAttribute(updatedUsername)}のプロフィール画像" class="profile-img-small rounded-circle me-1" onerror="handleImageError(this, '${escapeHTMLAttribute(auth.currentUser.uid)}', '${escapeHTMLAttribute(updatedUsername)}', '${escapeHTMLAttribute(userData.photoURL)}')">` :
+                        `<div class="avatar-small rounded-circle me-1">${updatedUsername.charAt(0).toUpperCase()}</div>`
+                    }
+                    ${escapeHTMLAttribute(updatedUsername)} <i class="fas fa-pencil-alt ms-1"></i>
+                `;
+                currentUserPhotoURL = userData.photoURL || null; // ★追加: ログインユーザーのphotoURLを更新
                 unameModal.hide();
                 unameInput.classList.remove('is-invalid');
                 await updateOnlineUsers(); // オンラインユーザーリストも更新
