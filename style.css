@@ -416,3 +416,20 @@ body, #messages, .message-header strong, .message-header small, #userColorSelect
     cursor: pointer;
     z-index: 1000;
 }
+/* notifysound.js が生成するボタン用 */
+.audio-interaction-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999; /* 他の要素の上に表示 */
+    background-color: #28a745; /* 緑色 */
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    font-size: 0.875rem; /* btn-sm 相当 */
+    /* 初期状態では非表示にする場合は d-none を追加 */
+    /* display: none; */
+}
