@@ -52,24 +52,19 @@ export async function initNotifications(firebaseApp, databaseInstance, authInsta
 
         // メッセージ受信時のハンドラを設定
         // onMessage はフォアグラウンドで動作しているアプリがメッセージを受信したときにトリガーされます。
-        onMessage(messaging, (payload) => { // getMessagingから取得したmessagingインスタンスを渡す
-            console.log('[fcmpush.js] フォアグラウンドプッシュメッセージ受信:', payload);
-            const notificationTitle = payload.notification.title;
-            const notificationOptions = {
-                body: payload.notification.body,
-                icon: payload.notification.icon || '/learning/english-words/chat/images/icon.png',
-                data: payload.data, // カスタムデータを渡す
-            };
-
-            // 通知音を鳴らす
-            notifyNewMessage(notificationOptions);
-
-            // 通知を表示 (サービスワーカーの showNotification とは異なる)
-            // この通知は、ブラウザがアクティブなタブである場合に表示されます。
-            if (Notification.permission === 'granted') {
-                new Notification(notificationTitle, notificationOptions);
-            }
-        });
+onMessage(messaging, (payload) => {
+    console.log('[fcmpush.js] フォアグラウンドプッシュメッセージ受信:', payload);
+    const notificationTitle = payload.notification.title;
+    const notificationOptions = {
+        body: payload.notification.body,
+        icon: payload.notification.icon || '/learning/english-words/chat/images/icon.png',
+        data: payload.data
+    };
+    notifyNewMessage(notificationOptions);
+    if (Notification.permission === 'granted') {
+        new Notification(notificationTitle, notificationOptions);
+    }
+});
 
         // トークン更新時のハンドラを設定
         // onTokenRefreshはFirebase SDK v9+では非推奨であり、getToken()が自動的にトークンを更新します。
