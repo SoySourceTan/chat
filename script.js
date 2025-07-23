@@ -1228,8 +1228,6 @@ function setupMessageListener() {
     }
 }
 
-// ====== ここから修正・追加するコードブロック ======
-
 // 削除対象のメッセージIDを一時的に保持する変数
 // この変数は、スクリプトの他の部分からもアクセスできるよう、
 // グローバルスコープ、または関連する関数群を囲む上位スコープに配置してください。
@@ -1308,6 +1306,19 @@ if (cancelDeleteBtn) {
 
 // messagesEl が存在する場合のみ処理
 if (messagesEl) {
+    // ★追加: メッセージリスト内の削除ボタンに対するイベント委譲
+    messagesEl.addEventListener('click', (e) => {
+        const deleteButton = e.target.closest('.delete-message');
+        if (deleteButton) {
+            currentMessageIdToDelete = deleteButton.getAttribute('data-message-id');
+            if (currentMessageIdToDelete) {
+                deleteConfirmModal.show();
+            } else {
+                console.warn('削除ボタンに data-message-id が見つかりません。');
+            }
+        }
+    });
+
     // 既存のイベントリスナーがあれば削除 (重複登録防止)
     // messagesEl._scrollHandler が定義されていることを前提とする
     // この行は存在しない可能性もあるため、エラーにならないように注意
@@ -1405,8 +1416,6 @@ if (messagesEl) {
 
     messagesEl.addEventListener('scroll', messagesEl._scrollHandler);
 }
-
-// ====== ここまで新しい「削除処理」コードブロック ======
 
 
 // 認証状態変更リスナー
