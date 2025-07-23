@@ -1,25 +1,23 @@
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Initial body content:', document.body.innerHTML);
-});
-// 既存のコード（変更なし）
+// script.js
 import { initNotifications as initFCM, sendNotification, requestNotificationPermission, saveFCMToken } from './chat/fcmpush.js';
+import { initializeFirebase } from './firebase-config.js'; // firebase-config.jsから初期化関数をインポート
 import { initNotify, notifyNewMessage } from './notifysound.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, set, get, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute } from './utils.js';
+import { initFirebaseServices } from './firebase-service.js';
+// auth.js からログイン関連関数をインポート
+import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
-    try {
-        const initial = displayUsername && typeof displayUsername === 'string' && displayUsername.length > 0
-            ? displayUsername.charAt(0).toUpperCase()
-            : 'A';
-        imgElement.outerHTML = `<div class="avatar">${initial}</div>`;
-        console.log(`画像読み込みエラー: userId=${userId}, URL=${photoURL || 'なし'}`);
-    } catch (error) {
-        console.error('handleImageErrorエラー:', error);
-    }
-}
+          console.warn(`[script.js] 画像読み込みエラー: userId=${userId}, photoURL=${photoURL}`);
+          imgElement.src = './images/icon.png?t=' + Date.now();
+          imgElement.alt = escapeHTMLAttribute(displayUsername) + 'のプロフィール画像';
+          imgElement.onerror = null;
+          if (userId === auth.currentUser?.uid) {
+              showError('プロフィール画像が無効です。再ログインしてください。');
+          }
+      }
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -41,57 +39,11 @@ async function loadFirebaseConfig() {
     }
 }
 
-// IPアドレス取得関数
-async function getClientIp() {
-    try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        return data.ip || 'unknown';
-    } catch (error) {
-        console.error('IP取得エラー:', error);
-        return 'unknown';
-    }
-}
-
-// クッキー設定
-function setCookie(name, value, days) {
-    try {
-        const expires = days ? `; expires=${new Date(Date.now() + days * 86400000).toUTCString()}` : '';
-        document.cookie = `${name}=${encodeURIComponent(value)}${expires}; path=/; SameSite=Strict`;
-        console.log(`クッキー設定: ${name}=${value}, expires=${expires}`);
-    } catch (error) {
-        console.error('クッキー設定エラー:', error);
-    }
-}
-
-// クッキー取得
-function getCookie(name) {
-    try {
-        const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
-        const value = match ? decodeURIComponent(match[2]) : null;
-        console.log(`クッキー取得: ${name}=${value}`);
-        return value;
-    } catch (error) {
-        console.error('クッキー取得エラー:', error);
-        return null;
-    }
-}
-
-function isMobileDevice() {
-    try {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    } catch (error) {
-        console.error('デバイス判定エラー:', error);
-        return false;
-    }
-}
-
 // Firebase初期化とグローバル変数
-let app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef;
+let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase();
 let isInitialized = false; // 初期化フラグ
 let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
 let isSending = false;
-let isLoggingIn = false;
 let isUserScrolledUp = false;
 let isEnterSendMode = getCookie('enterSendMode') === 'true';
 let messagesElScrollHandler = null;
@@ -102,7 +54,6 @@ let latestInitialTimestamp = null;
 let isCompactMode = false;
 let lastActivity = Date.now();
 const userCache = new Map();
-let debounceTimeout = null;
 
 // ユーザーIDと背景色のマッピング
 const userColorMap = new Map();
@@ -192,23 +143,6 @@ if (colorModeDropdown) {
     });
 }
 
-try {
-    const firebaseConfig = await loadFirebaseConfig();
-    app = initializeApp(firebaseConfig);
-    database = getDatabase(app);
-    auth = getAuth(app);
-    console.log('[script.js] initNotify 実行成功');
-} catch (error) {
-    console.error('[script.js] 初期化エラー:', error);
-    showError('アプリケーションの初期化に失敗しました。ページをリロードしてください。');
-}
-    // データベース参照
-    messagesRef = ref(database, 'messages');
-    usersRef = ref(database, 'users');
-    actionsRef = ref(database, 'actions');
-    bannedUsersRef = ref(database, 'bannedUsers');
-    onlineUsersRef = ref(database, 'onlineUsers');
-
 // DOM要素
 formEl = document.getElementById('messageForm');
 messagesEl = document.getElementById('messages');
@@ -236,55 +170,8 @@ toggleModeBtn = document.getElementById('toggleModeBtn');
 loadingIndicator = document.getElementById('loading-indicator');
 progressOverlay = document.getElementById('progress-overlay');
 navbarRow2 = document.getElementById('navsec');
-
-// エラーメッセージ表示
-function showError(message) {
-    try {
-        const errorAlert = document.getElementById('error-alert');
-        if (errorAlert) {
-            errorAlert.textContent = message;
-            errorAlert.classList.remove('d-none');
-            errorAlert.setAttribute('role', 'alert');
-            errorAlert.focus();
-            setTimeout(() => {
-                errorAlert.classList.add('d-none');
-                errorAlert.removeAttribute('role');
-            }, 6000);
-        }
-    } catch (error) {
-        console.error('[script.js] エラーメッセージ表示エラー:', error);
-    }
-}
-
-// 成功メッセージ表示
-function showSuccess(message) {
-    try {
-        const successAlert = document.createElement('div');
-        successAlert.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x m-3';
-        successAlert.style.zIndex = '2000';
-        successAlert.setAttribute('role', 'alert');
-        successAlert.textContent = message;
-        document.body.appendChild(successAlert);
-        setTimeout(() => successAlert.remove(), 3000);
-    } catch (error) {
-        console.error('成功メッセージ表示エラー:', error);
-    }
-}
-
-// トースト通知
-function showToast(message) {
-    try {
-        const toast = document.createElement('div');
-        toast.className = 'alert alert-info position-fixed bottom-0 end-0 m-3';
-        toast.style.zIndex = '2000';
-        toast.setAttribute('role', 'alert');
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    } catch (error) {
-        console.error('トースト通知エラー:', error);
-    }
-}
+const userColorSelect = document.getElementById('userColorSelect'); // userColorSelect の定義を追加
+const colorPicker = document.getElementById('colorPicker'); // colorPicker の定義を追加
 
 // ステータスインジケーター更新
 function updateStatusIndicator() {
@@ -304,17 +191,25 @@ async function fetchOnlineUsers() {
     try {
         const snapshot = await get(onlineUsersRef);
         const users = snapshot.val()
-            ? Object.entries(snapshot.val())
-                .filter(([uid, user]) => uid && user && typeof user === 'object')
-                .map(([uid, user]) => ({
-                    userId: uid,
-                    username: user.username && typeof user.username === 'string' ? user.username : '匿名',
-                    photoURL: user.photoURL && typeof user.photoURL === 'string' ? user.photoURL : null
-                }))
+            ? await Promise.all(
+                  Object.entries(snapshot.val())
+                      .filter(([uid, user]) => uid && user && typeof user === 'object')
+                      .map(async ([uid, user]) => {
+                          // users/{uid}/photoURLから最新の画像を取得
+                          const userRef = ref(getDatabase(), `users/${uid}`);
+                          const userData = (await get(userRef)).val() || {};
+                          return {
+                              userId: uid,
+                              username: user.username && typeof user.username === 'string' ? user.username : '匿名',
+                              photoURL: userData.photoURL && typeof userData.photoURL === 'string' ? `${userData.photoURL}?t=${Date.now()}` : '/learning/english-words/chat/images/icon.png'
+                          };
+                      })
+              )
             : [];
+        console.log('[script.js] オンラインユーザー取得成功:', users);
         return users;
     } catch (error) {
-        console.error('オンラインユーザー取得エラー:', error);
+        console.error('[script.js] オンラインユーザー取得エラー:', error);
         return [];
     }
 }
@@ -343,15 +238,6 @@ async function getUserData(userId) {
     }
 }
 
-function escapeHTMLAttribute(str) {
-    try {
-        if (!str || typeof str !== 'string') return '';
-        return str.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '<').replace(/>/g, '>');
-    } catch (error) {
-        console.error('HTML属性エスケープエラー:', error);
-        return '';
-    }
-}
 
 function renderOnlineUsers(users) {
     try {
@@ -378,6 +264,7 @@ function renderOnlineUsers(users) {
     }
 }
 
+// script.js（updateOnlineUsersの修正）
 async function updateOnlineUsers() {
     try {
         if (!auth.currentUser) {
@@ -388,10 +275,8 @@ async function updateOnlineUsers() {
         }
         const users = await fetchOnlineUsers();
         const limitedUsers = users.slice(0, 50);
-        const userDataArray = (await Promise.all(limitedUsers.map(user => getUserData(user.userId))))
-            .filter(user => user && user.userId && typeof user.userId === 'string');
         if (onlineUsersEl) {
-            onlineUsersEl.innerHTML = renderOnlineUsers(userDataArray);
+            onlineUsersEl.innerHTML = renderOnlineUsers(limitedUsers); // getUserDataをスキップ
         }
     } catch (error) {
         console.error('オンラインユーザー更新エラー:', error);
@@ -401,14 +286,6 @@ async function updateOnlineUsers() {
     }
 }
 
-onValue(onlineUsersRef, (snapshot) => {
-    try {
-        clearTimeout(debounceTimeout);
-        debounceTimeout = setTimeout(updateOnlineUsers, 1000);
-    } catch (error) {
-        console.error('オンラインユーザー監視エラー:', error);
-    }
-});
 
 // ユーザーUI更新
 async function updateUserUI(user) {
@@ -417,9 +294,18 @@ async function updateUserUI(user) {
         if (user) {
             userCache.delete(user.uid);
             userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-            console.log('updateUserUIで取得されたuserData:', userData); 
+            console.log('updateUserUIで取得されたuserData:', userData);
             let username = userData.username || user.displayName || 'ゲスト';
             username = username.length > 7 ? username.substring(0, 7) + "..." : username;
+            
+            // プロフィールアイコンを更新
+            const profileImg = document.querySelector('#profileBtn .profile-img');
+            if (profileImg) {
+                profileImg.src = `${userData.photoURL || '/learning/english-words/chat/images/icon.png'}?t=${Date.now()}`;
+                profileImg.alt = escapeHTMLAttribute(username);
+                profileImg.dataset.uid = user.uid;
+            }
+            
             if (userInfo) {
                 userInfo.innerHTML = `<span class="status-dot status-active"></span>${escapeHTMLAttribute(username)}<i class="fas fa-pencil-alt ms-1"></i>`;
             }
@@ -428,7 +314,7 @@ async function updateUserUI(user) {
             }
             loginModal.hide();
             loginModalEl.setAttribute('inert', '');
-            if ((user.isAnonymous || !userData.username) && !isLoggingIn) {
+            if (user.isAnonymous || !userData.username) {
                 unameInput.value = userData.username || '';
                 unameModalEl.removeAttribute('inert');
                 unameModal.show();
@@ -449,6 +335,13 @@ async function updateUserUI(user) {
             await updateOnlineUsers();
             await loadInitialMessages();
         } else {
+            // ログアウト時のプロフィールアイコンリセット
+            const profileImg = document.querySelector('#profileBtn .profile-img');
+            if (profileImg) {
+                profileImg.src = '/learning/english-words/chat/images/icon.png?t=' + Date.now();
+                profileImg.alt = 'ゲスト';
+                profileImg.dataset.uid = '';
+            }
             if (userInfo) {
                 userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
             }
@@ -468,8 +361,6 @@ async function updateUserUI(user) {
     }
 }
 
-// オンラインユーザー監視
-onValue(onlineUsersRef, () => updateOnlineUsers());
 
 // ユーザーアクティビティ監視
 ['click', 'keydown', 'mousemove'].forEach(event => {
@@ -580,14 +471,17 @@ if (toggleModeBtn) {
     });
 }
 
-// 背景色モード切り替え
+// 背景色モード切り替え (auth.currentUser のチェックを考慮)
 if (colorModeDropdown) {
     colorModeDropdown.nextElementSibling.querySelectorAll('.dropdown-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             colorAssignmentMode = e.target.getAttribute('data-mode');
             setCookie('colorAssignmentMode', colorAssignmentMode, 365);
-            colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
+            // auth.currentUser の存在チェックを追加
+            if (colorPicker) {
+                colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
+            }
             userColorMap.clear();
             console.log('モード変更:', colorAssignmentMode, 'userColorMap リセット');
             reloadMessages();
@@ -699,83 +593,83 @@ if (messagesEl) {
     messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
     let lastScrollTop = 0;
     let scrollTimeout = null;
-window.addEventListener('scroll', () => {
-    try {
-        if (scrollTimeout) clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(async () => {
-            const currentScrollTop = window.scrollY;
-            isUserScrolledUp = currentScrollTop > 10;
-            newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
-            const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-            if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) {
-                console.log('ローディング開始');
-                isLoading = true;
-                loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
-                loadingIndicator.style.display = 'block';
-                try {
-                    const startTime = performance.now();
-                    const messages = messagesEl.querySelectorAll('[data-timestamp]');
-                    lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
-                    if (lastTimestamp) {
-                        const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-                        const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-                        const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
-                        const userDataPromises = userIds.map(async userId => {
-                            if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
-                            const snapshot = await get(ref(database, `users/${userId}`));
-                            const data = snapshot.val() || {};
-                            userCache.set(userId, data);
-                            return { userId, data };
-                        });
-                        const userDataArray = await Promise.all(userDataPromises);
-                        const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-                        for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                            if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-                            const photoURL = userDataMap[userId]?.photoURL;
-                            const li = document.createElement('li');
-                            li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
-                            li.setAttribute('data-message-id', key);
-                            li.setAttribute('role', 'listitem');
-                            li.setAttribute('data-timestamp', timestamp);
-                            const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-                            const formattedMessage = formatMessage(message);
-                            li.innerHTML = `
-                                <div class="message bg-transparent p-2 row">
-                                    <div class="col-auto profile-icon">
-                                        ${photoURL ? 
-                                            `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
-                                            `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-                                    </div>
-                                    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                                        <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
-                                        <small class="text-muted ms-2">${date}</small>
-                                        ${auth.currentUser && auth.currentUser.uid === userId ? 
-                                            `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-                                                <i class="fa fa-trash"></i>
-                                            </button>` : ''}
-                                    </div>
-                                    <div class="col-12 message-body mt-2">
-                                        ${formattedMessage}
-                                    </div>
-                                </div>`;
-                            messagesEl.appendChild(li);
-                            setTimeout(() => li.classList.add('show'), 10);
+    window.addEventListener('scroll', () => {
+        try {
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(async () => {
+                const currentScrollTop = window.scrollY;
+                isUserScrolledUp = currentScrollTop > 10;
+                newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
+                const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
+                if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) {
+                    console.log('ローディング開始');
+                    isLoading = true;
+                    loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
+                    loadingIndicator.style.display = 'block';
+                    try {
+                        const startTime = performance.now();
+                        const messages = messagesEl.querySelectorAll('[data-timestamp]');
+                        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
+                        if (lastTimestamp) {
+                            const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+                            const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
+                            const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
+                            const userDataPromises = userIds.map(async userId => {
+                                if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
+                                const snapshot = await get(ref(database, `users/${userId}`));
+                                const data = snapshot.val() || {};
+                                userCache.set(userId, data);
+                                return { userId, data };
+                            });
+                            const userDataArray = await Promise.all(userDataPromises);
+                            const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+                            for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+                                const photoURL = userDataMap[userId]?.photoURL;
+                                const li = document.createElement('li');
+                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
+                                li.setAttribute('data-message-id', key);
+                                li.setAttribute('role', 'listitem');
+                                li.setAttribute('data-timestamp', timestamp);
+                                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+                                const formattedMessage = formatMessage(message);
+                                li.innerHTML = `
+                                    <div class="message bg-transparent p-2 row">
+                                        <div class="col-auto profile-icon">
+                                            ${photoURL ?
+                                                `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
+                                                `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+                                        </div>
+                                        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                                            <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
+                                            <small class="text-muted ms-2">${date}</small>
+                                            ${auth.currentUser && auth.currentUser.uid === userId ?
+                                                `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>` : ''}
+                                        </div>
+                                        <div class="col-12 message-body mt-2">
+                                            ${formattedMessage}
+                                        </div>
+                                    </div>`;
+                                messagesEl.appendChild(li);
+                                setTimeout(() => li.classList.add('show'), 10);
+                            }
                         }
+                    } catch (error) {
+                        console.error('過去メッセージ取得エラー:', error);
+                        showError('過去のメッセージが取得できませんでした。');
+                    } finally {
+                        isLoading = false;
+                        loadingIndicator.textContent = 'ロード中...';
+                        loadingIndicator.style.display = 'none';
                     }
-                } catch (error) {
-                    console.error('過去メッセージ取得エラー:', error);
-                    showError('過去のメッセージが取得できませんでした。');
-                } finally {
-                    isLoading = false;
-                    loadingIndicator.textContent = 'ロード中...';
-                    loadingIndicator.style.display = 'none';
                 }
-            }
-        }, 200);
-    } catch (error) {
-        console.error('スクロール処理エラー:', error);
-    }
-});
+            }, 200);
+        } catch (error) {
+            console.error('スクロール処理エラー:', error);
+        }
+    });
 }
 
 // メッセージフォーマット処理
@@ -817,196 +711,42 @@ async function reloadMessages() {
     }
     if (auth.currentUser) {
       const userId = auth.currentUser.uid;
-      if (userId !== auth.currentUser.uid) {
+      // if (userId !== auth.currentUser.uid) { // この条件は常に false になるため、不要
         notifyNewMessage();
-      }
+      // }
     }
 }
 
 // Twitterログイン認証
 if (twitterLogin) {
     twitterLogin.addEventListener('click', async () => {
-        if (isLoggingIn) return;
-        isLoggingIn = true;
-        try {
-            const provider = new TwitterAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-            const user = result.user;
-            await new Promise((resolve) => {
-                const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-                    if (currentUser && currentUser.uid === user.uid) {
-                        unsubscribe();
-                        resolve();
-                    }
-                });
-            });
-            const providerId = result.providerId || 'twitter.com';
-            const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-            let username = existingUserData.username || user.displayName || `user${Date.now()}`;
-            if (/[.#$/\[\]]/.test(username) || username.length > 50) {
-                username = `user${Date.now()}`.slice(0, 50);
-            }
-            const ipAddress = await getClientIp();
-            const userData = {
-                username,
-                provider: providerId,
-                ipAddress,
-                photoURL: user.photoURL || null,
-                email: user.email || null,
-                emailVerified: user.emailVerified || false
-            };
-            let retries = 3;
-            let success = false;
-            let lastError = null;
-            while (retries > 0 && !success) {
-                try {
-                    await set(ref(database, `users/${user.uid}`), userData);
-                    success = true;
-                } catch (error) {
-                    lastError = error;
-                    retries--;
-                    console.warn(`書き込み失敗（残りリトライ: ${retries}）:`, error);
-                    if (retries > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
-            if (!success) {
-                throw lastError || new Error('ユーザーデータの保存に失敗しました');
-            }
-            await push(actionsRef, {
-                type: 'connect',
-                userId: user.uid,
-                username,
-                timestamp: Date.now()
-            });
-            showSuccess('Twitterでログインしました。');
-        } catch (error) {
-            console.error('Twitterログインエラー:', error);
-            showError('Twitterログインに失敗しました: ' + error.message);
-        } finally {
-            isLoggingIn = false;
-        }
+        // auth.js に処理を委譲
+        await signInWithTwitter(auth, database, actionsRef, usersRef, async (user) => {
+            // ログイン成功時の追加処理
+            await updateUserUI(user);
+        });
     });
 }
 
 // Googleログイン
 if (googleLogin) {
     googleLogin.addEventListener('click', async () => {
-        if (isLoggingIn) return;
-        isLoggingIn = true;
-        try {
-            const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-            const user = result.user;
-            const providerId = result.providerId || 'google.com';
-            const existingUserData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-            let username = existingUserData.username || user.displayName || `user${Date.now()}`;
-            if (!username || typeof username !== 'string' || username.length === 0 || username.length > 50 || /[.#$/\[\]]/.test(username)) {
-                username = `user${Date.now()}`.slice(0, 50);
-            }
-            const ipAddress = await getClientIp();
-            const userData = {
-                username,
-                provider: providerId,
-                ipAddress,
-                photoURL: user.photoURL || null,
-                email: user.email || null,
-                emailVerified: user.emailVerified || false,
-                providerData: user.providerData.map(data => ({
-                    providerId: data.providerId,
-                    uid: data.uid,
-                    displayName: data.displayName,
-                    photoURL: data.photoURL,
-                    email: data.email
-                }))
-            };
-            let retries = 3;
-            let success = false;
-            let lastError = null;
-            while (retries > 0 && !success) {
-                try {
-                    await set(ref(database, `users/${user.uid}`), userData);
-                    success = true;
-                } catch (error) {
-                    lastError = error;
-                    retries--;
-                    console.warn(`書き込み失敗（残りリトライ: ${retries}）:`, error);
-                    if (retries > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
-            if (!success) {
-                throw lastError || new Error('ユーザーデータの保存に失敗しました');
-            }
-            await push(actionsRef, {
-                type: 'connect',
-                userId: user.uid,
-                username,
-                timestamp: Date.now()
-            });
-            showSuccess('Googleでログインしました。');
-        } catch (error) {
-            console.error('Googleログインエラー:', error);
-            showError('Googleログインに失敗しました: ' + error.message);
-        } finally {
-            isLoggingIn = false;
-        }
+        // auth.js に処理を委譲
+        await signInWithGoogle(auth, database, actionsRef, usersRef, async (user) => {
+            // ログイン成功時の追加処理
+            await updateUserUI(user);
+        });
     });
 }
 
 // 匿名ログイン
 if (anonymousLogin) {
     anonymousLogin.addEventListener('click', async () => {
-        if (isLoggingIn) return;
-        isLoggingIn = true;
-        try {
-            const result = await signInAnonymously(auth);
-            const user = result.user;
-            const uniqueUsername = `anon${Date.now()}`;
-            const ipAddress = await getClientIp();
-            const userData = {
-                username: uniqueUsername,
-                provider: 'anonymous',
-                ipAddress,
-                photoURL: null,
-                email: null,
-                emailVerified: false,
-                providerData: []
-            };
-            let retries = 3;
-            let success = false;
-            let lastError = null;
-            while (retries > 0 && !success) {
-                try {
-                    await set(ref(database, `users/${user.uid}`), userData);
-                    success = true;
-                } catch (error) {
-                    lastError = error;
-                    retries--;
-                    console.warn(`書き込み失敗（残りリトライ: ${retries}）:`, error);
-                    if (retries > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
-            if (!success) {
-                throw lastError || new Error('ユーザーデータの保存に失敗しました');
-            }
-            await push(actionsRef, {
-                type: 'connect',
-                userId: user.uid,
-                username: uniqueUsername,
-                timestamp: Date.now()
-            });
-            showSuccess('匿名でログインしました。');
-        } catch (error) {
-            console.error('匿名ログインエラー:', error);
-            showError('匿名ログインに失敗しました: ' + error.message);
-        } finally {
-            isLoggingIn = false;
-        }
+        // auth.js に処理を委譲
+        await signInAnonymouslyUser(auth, database, actionsRef, usersRef, async (user) => {
+            // ログイン成功時の追加処理
+            await updateUserUI(user);
+        });
     });
 }
 
@@ -1014,20 +754,9 @@ if (anonymousLogin) {
 if (loginBtn) {
     loginBtn.addEventListener('click', async () => {
         if (auth.currentUser) {
-            try {
-                await push(actionsRef, {
-                    type: 'logout',
-                    userId: auth.currentUser.uid,
-                    username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
-                    timestamp: Date.now()
-                });
-                await remove(ref(database, `onlineUsers/${auth.currentUser.uid}`));
-                await signOut(auth);
-                showSuccess('ログアウトしました。');
-            } catch (error) {
-                console.error('ログアウトエラー:', error);
-                showError('ログアウトに失敗しました: ' + error.message);
-            }
+            await signOutUser(auth, database, actionsRef, onlineUsersRef, userInfo.textContent.replace(/<[^>]+>/g, '').trim(), () => {
+                // ログアウト成功時の追加処理 (auth.onAuthStateChanged でUIが更新されるため、ここでは特別不要)
+            });
         } else {
             loginModalEl.removeAttribute('inert');
             loginModal.show();
@@ -1038,23 +767,11 @@ if (loginBtn) {
 
 if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
-        try {
-            await push(actionsRef, {
-                type: 'logout',
-                userId: auth.currentUser.uid,
-                username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
-                timestamp: Date.now()
-            });
-            await remove(ref(database, `onlineUsers/${auth.currentUser.uid}`));
-            await signOut(auth);
+        await signOutUser(auth, database, actionsRef, onlineUsersRef, userInfo.textContent.replace(/<[^>]+>/g, '').trim(), () => {
             unameModal.hide();
             unameModalEl.setAttribute('inert', '');
             document.getElementById('login-btn').focus();
-            showSuccess('ログアウトしました。');
-        } catch (error) {
-            console.error('ログアウトエラー:', error);
-            showError('ログアウトに失敗しました: ' + error.message);
-        }
+        });
     });
 }
 
@@ -1080,74 +797,18 @@ if (userInfo) {
 
 if (confirmName) {
     confirmName.addEventListener('click', async () => {
+        const rawInput = unameInput.value;
+        const username = rawInput.trim();
         try {
-            const rawInput = unameInput.value;
-            const username = rawInput.trim();
-            if (!username || username.length === 0) {
-                unameInput.classList.add('is-invalid');
-                showError('ユーザー名を入力してください。');
-                return;
-            }
-            if (username.length > 20) {
-                unameInput.classList.add('is-invalid');
-                showError('ユーザー名は20文字以内にしてください。');
-                return;
-            }
-            if (/[.#$/\[\]]/.test(username)) {
-                unameInput.classList.add('is-invalid');
-                showError('ユーザー名に使用できない文字（. # $ / [ ]）が含まれています。');
-                return;
-            }
-            if (!auth.currentUser) {
-                showError('ログインしてください。');
-                return;
-            }
-            const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-            const updates = {};
-            updates[`users/${auth.currentUser.uid}`] = {
-                username,
-                provider: userData.provider || 'anonymous',
-                ipAddress: userData.ipAddress || 'unknown'
-            };
-            updates[`onlineUsers/${auth.currentUser.uid}`] = {
-                username,
-                timestamp: Date.now(),
-                userId: auth.currentUser.uid
-            };
-            const actionRef = push(actionsRef);
-            updates[`actions/${actionRef.key}`] = {
-                type: 'setUsername',
-                userId: auth.currentUser.uid,
-                username,
-                timestamp: Date.now()
-            };
-            let retries = 3;
-            let success = false;
-            let lastError = null;
-            while (retries > 0 && !success) {
-                try {
-                    await update(ref(database), updates);
-                    success = true;
-                } catch (error) {
-                    lastError = error;
-                    retries--;
-                    console.warn(`ユーザー名設定失敗（残りリトライ: ${retries}）:`, error);
-                    if (retries > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
-            if (!success) {
-                throw lastError || new Error('ユーザー名の保存に失敗しました');
-            }
-            userInfo.innerHTML = `<span class="status-dot status-active"></span>${escapeHTMLAttribute(username)} <i class="fas fa-pencil-alt ms-1"></i>`;
-            unameModal.hide();
-            unameInput.classList.remove('is-invalid');
-            showSuccess('ユーザー名を更新しました。');
-            await updateOnlineUsers();
+            await updateUsername(auth, database, actionsRef, onlineUsersRef, username, async (updatedUsername) => {
+                // ユーザー名更新成功時のUI更新
+                userInfo.innerHTML = `<span class="status-dot status-active"></span>${escapeHTMLAttribute(updatedUsername)} <i class="fas fa-pencil-alt ms-1"></i>`;
+                unameModal.hide();
+                unameInput.classList.remove('is-invalid');
+                await updateOnlineUsers(); // オンラインユーザーリストも更新
+            });
         } catch (error) {
-            console.error('ユーザー名設定エラー:', error);
-            showError(`ユーザー名の保存に失敗しました: ${error.message}`);
+            // updateUsername 関数内でエラーが再スローされるため、ここで捕捉してUIを更新
             unameInput.classList.add('is-invalid');
         }
     });
@@ -1244,36 +905,40 @@ if (formEl) {
             });
 
             // 通知送信ロジックを修正
-            try {
-                const notificationTitle = `新しいメッセージ from ${username}`;
-                const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
-
-                // オンラインユーザーを取得
-                const onlineUsers = await fetchOnlineUsers();
-                console.log('[script.js] オンラインユーザー:', onlineUsers);
-
-                // 自分以外のオンラインユーザー全員に通知を送信
-                for (const onlineUser of onlineUsers) {
-                    // ログイン中のユーザーIDとオンラインユーザーのIDが異なる場合のみ通知を送信
-                    if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
-                        console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
-                        await sendNotification(
-                            onlineUser.userId, // ★ここを修正: 受信者のuserIdを渡す
-                            notificationTitle,
-                            notificationBody,
-                            { url: 'https://soysourcetan.github.io/chat', icon: onlineUser.photoURL || '/learning/english-words/chat/images/icon.png' }, // 受信者のアイコン、またはデフォルト
-                            auth.currentUser.uid, // 送信者のuserId
-                            username // 送信者のusername
-                        );
-                    } else {
-                        console.log(`[script.js] 通知スキップ: ユーザー ${onlineUser.userId} は送信者自身か、無効なIDです。`);
-                    }
-                }
-                console.log('[script.js] 全ての通知送信処理が完了しました。');
-            } catch (notificationError) {
-                console.error('[script.js] 通知送信エラー:', notificationError);
-                showError('通知の送信に失敗しました。');
-            }
+try {
+    const notificationTitle = `新しいメッセージ from ${username}`;
+    const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
+    const onlineUsers = await fetchOnlineUsers();
+    console.log('[script.js] オンラインユーザー:', onlineUsers);
+    
+    // 送信者のphotoURLを取得
+    const senderRef = ref(database, `users/${auth.currentUser.uid}`);
+    const senderData = (await get(senderRef)).val() || {};
+    const senderPhotoURL = senderData.photoURL || '/learning/english-words/chat/images/icon.png';
+    
+    for (const onlineUser of onlineUsers) {
+        if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
+            console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
+            await sendNotification(
+                onlineUser.userId,
+                notificationTitle,
+                notificationBody,
+                { 
+                    url: 'https://soysourcetan.github.io/chat',
+                    icon: `${senderPhotoURL}?t=${Date.now()}` // 送信者のphotoURLを使用
+                },
+                auth.currentUser.uid,
+                username
+            );
+        } else {
+            console.log(`[script.js] 通知スキップ: ユーザー ${onlineUser.userId} は送信者自身か、無効なIDです。`);
+        }
+    }
+    console.log('[script.js] 全ての通知送信処理が完了しました。');
+} catch (notificationError) {
+    console.error('[script.js] 通知送信エラー:', notificationError);
+    showError('通知の送信に失敗しました。');
+}
 
             // フォームクリアとスクロール
             inputEl.value = '';
@@ -1333,7 +998,7 @@ async function loadInitialMessages() {
         const startTime = performance.now();
         console.log('[script.js] メッセージ取得クエリを作成中...');
         const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
-        
+
         console.log('[script.js] Firebaseからメッセージのスナップショットを取得中...');
         const snapshot = await get(initialMessagesQuery);
         console.log('[script.js] メッセージのスナップショットを取得しました。snapshot.exists():', snapshot.exists());
@@ -1380,14 +1045,14 @@ async function loadInitialMessages() {
             li.innerHTML = `
                 <div class="message bg-transparent p-2 row">
                     <div class="col-auto profile-icon">
-                        ${photoURL ? 
+                        ${photoURL ?
                             `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
                             `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
                     </div>
                     <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                         <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
                         <small class="text-muted ms-2">${date}</small>
-                        ${auth.currentUser && auth.currentUser.uid === userId ? 
+                        ${auth.currentUser && auth.currentUser.uid === userId ?
                             `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
                                 <i class="fa fa-trash"></i>
                             </button>` : ''}
@@ -1455,7 +1120,7 @@ function setupMessageListener() {
                     console.log('[script.js] メッセージは既にDOMに存在するためスキップします。');
                     return;
                 }
-                
+
                 console.log(`[script.js] ユーザーデータ取得中 for userId: ${userId}`);
                 const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
                 userCache.set(userId, userData);
@@ -1475,14 +1140,14 @@ function setupMessageListener() {
                 li.innerHTML = `
                     <div class="message bg-transparent p-2 row">
                         <div class="col-auto profile-icon">
-                            ${photoURL ? 
+                            ${photoURL ?
                                 `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
                                 `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
                         </div>
                         <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                             <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
                             <small class="text-muted ms-2">${date}</small>
-                            ${auth.currentUser && auth.currentUser.uid === userId ? 
+                            ${auth.currentUser && auth.currentUser.uid === userId ?
                                 `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
                                     <i class="fa fa-trash" aria-hidden="true"></i>
                                 </button>` : ''}
@@ -1553,46 +1218,26 @@ function setupMessageListener() {
 // 削除対象のメッセージIDを一時的に保持する変数
 // この変数は、スクリプトの他の部分からもアクセスできるよう、
 // グローバルスコープ、または関連する関数群を囲む上位スコープに配置してください。
-// グローバル変数
 let currentMessageIdToDelete = null;
 
-// モーダル要素の取得と初期化
+// HTMLからモーダル要素とボタン要素を取得します。
+// これらの要素は、ページの読み込み時に一度だけ取得されるべきです。
+// 例えば、DOMContentLoadedイベントリスナーの内部など、初期化処理の場所で定義してください。
 const deleteConfirmModalEl = document.getElementById('deleteConfirmModal');
-const deleteConfirmModal = new bootstrap.Modal(deleteConfirmModalEl);
+const deleteConfirmModal = new bootstrap.Modal(deleteConfirmModalEl); // Bootstrapモーダルインスタンス
+
 const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+const cancelDeleteBtn = document.getElementById('cancelDeleteBtn'); // モーダル内のキャンセルボタンも取得することを推奨
 
-// 削除ボタンのクリックイベント（messagesEl にイベント委譲）
-if (messagesEl) {
-    messagesEl.addEventListener('click', async (e) => {
-        const deleteBtn = e.target.closest('.delete-message');
-        if (deleteBtn) {
-            const messageId = deleteBtn.getAttribute('data-message-id');
-            if (!messageId) {
-                console.error('[script.js] 削除ボタンに data-message-id がありません');
-                showError('メッセージの削除に失敗しました。');
-                return;
-            }
-
-            currentMessageIdToDelete = messageId;
-            try {
-                deleteConfirmModal.show();
-                console.log('[script.js] 削除確認モーダルを表示: messageId =', messageId);
-            } catch (error) {
-                console.error('[script.js] モーダル表示エラー:', error);
-                showError('モーダルの表示に失敗しました。');
-            }
-        }
-    });
-}
-
-// 削除確認ボタンのイベントリスナー
+// 削除実行ボタン (confirmDeleteBtn) のイベントリスナーを一度だけ登録
+// これにより、クリックされるたびにイベントリスナーが重複して登録されるのを防ぎます。
 if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener('click', async () => {
+        // currentMessageIdToDelete が設定されていることを確認
         if (!currentMessageIdToDelete) {
-            console.error('[script.js] 削除対象のメッセージIDが設定されていません。');
+            console.error('削除対象のメッセージIDが設定されていません。');
             showError('メッセージの削除に失敗しました。');
-            deleteConfirmModal.hide();
+            deleteConfirmModal.hide(); // モーダルを閉じる
             return;
         }
 
@@ -1601,97 +1246,88 @@ if (confirmDeleteBtn) {
             const snapshot = await get(messageRef);
 
             if (!snapshot.exists()) {
-                console.error('[script.js] メッセージが見つかりません: ', currentMessageIdToDelete);
-                showError('メッセージが見つかりません。');
-                deleteConfirmModal.hide();
+                showError('メッセージが見つかりません');
+                return;
+            }
+            if (snapshot.val().userId !== auth.currentUser.uid) {
+                showError('自分のメッセージのみ削除できます');
                 return;
             }
 
-            const messageData = snapshot.val();
-            if (messageData.userId !== auth.currentUser.uid) {
-                console.error('[script.js] 権限エラー: 自分のメッセージのみ削除可能です');
-                showError('自分のメッセージのみ削除できます。');
-                deleteConfirmModal.hide();
-                return;
-            }
-
-            await remove(messageRef);
-            console.log('[script.js] メッセージをFirebaseから削除: ', currentMessageIdToDelete);
-
+            await remove(messageRef); // Firebaseからメッセージを削除
             const messageEl = messagesEl.querySelector(`[data-message-id="${currentMessageIdToDelete}"]`);
             if (messageEl) {
                 messageEl.classList.remove('show');
-                setTimeout(() => {
-                    messageEl.remove();
-                    console.log('[script.js] メッセージをUIから削除: ', currentMessageIdToDelete);
-                }, 300);
+                setTimeout(() => messageEl.remove(), 300);
             }
-
-            const username = userInfo.textContent.replace(/<[^>]+>/g, '').trim();
             await push(actionsRef, {
                 type: 'deleteMessage',
                 userId: auth.currentUser.uid,
-                username,
+                username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
                 messageId: currentMessageIdToDelete,
                 timestamp: Date.now()
             });
-            console.log('[script.js] 削除アクションを記録: ', currentMessageIdToDelete);
-
-            showSuccess('メッセージを削除しました。');
+            showSuccess('メッセージを削除しました。'); // 削除成功時のトースト通知
         } catch (error) {
-            console.error('[script.js] メッセージ削除エラー:', error);
+            console.error('メッセージ削除エラー:', error);
             showError(`メッセージの削除に失敗しました: ${error.message}`);
         } finally {
-            deleteConfirmModal.hide();
-            currentMessageIdToDelete = null;
-            setTimeout(() => inputEl.focus(), 100);
+            deleteConfirmModal.hide(); // 削除が成功しても失敗してもモーダルを閉じる
+            inputEl.focus(); // 入力フィールドにフォーカスを戻す
+            currentMessageIdToDelete = null; // 保持していたメッセージIDをリセット
         }
     });
 }
 
-// キャンセルボタンのイベントリスナー
+// キャンセルボタン (cancelDeleteBtn) のイベントリスナーも追加することを推奨
 if (cancelDeleteBtn) {
     cancelDeleteBtn.addEventListener('click', () => {
-        console.log('[script.js] 削除をキャンセル');
-        deleteConfirmModal.hide();
-        currentMessageIdToDelete = null;
-        setTimeout(() => inputEl.focus(), 100);
+        deleteConfirmModal.hide(); // モーダルを閉じる
+        inputEl.focus(); // 入力フィールドにフォーカスを戻す
+        currentMessageIdToDelete = null; // 保持していたメッセージIDをリセット
     });
 }
 
-// スクロールハンドラー（削除処理との整合性を保つ）
+
+// ====== ここから新しい「削除処理」コードブロック ======
+
+// messagesEl が存在する場合のみ処理
 if (messagesEl) {
+    // 既存のイベントリスナーがあれば削除 (重複登録防止)
+    // messagesEl._scrollHandler が定義されていることを前提とする
+    // この行は存在しない可能性もあるため、エラーにならないように注意
     if (messagesEl._scrollHandler) {
         messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
     }
 
+    // スクロールハンドラーを定義
     messagesEl._scrollHandler = async () => {
         try {
+            // setTimeout によるデバウンス処理はそのまま残しても良いですが、
+            // messagesEl のスクロールイベント自体に直接 `async` を付けても動作します。
+            // ここでは元のsetTimeout構造を尊重しつつ、window.scrollYのチェックを削除します。
             if (scrollTimeout) clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(async () => {
-                isUserScrolledUp = messagesEl.scrollTop > 10;
-                newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
+                // messagesEl.scrollTop が messagesEl の一番下近くに到達したかをチェック
                 const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) {
-                    console.log('[script.js] ローディング開始');
+                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
+                    console.log('ローディング開始');
                     isLoading = true;
                     loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
                     loadingIndicator.style.display = 'block';
 
                     try {
                         const messages = messagesEl.querySelectorAll('[data-timestamp]');
-                        lastTimestamp = messages.length
-                            ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp'))))
-                            : null;
+                        // lastTimestamp は現在表示されているメッセージの中で最も古いものを取得
+                        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
 
                         if (lastTimestamp) {
-                            const olderMessages = await get(
-                                query(messagesRef, orderByChild('timestamp'), endBefore(lastTimestamp), limitToLast(10))
-                            );
-                            const olderMessagesArray = olderMessages.val()
-                                ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp)
-                                : [];
+                            // Firebaseから過去のメッセージを10件取得
+                            const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+                            // 取得したメッセージをタイムスタンプの新しい順（降順）にソート
+                            const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
 
+                            // ユーザーデータの取得とキャッシュはそのまま
                             const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
                             const userDataPromises = userIds.map(async userId => {
                                 if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
@@ -1703,8 +1339,9 @@ if (messagesEl) {
                             const userDataArray = await Promise.all(userDataPromises);
                             const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
 
+                            // 新しいメッセージをリストの末尾に追加
                             for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複チェック
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
                                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
@@ -1732,12 +1369,12 @@ if (messagesEl) {
                                             ${formattedMessage}
                                         </div>
                                     </div>`;
-                                messagesEl.appendChild(li);
+                                messagesEl.appendChild(li); // 新しいものから古いものが上から下に並ぶよう、末尾に追加
                                 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
                     } catch (error) {
-                        console.error('[script.js] 過去メッセージ取得エラー:', error);
+                        console.error('過去メッセージ取得エラー:', error);
                         showError('過去のメッセージが取得できませんでした。');
                     } finally {
                         isLoading = false;
@@ -1745,9 +1382,9 @@ if (messagesEl) {
                         loadingIndicator.style.display = 'none';
                     }
                 }
-            }, 200);
+            }, 200); // デバウンス時間
         } catch (error) {
-            console.error('[script.js] スクロール処理エラー:', error);
+            console.error('スクロール処理エラー:', error);
         }
     };
 
@@ -1761,7 +1398,7 @@ if (messagesEl) {
 auth.onAuthStateChanged(async (user) => {
     try {
         await updateUserUI(user);
-        
+
         if (user) {
             console.log('[script.js] Firebase認証: ユーザーがログインしました。');
             // ユーザーログイン時にメッセージの初期読み込みとリアルタイム監視を開始
@@ -1787,7 +1424,7 @@ auth.onAuthStateChanged(async (user) => {
                     }
                     // reloadMessages() はここでは不要かもしれません。loadInitialMessagesが一度実行されればOKなはずです。
                     // 必要であれば残しても構いませんが、重複がないか確認してください。
-                    // reloadMessages(); 
+                    // reloadMessages();
                 }
             }
 
@@ -1842,7 +1479,9 @@ if (colorModeDropdown) {
             e.preventDefault();
             colorAssignmentMode = e.target.getAttribute('data-mode');
             setCookie('colorAssignmentMode', colorAssignmentMode, 365);
-            colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
+            if (colorPicker) { // Nullチェックを追加
+                colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
+            }
             userColorMap.clear();
             console.log('モード変更:', colorAssignmentMode, 'userColorMap リセット');
             reloadMessages();
@@ -1901,5 +1540,9 @@ document.addEventListener('DOMContentLoaded', () => {
     showProgressOverlay();
 });
 
-
-
+// showProgressOverlay 関数の追加 (定義がなかったので追加)
+function showProgressOverlay() {
+    if (progressOverlay) {
+        progressOverlay.classList.remove('d-none');
+    }
+}
