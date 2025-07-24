@@ -78,7 +78,12 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await update(ref(database), updates); // update を使用して複数のパスを一度に更新
+                // ここを修正: 各パスに対して個別に update を呼び出す
+                for (const path in updates) {
+                    if (updates.hasOwnProperty(path)) {
+                        await update(ref(database, path), updates[path]);
+                    }
+                }
                 success = true;
             } catch (error) {
                 lastError = error;
@@ -178,7 +183,12 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await update(ref(database), updates);
+                // ここを修正: 各パスに対して個別に update を呼び出す
+                for (const path in updates) {
+                    if (updates.hasOwnProperty(path)) {
+                        await update(ref(database, path), updates[path]);
+                    }
+                }
                 success = true;
             } catch (error) {
                 lastError = error;
@@ -263,7 +273,12 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await update(ref(database), updates);
+                // ここを修正: 各パスに対して個別に update を呼び出す
+                for (const path in updates) {
+                    if (updates.hasOwnProperty(path)) {
+                        await update(ref(database, path), updates[path]);
+                    }
+                }
                 success = true;
             } catch (error) {
                 lastError = error;
@@ -365,7 +380,12 @@ export async function updateUsername(auth, database, actionsRef, onlineUsersRef,
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                await update(ref(database), updates);
+                // ここを修正: 各パスに対して個別に update を呼び出す
+                for (const path in updates) {
+                    if (updates.hasOwnProperty(path)) {
+                        await update(ref(database, path), updates[path]);
+                    }
+                }
                 success = true;
             } catch (error) {
                 lastError = error;

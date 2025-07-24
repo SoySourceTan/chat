@@ -1,13 +1,16 @@
 // notifysound.js
+// ★修正: isDebugの定義を最上位に移動
+const isDebug = true; // debugフラグをファイルの先頭で定義
+
+// 必要なモジュールをインポート
+import { showError, showToast } from './utils.js';
+
 let notificationSound = null;
 let audioContext = null;
 let hasUserInteracted = false;
-let isNotificationSoundEnabled = true; // 新しく追加: 通知音の有効/無効状態
-const isDebug = true;
+// クッキーから初期状態を読み込む。クッキーがなければ 'true' (ON) をデフォルトとする。
+let isNotificationSoundEnabled = getCookieLocal('notificationSoundEnabled') === 'false' ? false : true;
 
-// utils.js から showError をインポート
-// import { showError } from './utils.js'; // utils.jsがnotifysound.jsと同じディレクトリにあると仮定
-import { showError, showSuccess } from './utils.js'; // showSuccess を追加
 // クッキー操作関数を notifysound.js 内に一時的に定義
 function setCookieLocal(name, value, days) {
     let expires = "";
@@ -60,7 +63,6 @@ function handleUserInteraction() {
 document.addEventListener('mousedown', handleUserInteraction, { once: true });
 document.addEventListener('keydown', handleUserInteraction, { once: true });
 document.addEventListener('touchstart', handleUserInteraction, { once: true });
-// スクロールでもインタラクションと見なす場合
 document.addEventListener('scroll', handleUserInteraction, { once: true });
 
 function initNotificationSound() {
@@ -122,6 +124,8 @@ function toggleNotificationSound() {
                 icon.classList.add('fa-bell');
                 toggleBtn.classList.remove('btn-outline-secondary');
                 toggleBtn.classList.add('btn-primary'); // ONの時は色を変えるなど
+                toggleBtn.setAttribute('aria-label', '通知音をオフにする');
+                showToast('通知音が有効になりました。', 'success');
                 if (isDebug) console.log('[notifysound.js] 通知音をONにしました。');
                 // ONにした際に、まだインタラクションがない場合はインタラクション処理を試みる
                 if (!hasUserInteracted) {
@@ -132,6 +136,8 @@ function toggleNotificationSound() {
                 icon.classList.add('fa-bell-slash');
                 toggleBtn.classList.remove('btn-primary');
                 toggleBtn.classList.add('btn-outline-secondary'); // OFFの時は元の色に戻すなど
+                toggleBtn.setAttribute('aria-label', '通知音をオンにする');
+                showToast('通知音が無効になりました。', 'info');
                 if (isDebug) console.log('[notifysound.js] 通知音をOFFにしました。');
             }
         } else {
@@ -179,11 +185,13 @@ function setupInteractionButton() {
                 icon.classList.add('fa-bell');
                 toggleBtn.classList.remove('btn-outline-secondary');
                 toggleBtn.classList.add('btn-primary');
+                toggleBtn.setAttribute('aria-label', '通知音をオフにする');
             } else {
                 icon.classList.remove('fa-bell');
                 icon.classList.add('fa-bell-slash');
                 toggleBtn.classList.remove('btn-primary');
                 toggleBtn.classList.add('btn-outline-secondary');
+                toggleBtn.setAttribute('aria-label', '通知音をオンにする');
             }
         }
 
@@ -203,46 +211,36 @@ function setupInteractionButton() {
 export function notifyNewMessage({ title, body, iconUrl = null, url = null }) {
     if (isDebug) console.log('[notifysound.js] notifyNewMessage呼び出し');
 
-    // ★修正: notificationSound が未初期化の場合、ここで初期化を試みる
+    // notificationSound が未初期化の場合、ここで初期化を試みる
     if (!notificationSound) {
         if (isDebug) console.log('[notifysound.js] notificationSoundが未初期化のため、initNotificationSoundを呼び出します。');
         initNotificationSound(); // ここでAudioオブジェクトとAudioContextを初期化
     }
 
-    // 通知音が有効かつユーザーインタラクションがあった場合のみ再生を試みる
+    // 通知音が有効かつユーザーインタラクションがあり、notificationSoundが準備できていれば再生
     if (isNotificationSoundEnabled && hasUserInteracted && notificationSound && notificationSound.readyState >= 2) {
         try {
             if (audioContext && audioContext.state === 'suspended') {
                 audioContext.resume().then(() => {
                     if (isDebug) console.log('[notifysound.js] AudioContext が再生前に再開されました。');
-                    notificationSound.play().then(() => {
-                        if (isDebug) console.log('[notifysound.js] 通知音再生成功');
-                    }).catch(error => {
-                        console.error('[notifysound.js] 通知音再生エラー (play):', error);
-                        showError('通知音の再生に失敗しました。');
-                    });
+                    playNotificationSoundInternal(); // 内部ヘルパー関数を呼び出す
                 }).catch(error => {
                     console.error('[notifysound.js] AudioContext 再開エラー (再生前):', error);
                     showError('オーディオの再生準備に失敗しました。');
                 });
             } else {
-                notificationSound.play().then(() => {
-                    if (isDebug) console.log('[notifysound.js] 通知音再生成功');
-                }).catch(error => {
-                    console.error('[notifysound.js] 通知音再生エラー (play):', error);
-                    showError('通知音の再生に失敗しました。');
-                });
+                playNotificationSoundInternal(); // 内部ヘルパー関数を呼び出す
             }
         } catch (error) {
-            console.error('[notifysound.js] 通知音再生エラー (try-catch):', error);
+            console.error('[notifysound.js] 通知音再生エラー (notifyNewMessage try-catch):', error);
             showError('通知音の再生に失敗しました。');
         }
     } else {
-        if (isDebug) console.log('[notifysound.js] 通知音再生スキップ: hasUserInteracted=', hasUserInteracted, 'notificationSound存在=', !!notificationSound, 'readyState=', notificationSound?.readyState, 'isNotificationSoundEnabled=', isNotificationSoundEnabled);
+        if (isDebug) console.log('[notifysound.js] 通知音再生スキップ (notifyNewMessage): hasUserInteracted=', hasUserInteracted, 'notificationSound存在=', !!notificationSound, 'readyState=', notificationSound?.readyState, 'isNotificationSoundEnabled=', isNotificationSoundEnabled);
         if (!hasUserInteracted) {
              console.warn('[notifysound.js] 通知音を再生できませんでした: ユーザーインタラクションが不足しています。');
         } else if (!isNotificationSoundEnabled) {
-            if (isDebug) console.log('[notifysound.js] 通知音は無効です。');
+             if (isDebug) console.log('[notifysound.js] 通知音は無効です。');
         } else {
              showError('通知音が準備できていません。');
         }
@@ -267,7 +265,22 @@ export function notifyNewMessage({ title, body, iconUrl = null, url = null }) {
         };
     } else {
         if (isDebug) console.log('[notifysound.js] 通知パーミッションが拒否されています。');
-        // showError('デスクトップ通知の許可が必要です。'); // これは頻繁に出る可能性があるので、必要ならコメントアウト
+    }
+}
+
+// 内部で呼び出される playNotificationSound の実体（リファクタリング）
+// この関数は isNotificationSoundEnabled のチェックはせず、純粋に再生ロジックのみを持つ
+function playNotificationSoundInternal() {
+    if (notificationSound && notificationSound.readyState >= 2) {
+        notificationSound.play().then(() => {
+            if (isDebug) console.log('[notifysound.js] 通知音再生成功 (internal)');
+        }).catch(error => {
+            console.error('[notifysound.js] 通知音再生エラー (internal play):', error);
+            showError('通知音の再生に失敗しました。');
+        });
+    } else {
+        console.warn('[notifysound.js] 内部通知音再生スキップ: notificationSoundが準備できていません。readyState:', notificationSound?.readyState);
+        showError('通知音が準備できていません。');
     }
 }
 

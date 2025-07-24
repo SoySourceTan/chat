@@ -9,6 +9,27 @@ import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 
+// Firebase初期化とグローバル変数
+let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase();
+let isInitialized = false; // 初期化フラグ
+let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
+let isSending = false;
+let isUserScrolledUp = false;
+let isEnterSendMode = getCookie('enterSendMode') === 'true';
+let messagesElScrollHandler = null;
+let scrollTimeout = null; // スクロールイベントのデバウンス用
+let isLoading = false;
+let lastTimestamp = null;
+let latestInitialTimestamp = null;
+let isCompactMode = false;
+let lastActivity = Date.now();
+let globalSwRegistration = null; 
+let currentUserPhotoURL;
+const userCache = new Map();
+
+// FCM初期化が完了したことを示すPromise
+let fcmInitPromise = null;
+
 // 画像読み込みエラー処理関数
 function handleImageError(imgElement, userId, displayUsername, photoURL) {
     try {
@@ -23,9 +44,6 @@ function handleImageError(imgElement, userId, displayUsername, photoURL) {
         console.error('handleImageErrorエラー:', error);
     }
 }
-
-// GSAP をグローバルスコープで使用
-const { gsap } = window;
 
 // Firebase設定取得
 async function loadFirebaseConfig() {
@@ -44,22 +62,10 @@ async function loadFirebaseConfig() {
     }
 }
 
-// Firebase初期化とグローバル変数
-let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase();
-let isInitialized = false; // 初期化フラグ
-let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
-let isSending = false;
-let isUserScrolledUp = false;
-let isEnterSendMode = getCookie('enterSendMode') === 'true';
-let messagesElScrollHandler = null;
-let scrollTimeout = null; // スクロールイベントのデバウンス用
-let isLoading = false;
-let lastTimestamp = null;
-let latestInitialTimestamp = null;
-let isCompactMode = false;
-let lastActivity = Date.now();
-let currentUserPhotoURL;
-const userCache = new Map();
+
+
+// GSAP をグローバルスコープで使用
+const { gsap } = window;
 
 // ユーザーIDと背景色のマッピング
 const userColorMap = new Map();
@@ -530,6 +536,8 @@ if (userColorSelect) {
         }
     });
 }
+
+
 
 // inputEl のイベントリスナー（フォーカス、ブラー、キー入力）
 if (inputEl) {
@@ -1447,19 +1455,43 @@ auth.onAuthStateChanged(async (user) => {
                         userColorMap.set(user.uid, defaultColor);
                         setCookie(`userColor_${user.uid}`, defaultColor, 365);
                     }
-                    // reloadMessages() はここでは不要かもしれません。loadInitialMessagesが一度実行されればOKなはずです。
-                    // 必要であれば残しても構いませんが、重複がないか確認してください。
-                    // reloadMessages();
                 }
             }
-
+            
             // --- ここからトークン保存のコードを追加 ---
             const idToken = await user.getIdToken();
             console.log('Firebase ID Token:', idToken);
             localStorage.setItem('firebase_id_token', idToken);
+
+            // ★ここから前回のFCMトークン取得処理をペーストしてください★
+            try {
+                // FCM初期化が失敗している可能性があるため、globalSwRegistration が null でないことを確認
+                // null の場合は、エラーを表示して処理をスキップ
+                if (!globalSwRegistration) {
+                    console.warn('[script.js] Service Workerの登録が完了していないため、FCMトークンの取得をスキップします。');
+                    showError('プッシュ通知機能の初期化に問題があります。');
+                    return; // これ以上進まない
+                }
+
+                // Service Worker登録インスタンス (globalSwRegistration) を渡す
+                const fcmToken = await requestNotificationPermission(globalSwRegistration);
+                if (fcmToken) {
+                    console.log('[script.js] FCMトークンを取得しました:', fcmToken);
+                    await saveFCMToken(user.uid, fcmToken);
+                    console.log('[script.js] FCMトークンを保存しました。');
+                } else {
+                    console.warn('[script.js] FCMトークンを取得できませんでした。');
+                }
+            } catch (error) {
+                console.error('[script.js] FCMトークン処理エラー:', error);
+                showError('FCMトークンの取得または保存に失敗しました。');
+            }
+            // ★ここまで前回のFCMトークン取得処理をペーストしてください★
+
             // --- ここまでトークン保存のコードを追加 ---
 
         } else {
+            // ユーザーがログアウトしている場合
             console.log('[script.js] Firebase認証: ユーザーがログアウトしました。');
             // ユーザーがログアウトしている場合、保存されたトークンを削除する
             localStorage.removeItem('firebase_id_token');
