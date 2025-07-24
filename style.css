@@ -433,3 +433,11 @@ body, #messages, .message-header strong, .message-header small, #userColorSelect
     /* 初期状態では非表示にする場合は d-none を追加 */
     /* display: none; */
 }
+
+.profile-img-small {
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--bs-light);
+}
