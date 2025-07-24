@@ -58,6 +58,7 @@ let lastTimestamp = null;
 let latestInitialTimestamp = null;
 let isCompactMode = false;
 let lastActivity = Date.now();
+let currentUserPhotoURL;
 const userCache = new Map();
 
 // ユーザーIDと背景色のマッピング
