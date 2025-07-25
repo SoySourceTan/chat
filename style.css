@@ -287,23 +287,56 @@ body, #messages, .message-header strong, .message-header small, #userColorSelect
     justify-content: center;
 }
 
-.profile-img, .avatar {
+/* 既存のプロフィール画像クラスの調整（念のため確認） */
+.profile-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 8px;
+    /* transition: all 0.2s ease-in-out; */
+}
+
+.profile-img-small {
     width: 24px;
     height: 24px;
     border-radius: 50%;
     object-fit: cover;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--bs-light);
+    margin-right: 4px;
+    /* transition: all 0.2s ease-in-out; */
 }
 
 .avatar {
+    width: 24px; /* プロフィール画像と同じサイズに合わせる */
+    height: 24px; /* プロフィール画像と同じサイズに合わせる */
+    border-radius: 50%; /* 円形にする */
+    background-color: var(--bs-primary); /* 背景色（テーマカラーなど） */
+    color: var(--bs-light); /* 文字色 */
+    display: flex; /* Flexboxで内容を中央揃え */
+    align-items: center; /* 垂直方向中央 */
+    justify-content: center; /* 水平方向中央 */
+    font-size: 1.2rem; /* 文字サイズ */
+    font-weight: bold;
+    flex-shrink: 0; /* Flexアイテムとして縮小させない */
+    margin-right: 8px; /* プロフィール画像と同じ右マージン */
+    /* transition: all 0.2s ease-in-out; */ /* 必要であればアニメーションを追加 */
+}
+
+/* 小さい文字アバターのスタイル (userInfo や onlineUsers で使用する場合) */
+.avatar-small {
+    width: 24px; /* 小さいプロフィール画像と同じサイズに合わせる */
+    height: 24px; /* 小さいプロフィール画像と同じサイズに合わせる */
+    border-radius: 50%;
     background-color: var(--bs-primary);
+    color: var(--bs-light);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
-    color: var(--bs-light);
+    font-size: 0.8rem; /* 文字サイズ */
     font-weight: bold;
+    flex-shrink: 0;
+    margin-right: 4px; /* 小さいプロフィール画像と同じ右マージン */
+    /* transition: all 0.2s ease-in-out; */ /* 必要であればアニメーションを追加 */
 }
 
 .navbar-brand {
