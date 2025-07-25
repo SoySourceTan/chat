@@ -1,6 +1,7 @@
+// auth.js
 import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 import { ref, set, get, push, remove, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { showError, showSuccess, getClientIp, cleanPhotoURL } from './utils.js'; // ★修正点: cleanPhotoURL をインポート
+import { showError, showSuccess, getClientIp, cleanPhotoURL } from './utils.js';
 
 let isLoggingIn = false;
 
@@ -14,11 +15,15 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         const twitterProfile = result._tokenResponse || {};
 
         // Twitterの最新プロフィール画像（高解像度）を取得し、クエリパラメータを削除
-        // ★修正点: '_normal' を削除し、'?t=' の追加を削除して cleanPhotoURL を適用
-        const photoURLFromTwitter = twitterProfile.photoURL ? cleanPhotoURL(twitterProfile.photoURL.replace('_normal', '')) : './images/icon.png';
+        let photoURLFromTwitter = twitterProfile.photoURL ? cleanPhotoURL(twitterProfile.photoURL.replace('_normal', '')) : '';
+
+        // photoURLが有効なURLでない場合（空の場合、またはhttp/httpsで始まらない場合）は、空文字列に設定
+        if (!photoURLFromTwitter || !photoURLFromTwitter.startsWith('http')) {
+            photoURLFromTwitter = '';
+        }
 
         // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL: photoURLFromTwitter }); // ★修正点: クリーンアップされたURLを使用
+        await updateProfile(user, { photoURL: photoURLFromTwitter });
 
         // 認証状態の安定を待つ
         await new Promise((resolve) => {
@@ -43,16 +48,16 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
             username,
             provider: providerId,
             ipAddress,
-            photoURL: photoURLFromTwitter, // ★修正点: クリーンアップされたURLを保存
+            photoURL: photoURLFromTwitter, // クリーンアップされ、必要に応じて空文字列になったURLを保存
             email: user.email || null,
             emailVerified: user.emailVerified || false,
-            createdAt: existingUserData.createdAt || Date.now(), // 初回ログイン時のみ設定
+            createdAt: existingUserData.createdAt || Date.now(),
             providerData: user.providerData.map(p => ({
                 uid: p.uid,
                 displayName: p.displayName,
                 email: p.email,
                 phoneNumber: p.phoneNumber,
-                photoURL: p.photoURL ? cleanPhotoURL(p.photoURL) : null, // ★修正点: providerData内のphotoURLもクリーンアップ
+                photoURL: (p.photoURL && p.photoURL.startsWith('http')) ? cleanPhotoURL(p.photoURL) : null, // providerData内のphotoURLもクリーンアップ
                 providerId: p.providerId
             }))
         };
@@ -62,7 +67,7 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
             username,
             timestamp: Date.now(),
             userId: user.uid,
-            photoURL: photoURLFromTwitter // ★修正点: クリーンアップされたURLを保存
+            photoURL: photoURLFromTwitter // クリーンアップされ、必要に応じて空文字列になったURLを保存
         };
 
         const actionRef = push(actionsRef);
@@ -121,10 +126,15 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         const user = result.user;
 
         // GoogleのphotoURLもクリーンアップ
-        const cleanedPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : '/chat/images/default-avatar.png'; // ★修正点: クリーンアップを適用
+        let cleanedPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : ''; // デフォルトを空文字列に
+
+        // photoURLが有効なURLでない場合（空の場合、またはhttp/httpsで始まらない場合）は、空文字列に設定
+        if (!cleanedPhotoURL || !cleanedPhotoURL.startsWith('http')) {
+            cleanedPhotoURL = '';
+        }
 
         // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL: cleanedPhotoURL }); // ★修正点: クリーンアップされたURLを使用
+        await updateProfile(user, { photoURL: cleanedPhotoURL }); // クリーンアップされ、必要に応じて空文字列になったURLを使用
 
         // 認証状態の安定を待つ
         await new Promise((resolve) => {
@@ -149,7 +159,7 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
             username,
             provider: providerId,
             ipAddress,
-            photoURL: cleanedPhotoURL, // ★修正点: クリーンアップされたURLを保存
+            photoURL: cleanedPhotoURL, // クリーンアップされ、必要に応じて空文字列になったURLを保存
             email: user.email || null,
             emailVerified: user.emailVerified || false,
             createdAt: existingUserData.createdAt || Date.now(),
@@ -157,7 +167,7 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
                 providerId: data.providerId,
                 uid: data.uid,
                 displayName: data.displayName,
-                photoURL: data.photoURL ? cleanPhotoURL(data.photoURL) : null, // ★修正点: providerData内のphotoURLもクリーンアップ
+                photoURL: (data.photoURL && data.photoURL.startsWith('http')) ? cleanPhotoURL(data.photoURL) : null, // providerData内のphotoURLもクリーンアップ
                 email: data.email
             }))
         };
@@ -167,7 +177,7 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
             username,
             timestamp: Date.now(),
             userId: user.uid,
-            photoURL: cleanedPhotoURL // ★修正点: クリーンアップされたURLを保存
+            photoURL: cleanedPhotoURL // クリーンアップされ、必要に応じて空文字列になったURLを保存
         };
 
         const actionRef = push(actionsRef);
@@ -223,19 +233,11 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
     try {
         const result = await signInAnonymously(auth);
         const user = result.user;
-        const photoURL = '/chat/images/default-avatar.png'; // 匿名ユーザーのデフォルト画像
 
-        // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL: cleanPhotoURL(photoURL) }); // ★修正点: クリーンアップを適用
-
-        // 認証状態の安定を待つ
-        await new Promise((resolve) => {
-            const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-                if (currentUser && currentUser.uid === user.uid) {
-                    unsubscribe();
-                    resolve();
-                }
-            });
+        // 匿名ユーザーの場合、photoURLを明示的に空に設定
+        await updateProfile(user, {
+            displayName: user.displayName || '匿名ユーザー',
+            photoURL: '' // 匿名ユーザーのphotoURLを空に設定
         });
 
         const uniqueUsername = `anon${Date.now()}`;
@@ -246,7 +248,7 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
             username: uniqueUsername,
             provider: 'anonymous',
             ipAddress,
-            photoURL: cleanPhotoURL(photoURL), // ★修正点: クリーンアップを適用して保存
+            photoURL: '', // 匿名ユーザーのphotoURLを空に保存
             email: null,
             emailVerified: false,
             createdAt: Date.now(),
@@ -257,7 +259,7 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
             username: uniqueUsername,
             timestamp: Date.now(),
             userId: user.uid,
-            photoURL: cleanPhotoURL(photoURL) // ★修正点: クリーンアップを適用して保存
+            photoURL: '' // 匿名ユーザーのphotoURLを空に保存
         };
 
         const actionRef = push(actionsRef);
@@ -354,18 +356,20 @@ export async function updateUsername(auth, database, actionsRef, onlineUsersRef,
         const userDataSnapshot = await get(userRef);
         const userData = userDataSnapshot.exists() ? userDataSnapshot.val() : {};
 
+        // photoURLが有効なHTTP/HTTPSのURLであればそれを維持し、そうでなければ空文字列に設定
+        const updatedPhotoURL = (userData.photoURL && userData.photoURL.startsWith('http')) ? cleanPhotoURL(userData.photoURL) : '';
+
         const updates = {};
         updates[`users/${userId}`] = {
-            ...userData, // 既存のデータを保持
+            ...userData,
             username: username,
-            // photoURLは既存のものを利用しつつクリーンアップ
-            photoURL: userData.photoURL ? cleanPhotoURL(userData.photoURL) : '/chat/images/default-avatar.png', // ★修正点: photoURL をクリーンアップして保存
+            photoURL: updatedPhotoURL, // 更新されたphotoURLを保存
         };
         updates[`onlineUsers/${userId}`] = {
             username: username,
             timestamp: Date.now(),
             userId: userId,
-            photoURL: userData.photoURL ? cleanPhotoURL(userData.photoURL) : '/chat/images/default-avatar.png' // ★修正点: photoURL をクリーンアップして保存
+            photoURL: updatedPhotoURL // 更新されたphotoURLを保存
         };
         const actionRef = push(actionsRef);
         updates[`actions/${actionRef.key}`] = {

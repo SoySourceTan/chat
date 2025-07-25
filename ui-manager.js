@@ -197,7 +197,6 @@ export function updateUserUI(user, isLoggedIn, currentUserInfo) {
         if (avatarEl) {
             if (currentUserInfo.photoURL && currentUserInfo.photoURL !== 'null' && currentUserInfo.photoURL !== '') {
                 avatarEl.src = currentUserInfo.photoURL;
-                avatarEl.classList.remove('d-none');
                 avatarEl.onerror = () => handleImageError(avatarEl, user.uid, currentUserInfo.displayUsername, currentUserInfo.photoURL);
             } else {
                 handleImageError(avatarEl, user.uid, currentUserInfo.displayUsername, currentUserInfo.photoURL);

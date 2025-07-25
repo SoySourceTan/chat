@@ -10,6 +10,7 @@ import { initFirebaseServices } from './firebase-service.js';
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 
 // Firebase初期化とグローバル変数
+let globalSwRegistration = null; 
 let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase();
 let isInitialized = false; // 初期化フラグ
 let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
@@ -23,32 +24,21 @@ let lastTimestamp = null;
 let latestInitialTimestamp = null;
 let isCompactMode = false;
 let lastActivity = Date.now();
-let globalSwRegistration = null; 
 let currentUserPhotoURL;
 const userCache = new Map();
 
 // FCM初期化が完了したことを示すPromise
 let fcmInitPromise = null;
 
-// 画像読み込みエラー処理関数
-function handleImageError(imgElement, userId, displayUsername, photoURL) {
-    try {
-        const initial = displayUsername && typeof displayUsername === 'string' && displayUsername.length > 0
-            ? displayUsername.charAt(0).toUpperCase()
-            : 'A';
-        // photoURLが指定されている場合は、そのURLが壊れている可能性があるので、デフォルトのアバターに切り替える
-        // photoURLがnullの場合は、最初からデフォルトアバターを表示
-        imgElement.outerHTML = `<div class="avatar">${initial}</div>`;
-        console.log(`画像読み込みエラー: userId=${userId}, URL=${photoURL || 'なし'}。デフォルトアバターに切り替えました。`);
-    } catch (error) {
-        console.error('handleImageErrorエラー:', error);
-    }
-}
+
+
 
 // Firebase設定取得
+// Firebase設定取得関数 (パスの確認が必要です)
 async function loadFirebaseConfig() {
     try {
-        const response = await fetch('https://trextacy.com/firebase-config.php', {
+        // ★パスを再確認: /chat/ が必要か？
+        const response = await fetch('https://trextacy.com/chat/firebase-config.php', { // /chat/ を追加
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         });
@@ -62,7 +52,22 @@ async function loadFirebaseConfig() {
     }
 }
 
+// script.js の先頭付近、グローバル変数定義の後など、適切な位置に追加
+// 画像ロードエラー時に代替アバターを表示する関数
+window.handleImageError = function(imgElement, userId, username, originalPhotoURL) {
+    console.warn(`[script.js] 画像ロードエラー: userId=${userId}, username=${username}, URL=${originalPhotoURL}.`);
 
+    // 既存の<img>要素を削除
+    if (imgElement && imgElement.parentNode) {
+        const initial = username ? username.charAt(0).toUpperCase() : '?';
+        const textAvatarDiv = document.createElement('div');
+        textAvatarDiv.className = 'avatar'; // CSSで定義するクラス
+        textAvatarDiv.textContent = initial;
+
+        // img要素の代わりにdiv要素を挿入
+        imgElement.parentNode.replaceChild(textAvatarDiv, imgElement);
+    }
+};
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -1156,13 +1161,15 @@ function setupMessageListener() {
                 const formattedMessage = formatMessage(message);
                 const li = document.createElement('li');
                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3 ${assignUserBackgroundColor(userId)}`;
-                li.setAttribute('data-message-id', key);
+                li.setAttribute('data-message-id', key); 
                 li.setAttribute('data-user-id', userId);
                 li.setAttribute('role', 'listitem');
                 li.setAttribute('data-timestamp', timestamp);
                 const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
                 li.innerHTML = `
                     <div class="message bg-transparent p-2 row">
+
+
                         <div class="col-auto profile-icon">
                             ${photoURL ?
                                 `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
@@ -1181,6 +1188,12 @@ function setupMessageListener() {
                         </div>
                     </div>`;
                 messagesEl.prepend(li);
+                // ★ここからイベントリスナーを追加
+                const img = li.querySelector('.profile-img');
+                if (img) {
+                    img.onerror = () => handleImageError(img, userId, username, photoURL);
+                }
+                // ★ここまで
                 setTimeout(() => li.classList.add('show'), 10);
                 if (!isUserScrolledUp) {
                     requestAnimationFrame(() => {
@@ -1463,31 +1476,30 @@ auth.onAuthStateChanged(async (user) => {
             console.log('Firebase ID Token:', idToken);
             localStorage.setItem('firebase_id_token', idToken);
 
-            // ★ここから前回のFCMトークン取得処理をペーストしてください★
-            try {
-                // FCM初期化が失敗している可能性があるため、globalSwRegistration が null でないことを確認
-                // null の場合は、エラーを表示して処理をスキップ
-                if (!globalSwRegistration) {
-                    console.warn('[script.js] Service Workerの登録が完了していないため、FCMトークンの取得をスキップします。');
-                    showError('プッシュ通知機能の初期化に問題があります。');
-                    return; // これ以上進まない
-                }
+// ★ここから前回のFCMトークン取得処理をペーストしてください★
+try {
+    // FCM初期化が失敗している可能性があるため、globalSwRegistration が null でないことを確認
+    // null の場合は、エラーを表示して処理をスキップ
+    if (!globalSwRegistration) { // <-- ここ
+        console.warn('[script.js] Service Workerの登録が完了していないため、FCMトークンの取得をスキップします。');
+        showError('プッシュ通知機能の初期化に問題があります。');
+        return; // これ以上進まない
+    }
 
-                // Service Worker登録インスタンス (globalSwRegistration) を渡す
-                const fcmToken = await requestNotificationPermission(globalSwRegistration);
-                if (fcmToken) {
-                    console.log('[script.js] FCMトークンを取得しました:', fcmToken);
-                    await saveFCMToken(user.uid, fcmToken);
-                    console.log('[script.js] FCMトークンを保存しました。');
-                } else {
-                    console.warn('[script.js] FCMトークンを取得できませんでした。');
-                }
-            } catch (error) {
-                console.error('[script.js] FCMトークン処理エラー:', error);
-                showError('FCMトークンの取得または保存に失敗しました。');
-            }
-            // ★ここまで前回のFCMトークン取得処理をペーストしてください★
-
+    // Service Worker登録インスタンス (globalSwRegistration) を渡す
+    const fcmToken = await requestNotificationPermission(globalSwRegistration); // <-- ここ
+    if (fcmToken) {
+        console.log('[script.js] FCMトークンを取得しました:', fcmToken);
+        await saveFCMToken(user.uid, fcmToken);
+        console.log('[script.js] FCMトークンを保存しました。');
+    } else {
+        console.warn('[script.js] FCMトークンを取得できませんでした。');
+    }
+} catch (error) {
+    console.error('[script.js] FCMトークン処理エラー:', error);
+    showError('FCMトークンの取得または保存に失敗しました。');
+}
+// ★ここまで前回のFCMトークン取得処理をペーストしてください★
             // --- ここまでトークン保存のコードを追加 ---
 
         } else {
