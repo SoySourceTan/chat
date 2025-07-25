@@ -266,12 +266,13 @@ function renderOnlineUsers(users) {
                 const displayUsername = username && typeof username === 'string' ? username : '匿名';
                 const escapedUserId = escapeHTMLAttribute(userId);
                 const escapedDisplayUsername = escapeHTMLAttribute(displayUsername);
-                // ★修正点: onerror に渡す photoURL も cleanPhotoURL を適用
-                const cleanedPhotoURLForError = escapeHTMLAttribute(cleanPhotoURL(photoURL || ''));
+                const cleanedPhotoURLForError = escapeHTMLAttribute(cleanPhotoURL(photoURL || '')); // onerrorに渡すURLもクリーンアップ
+
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
-                    ${photoURL && typeof photoURL === 'string'
-                        ? `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${cleanedPhotoURLForError}')">`
-                        : `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
+                    ${photoURL && typeof photoURL === 'string' && photoURL !== '' ? // photoURL が存在し、空文字列でない場合
+                        `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${cleanedPhotoURLForError}')">` :
+                        // photoURL が空文字列の場合
+                        `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
                 </span>`;
             })
             .join('');
@@ -317,10 +318,34 @@ async function updateUserUI(user) {
             
             // プロフィールアイコンを更新
             const profileImg = document.querySelector('#profileBtn .profile-img');
-            if (profileImg) {
-                profileImg.src = `${userData.photoURL || '/learning/english-words/chat/images/icon.png'}?t=${Date.now()}`;
-                profileImg.alt = escapeHTMLAttribute(username);
-                profileImg.dataset.uid = user.uid;
+            const profileAvatarDiv = document.querySelector('#profileBtn .avatar'); // 新しく追加するavatar divのセレクタ
+
+            if (userData.photoURL && userData.photoURL !== '') {
+                // photoURLがある場合、画像を表示
+                if (profileImg) {
+                    profileImg.src = `${userData.photoURL}?t=${Date.now()}`;
+                    profileImg.alt = escapeHTMLAttribute(username);
+                    profileImg.dataset.uid = user.uid;
+                    profileImg.classList.remove('d-none'); // 画像を表示
+                }
+                if (profileAvatarDiv) {
+                    profileAvatarDiv.classList.add('d-none'); // 文字アバターを非表示
+                }
+            } else {
+                // photoURLがない場合、文字アバターを表示
+                if (profileImg) {
+                    profileImg.classList.add('d-none'); // 画像を非表示
+                }
+                if (profileAvatarDiv) {
+                    profileAvatarDiv.textContent = username.charAt(0).toUpperCase();
+                    profileAvatarDiv.classList.remove('d-none'); // 文字アバターを表示
+                } else {
+                    // もしprofileAvatarDivがまだ存在しない場合、作成して挿入
+                    const newAvatarDiv = document.createElement('div');
+                    newAvatarDiv.className = 'avatar'; // CSSで定義するクラス
+                    newAvatarDiv.textContent = username.charAt(0).toUpperCase();
+                    document.getElementById('profileBtn').prepend(newAvatarDiv); // #profileBtn の先頭に挿入
+                }
             }
             
             if (userInfo) {
@@ -823,14 +848,14 @@ if (confirmName) {
                 // ユーザー名更新成功時のUI更新
                 // ★修正点: userInfo の更新時に photoURL も考慮する
                 const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-                userInfo.innerHTML = `
-                    <span class="status-dot status-active"></span>
-                    ${userData.photoURL ? 
-                        `<img src="${escapeHTMLAttribute(userData.photoURL)}" alt="${escapeHTMLAttribute(updatedUsername)}のプロフィール画像" class="profile-img-small rounded-circle me-1" onerror="handleImageError(this, '${escapeHTMLAttribute(auth.currentUser.uid)}', '${escapeHTMLAttribute(updatedUsername)}', '${escapeHTMLAttribute(userData.photoURL)}')">` :
-                        `<div class="avatar-small rounded-circle me-1">${updatedUsername.charAt(0).toUpperCase()}</div>`
-                    }
-                    ${escapeHTMLAttribute(updatedUsername)} <i class="fas fa-pencil-alt ms-1"></i>
-                `;
+                userInfo.innerHTML = `
+                    <span class="status-dot status-active"></span>
+                    ${userData.photoURL && userData.photoURL !== '' ? 
+                        `<img src="${escapeHTMLAttribute(userData.photoURL)}" alt="${escapeHTMLAttribute(updatedUsername)}のプロフィール画像" class="profile-img-small rounded-circle me-1" onerror="handleImageError(this, '${escapeHTMLAttribute(auth.currentUser.uid)}', '${escapeHTMLAttribute(updatedUsername)}', '${escapeHTMLAttribute(userData.photoURL)}')">` :
+                        `<div class="avatar-small rounded-circle me-1">${updatedUsername.charAt(0).toUpperCase()}</div>`
+                    }
+                    ${escapeHTMLAttribute(updatedUsername)} <i class="fas fa-pencil-alt ms-1"></i>
+                `;
                 currentUserPhotoURL = userData.photoURL || null; // ★追加: ログインユーザーのphotoURLを更新
                 unameModal.hide();
                 unameInput.classList.remove('is-invalid');
@@ -1074,8 +1099,9 @@ async function loadInitialMessages() {
             li.innerHTML = `
                 <div class="message bg-transparent p-2 row">
                     <div class="col-auto profile-icon">
-                        ${photoURL ?
+                        ${photoURL && photoURL !== '' ? // photoURL が存在し、空文字列でない場合
                             `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
+                            // photoURL が空文字列の場合（匿名ユーザーや画像取得失敗時）
                             `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
                     </div>
                     <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
@@ -1168,11 +1194,10 @@ function setupMessageListener() {
                 const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
                 li.innerHTML = `
                     <div class="message bg-transparent p-2 row">
-
-
                         <div class="col-auto profile-icon">
-                            ${photoURL ?
+                            ${photoURL && photoURL !== '' ? // photoURL が存在し、空文字列でない場合
                                 `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
+                                // photoURL が空文字列の場合
                                 `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
                         </div>
                         <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
