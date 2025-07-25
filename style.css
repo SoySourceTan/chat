@@ -289,8 +289,8 @@ body, #messages, .message-header strong, .message-header small, #userColorSelect
 
 /* 既存のプロフィール画像クラスの調整（念のため確認） */
 .profile-img {
-    width: 40px;
-    height: 40px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     object-fit: cover;
     margin-right: 8px;

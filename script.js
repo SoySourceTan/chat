@@ -342,7 +342,7 @@ async function updateUserUI(user) {
             if (userData.photoURL && userData.photoURL !== '') {
                 // photoURLがある場合、画像を表示
                 if (profileImgInUserInfo) {
-                    profileImgInUserInfo.src = `${userData.photoURL}?t=${Date.now()}`;
+                    profileImgInUserInfo.src = './images/default-avatar.png?t=' + Date.now(); // ★ここを修正 (例としてdefault-avatar.pngに)
                     profileImgInUserInfo.alt = escapeHTMLAttribute(username);
                     profileImgInUserInfo.dataset.uid = user.uid;
                     profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
