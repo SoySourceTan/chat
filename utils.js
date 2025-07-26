@@ -238,15 +238,49 @@ export function escapeHTMLAttribute(str) {
  * - `URL`コンストラクタが例外をスローする可能性があるため、try-catchブロックで囲んでいます。
  */
 export function cleanPhotoURL(url) {
-    if (!url || typeof url !== 'string') {
-        return url;
+  try {
+    if (typeof url !== 'string' || url.trim() === '') {
+      console.warn('[utils.js] cleanPhotoURL: 無効なURLが検出されました。', url);
+      return url; // 無効なURLの場合はそのまま返すか、空文字などを返す
     }
-    try {
-        const urlObj = new URL(url);
-        urlObj.search = ''; // すべてのクエリパラメータを削除
-        return urlObj.toString();
-    } catch (e) {
-        console.warn('[utils.js] cleanPhotoURL: 無効なURLが検出されました。元のURLを返します。', url, e);
-        return url; // 無効なURLの場合は元のURLを返す
+
+    let absoluteUrl = url;
+    // 相対URLの場合、絶対URLに変換
+    if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../')) {
+      // 適切なベースURLを決定 (例: window.location.origin)
+      // 環境に応じて 'https://soysourcetan.github.io/chat/' や 'https://localhost/learning/english-words/chat/' を動的に構築
+      let baseUrl = window.location.origin;
+      if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+          // ローカルホストの場合、パスの調整が必要かもしれない
+          // 例: http://localhost/learning/english-words/chat/images/icon.png
+          // window.location.pathname を利用して '/learning/english-words/chat/' の部分を取得する
+          const pathParts = window.location.pathname.split('/');
+          const chatIndex = pathParts.indexOf('chat');
+          if (chatIndex > -1) {
+              baseUrl += pathParts.slice(0, chatIndex + 1).join('/');
+          } else {
+              // chat がパスに含まれない場合、現在のパスをそのまま使う
+              baseUrl += window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+          }
+      } else if (baseUrl.includes('github.io')) {
+          baseUrl += '/chat/';
+      } else if (baseUrl.includes('trextacy.com')) {
+          baseUrl += '/chat/';
+      }
+
+      try {
+        absoluteUrl = new URL(url, baseUrl).href;
+      } catch (e) {
+        console.error(`[utils.js] cleanPhotoURL: 相対URLを絶対URLに変換中にエラーが発生しました。URL: ${url}, ベース: ${baseUrl}, エラー: ${e}`);
+        return url; // 変換失敗時は元のURLを返す
+      }
     }
+
+    const urlObj = new URL(absoluteUrl);
+    urlObj.search = ''; // クエリパラメータを削除
+    return urlObj.href;
+  } catch (error) {
+    console.error('[utils.js] cleanPhotoURLエラー:', error);
+    return url;
+  }
 }

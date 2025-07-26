@@ -5,6 +5,20 @@ import { showError, showSuccess, getClientIp, cleanPhotoURL } from './utils.js';
 
 let isLoggingIn = false;
 
+
+// Helper to get base path dynamically
+function getBasePath() {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalhost) {
+        const pathParts = window.location.pathname.split('/');
+        const chatIndex = pathParts.indexOf('chat');
+        if (chatIndex > -1) {
+            return pathParts.slice(0, chatIndex + 1).join('/') + '/';
+        }
+        return '/'; // Fallback for local dev if chat not in path
+    }
+    return '/chat/'; // For deployed versions
+}
 export async function signInWithTwitter(auth, database, actionsRef, usersRef, onLoginSuccess) {
     if (isLoggingIn) return;
     isLoggingIn = true;
@@ -14,15 +28,11 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         const user = result.user;
         const twitterProfile = result._tokenResponse || {};
 
-        // Twitterの最新プロフィール画像（高解像度）を取得し、クエリパラメータを削除
-        let photoURLFromTwitter = twitterProfile.photoURL ? cleanPhotoURL(twitterProfile.photoURL.replace('_normal', '')) : '';
+        const basePath = getBasePath();
+        const defaultIconPath = `${basePath}images/icon.png`;
 
-        // photoURLが有効なURLでない場合（空の場合、またはhttp/httpsで始まらない場合）は、空文字列に設定
-        if (!photoURLFromTwitter || !photoURLFromTwitter.startsWith('http')) {
-            photoURLFromTwitter = '';
-        }
+        const photoURLFromTwitter = twitterProfile.photoURL ? cleanPhotoURL(twitterProfile.photoURL.replace('_normal', '')) : defaultIconPath;
 
-        // Firebase Authenticationのプロフィールを更新
         await updateProfile(user, { photoURL: photoURLFromTwitter });
 
         // 認証状態の安定を待つ
@@ -124,6 +134,13 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         const provider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
+        const googleProfile = result._tokenResponse || {};
+
+        const basePath = getBasePath();
+        const defaultIconPath = `${basePath}images/icon.png`;
+
+        const photoURLFromGoogle = googleProfile.picture ? cleanPhotoURL(googleProfile.picture) : defaultIconPath;
+
 
         // GoogleのphotoURLもクリーンアップ
         let cleanedPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : ''; // デフォルトを空文字列に
@@ -134,7 +151,7 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         }
 
         // Firebase Authenticationのプロフィールを更新
-        await updateProfile(user, { photoURL: cleanedPhotoURL }); // クリーンアップされ、必要に応じて空文字列になったURLを使用
+        await updateProfile(user, { photoURL: photoURLFromGoogle });
 
         // 認証状態の安定を待つ
         await new Promise((resolve) => {
@@ -234,10 +251,12 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
         const result = await signInAnonymously(auth);
         const user = result.user;
 
-        // 匿名ユーザーの場合、photoURLを明示的に空に設定
+        const basePath = getBasePath();
+        const defaultAvatarPath = `${basePath}images/default-avatar.png`;
+
         await updateProfile(user, {
-            displayName: user.displayName || '匿名ユーザー',
-            photoURL: '' // 匿名ユーザーのphotoURLを空に設定
+            displayName: `ゲスト${Math.floor(Math.random() * 10000)}`,
+            photoURL: defaultAvatarPath
         });
 
         const uniqueUsername = `anon${Date.now()}`;

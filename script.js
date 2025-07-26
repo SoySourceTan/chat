@@ -11,7 +11,7 @@ import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser
 
 // Firebase初期化とグローバル変数
 let globalSwRegistration = null; 
-let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase();
+let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase(); // ★ここでinitializeFirebaseが呼び出される
 let isInitialized = false; // 初期化フラグ
 let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
 let isSending = false;
@@ -29,9 +29,6 @@ const userCache = new Map();
 
 // FCM初期化が完了したことを示すPromise
 let fcmInitPromise = null;
-
-
-
 
 // Firebase設定取得
 // Firebase設定取得関数 (パスの確認が必要です)
@@ -332,6 +329,9 @@ async function updateUserUI(user) {
         // ログインボタンも取得（必要であれば）
         const loginBtn = document.getElementById('login-btn');
 
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const defaultAvatarPath = isLocalhost ? '/learning/english-words/chat/images/default-avatar.png' : '/chat/images/default-avatar.png';
+
         if (user) {
             userCache.delete(user.uid);
             userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
@@ -342,7 +342,7 @@ async function updateUserUI(user) {
             if (userData.photoURL && userData.photoURL !== '') {
                 // photoURLがある場合、画像を表示
                 if (profileImgInUserInfo) {
-                    profileImgInUserInfo.src = './images/default-avatar.png?t=' + Date.now(); // ★ここを修正 (例としてdefault-avatar.pngに)
+                    profileImgInUserInfo.src = './images/default-avatar.png' // ★ここを修正 (例としてdefault-avatar.pngに)
                     profileImgInUserInfo.alt = escapeHTMLAttribute(username);
                     profileImgInUserInfo.dataset.uid = user.uid;
                     profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
@@ -1730,11 +1730,151 @@ setInterval(() => {
     }
 }, 5000); // 5秒ごとにチェック
 
-// 初回ロード時にProgress Overlayを表示 (変更なし)
+// DOMContentLoaded イベントリスナーのセットアップ
 document.addEventListener('DOMContentLoaded', () => {
-    showProgressOverlay();
+    // DOM要素の取得
+    formEl = document.getElementById('message-form');
+    messagesEl = document.getElementById('messages');
+    inputEl = document.getElementById('message-input');
+    errorAlert = document.getElementById('error-alert');
+    loginBtn = document.getElementById('login-btn');
+    twitterLogin = document.getElementById('twitter-login');
+    googleLogin = document.getElementById('google-login');
+    anonymousLogin = document.getElementById('anonymous-login');
+    userInfo = document.getElementById('user-info');
+    unameModalEl = document.getElementById('unameModal');
+    unameModal = new bootstrap.Modal(unameModalEl);
+    loginModalEl = document.getElementById('loginModal');
+    loginModal = new bootstrap.Modal(loginModalEl);
+    unameInput = document.getElementById('uname-input');
+    messageCountElement = document.getElementById('messageCount');
+    chatSoundToggle = document.getElementById('chatSoundToggle');
+    notificationSoundToggle = document.getElementById('notificationSoundToggle');
+    userListModal = new bootstrap.Modal(document.getElementById('userListModal'));
+    userListBtn = document.getElementById('userListBtn');
+    colorPickerButton = document.getElementById('colorPickerButton');
+    colorPickerModal = new bootstrap.Modal(document.getElementById('colorPickerModal'));
+    colorPalette = document.getElementById('colorPalette');
+    applyColorButton = document.getElementById('applyColorButton');
+    currentColorDisplay = document.getElementById('currentColorDisplay');
+    colorAssignmentModeToggle = document.getElementById('colorAssignmentModeToggle');
+    newMessagesIndicator = document.getElementById('newMessagesIndicator');
+    newMessageBtn = document.getElementById('newMessageBtn');
+    
+    initNotify(); // notifysound.js の初期化
+    setupEventListeners(); // イベントリスナーの設定
 });
 
+async function setupFirebase() {
+    try {
+        ({ app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase());
+        console.log('[script.js] Firebaseサービス初期化完了');
+
+        // Firebase Auth の状態変更を監視
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log('[script.js] Firebase認証: ユーザーがログインしました。');
+                updateUserUI(user); // UI更新
+                await loadInitialMessages(user.uid); // メッセージ読み込み
+                setupMessageListener(user.uid); // メッセージリスナー設定
+                setupUserStatusListener(user.uid); // ユーザーオンライン状態リスナー
+                setupPresenceSystem(user.uid); // プレゼンスシステム
+
+                // ★★★ FCMの初期化とトークン取得をここで行う ★★★
+                const VAPID_KEY = 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw'; // ウェブプッシュ証明書.txt から取得した公開鍵
+
+                if (window.globalSwRegistration) {
+                    await initFCM(app, database, window.globalSwRegistration);
+                    console.log('[script.js] FCMサービス初期化完了');
+                    // initFCM 完了後にトークンを取得
+                    try {
+                        const token = await requestNotificationPermission(VAPID_KEY); 
+                        if (token) {
+                            console.log('[script.js] FCMトークン取得成功。');
+                            await saveFCMToken(user.uid, token);
+                        } else {
+                            console.log('[script.js] FCMトークンを取得できませんでした。');
+                        }
+                    } catch (fcmError) {
+                        console.error('[script.js] FCMトークン取得または保存エラー:', fcmError);
+                        if (fcmError.code === 'messaging/permission-blocked') {
+                            showError('通知の許可がブロックされました。ブラウザの設定で許可してください。');
+                        } else if (fcmError.code === 'messaging/token-not-generated') {
+                            showError('通知トークンの生成に失敗しました。');
+                        } else {
+                            showError('通知設定中にエラーが発生しました。');
+                        }
+                    }
+
+                } else {
+                    console.warn('[script.js] サービスワーカー登録がまだ完了していないため、FCM初期化を遅延します。');
+                    // サービスワーカーの登録完了を待ってから initFCM とトークン取得を呼び出す
+                    navigator.serviceWorker.ready.then(async (registration) => {
+                        window.globalSwRegistration = registration; // 念のためグローバルにも設定
+                        await initFCM(app, database, registration);
+                        console.log('[script.js] FCMサービス遅延初期化完了 (Service Worker Ready)');
+                        
+                        try {
+                            const token = await requestNotificationPermission(VAPID_KEY); 
+                            if (token) {
+                                console.log('[script.js] FCMトークン取得成功。');
+                                await saveFCMToken(user.uid, token);
+                            } else {
+                                console.log('[script.js] FCMトークンを取得できませんでした。');
+                            }
+                        } catch (fcmError) {
+                            console.error('[script.js] FCMトークン取得または保存エラー (Service Worker Ready内):', fcmError);
+                            if (fcmError.code === 'messaging/permission-blocked') {
+                                showError('通知の許可がブロックされました。ブラウザの設定で許可してください。');
+                            } else if (fcmError.code === 'messaging/token-not-generated') {
+                                showError('通知トークンの生成に失敗しました。');
+                            } else {
+                                showError('通知設定中にエラーが発生しました。');
+                            }
+                        }
+
+                    }).catch(error => {
+                        console.error('[script.js] サービスワーカーの準備中にエラー:', error);
+                    });
+                }
+                
+                // ログイン時の色設定処理
+                const userColorFromCookie = getCookie(`userColor_${user.uid}`);
+                if (userColorFromCookie) {
+                    userColorMap.set(user.uid, userColorFromCookie);
+                    document.documentElement.style.setProperty('--current-user-color', `var(--${userColorFromCookie})`);
+                    console.log(`[script.js] ログイン時色設定: ユーザー ${user.uid}, 色: ${userColorFromCookie}`);
+                }
+
+
+            } else {
+                console.log('[script.js] Firebase認証: ユーザーがログアウトしました。');
+                // ログアウト時のUI更新
+                updateUserUI(null);
+                // メッセージリスナーを解除
+                if (messagesRef) {
+                    // onChildAdded(messagesRef, () => {}); これがメッセージリスナーを解除する一般的な方法ですが、
+                    // FirebaseのSDKのバージョンやAPIの変更により、より明示的なリスナー解除が必要になる場合があります。
+                    // 適切なリスナー解除ロジックをここに追加してください。
+                }
+                // オンラインユーザー状態をクリア
+                clearOnlineStatus();
+                // ページをリロードして初期状態に戻す (オプション)
+                // window.location.reload();
+            }
+        });
+
+        // ページロード時の初回処理（認証状態に依存しない初期化）
+        if (!auth.currentUser) {
+            // ユーザーがまだログインしていない場合のUI更新など
+            updateUserUI(null);
+        }
+
+    } catch (error) {
+        console.error('[script.js] Firebaseサービスの初期化中にエラーが発生しました:', error);
+        showError('アプリケーションの初期化に失敗しました。時間をおいて再度お試しください。');
+    }
+}
 // showProgressOverlay 関数の追加 (定義がなかったので追加)
 function showProgressOverlay() {
     if (progressOverlay) {

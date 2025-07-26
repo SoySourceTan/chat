@@ -20,6 +20,48 @@
 
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://soysourcetan.github.io https://apis.google.com https://*.firebaseio.com https://www.googleapis.com;">
     <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js"></script>
+    <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script type="module" src="./utils.js"></script>
+    <script type="module" src="./auth.js"></script>
+    <script type="module" src="./chclear.js"></script>
+<script>
+    // globalSwRegistration をグローバルスコープで宣言するか、
+    // script.js の import 処理の前にアクセスできるようにする
+    // 例: window.globalSwRegistration = null; のように定義
+    // または、script.js 内で globalSwRegistration を初期化する
+    // 現状、script.js側で let globalSwRegistration = null; があるので、
+    // ここで代入するだけでOKです。
+
+    if ('serviceWorker' in navigator) {
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const swPath = isLocalhost ? './firebase-messaging-sw.js' : '/chat/firebase-messaging-sw.js';
+        const swScope = isLocalhost ? '/learning/english-words/chat/' : '/chat/';
+
+        navigator.serviceWorker.register(swPath, { scope: swScope })
+            .then(registration => {
+                console.log('サービスワーカー登録成功:', registration.scope);
+                // ここで globalSwRegistration に代入する
+                // script.js が type="module" で遅延読み込みされるため、
+                // script.js 内で globalSwRegistration を初期化している場合、
+                // ここで代入しても間に合わない可能性があります。
+                // その場合、script.js の DOMContentLoaded 内で Service Worker の registration を取得し直すか、
+                // globalSwRegistration を window オブジェクトに紐付ける必要があります。
+                // 例: window.globalSwRegistration = registration;
+                // script.js 側で window.globalSwRegistration を参照するように変更
+                window.globalSwRegistration = registration; // ★この行を追加または修正
+            })
+            .catch(error => {
+                console.error('サービスワーカー登録エラー:', error);
+            });
+    }
+</script>
+<script type="module" src="./script.js"></script>
+
+
 </head>
 <body class="d-flex flex-column vh-100">
   <div id="initial-loading-overlay" class="initial-loading-overlay">
@@ -178,47 +220,5 @@
     <i class="fas fa-arrow-up"></i>
   </button>
 <!-- アプリのスクリプト -->
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js"></script>
-    <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <script type="module" src="./utils.js"></script>
-    <script type="module" src="./auth.js"></script>
-    <script type="module" src="./chclear.js"></script>
-    <script type="module" src="./script.js"></script>
-<script>
-    // globalSwRegistration をグローバルスコープで宣言するか、
-    // script.js の import 処理の前にアクセスできるようにする
-    // 例: window.globalSwRegistration = null; のように定義
-    // または、script.js 内で globalSwRegistration を初期化する
-    // 現状、script.js側で let globalSwRegistration = null; があるので、
-    // ここで代入するだけでOKです。
-
-    if ('serviceWorker' in navigator) {
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const swPath = isLocalhost ? './firebase-messaging-sw.js' : '/chat/firebase-messaging-sw.js';
-        const swScope = isLocalhost ? '/learning/english-words/chat/' : '/chat/';
-
-        navigator.serviceWorker.register(swPath, { scope: swScope })
-            .then(registration => {
-                console.log('サービスワーカー登録成功:', registration.scope);
-                // ここで globalSwRegistration に代入する
-                // script.js が type="module" で遅延読み込みされるため、
-                // script.js 内で globalSwRegistration を初期化している場合、
-                // ここで代入しても間に合わない可能性があります。
-                // その場合、script.js の DOMContentLoaded 内で Service Worker の registration を取得し直すか、
-                // globalSwRegistration を window オブジェクトに紐付ける必要があります。
-                // 例: window.globalSwRegistration = registration;
-                // script.js 側で window.globalSwRegistration を参照するように変更
-                window.globalSwRegistration = registration; // ★この行を追加または修正
-            })
-            .catch(error => {
-                console.error('サービスワーカー登録エラー:', error);
-            });
-    }
-</script>
-
-
 </body>
 </html>
