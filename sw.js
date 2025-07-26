@@ -6,7 +6,7 @@ console.log('Service Worker is running. Version: 2.0.1');
 // このファイルは /chat/sw.js (GitHub Pages) または /learning/english-words/chat/sw.js (localhost) に配置されます。
 
 // Firebase Cloud Messaging Service Workerをインポート
-importScripts('./firebase-messaging-sw.js');
+importScripts('./firebase-messaging-sw.js'); // 修正: 相対パスを使用
 
 const CACHE_NAME = 'chat-cache-v1';
 const urlsToCache = [
@@ -23,7 +23,7 @@ const urlsToCache = [
   'https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js',
-  'https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js',
+   'https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js'
 ];
 

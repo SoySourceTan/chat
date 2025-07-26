@@ -1,7 +1,7 @@
 // ui-manager.js
 
 // 必要なユーティリティ関数をインポート
-import { showError, showSuccess, showToast, getCookie, setCookie, isMobileDevice, escapeHTMLAttribute } from './utils.js';
+import { showError, showSuccess, showToast, getCookie, setCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL } from './utils.js'; // cleanPhotoURLを追加
 
 // DOM要素の取得
 // これらの変数はDOM要素を保持します。
@@ -37,228 +37,280 @@ export let userColorPreference;
 export let userColorPicker;
 export let resetUserColorBtn;
 export let userColorDisplay;
+// export let loginModalEl; // loginModalがHTMLに存在しないため削除
+export let unameModalEl;
 
-// モーダルのDOM要素をエクスポート
-export let loginModalEl; // この変数はDOM要素を保持します
-export let unameModalEl; // この変数はDOM要素を保持します
 
-// UIの状態変数
-let isCompactMode = getCookie('compactMode') === 'true';
-let currentFontSize = getCookie('fontSize') || 'medium';
-let colorAssignmentMode = getCookie('colorAssignmentMode') || 'sequential';
-let enterMode = getCookie('enterMode') || 'enter';
-let isDebugMode = getCookie('debugMode') === 'true';
-
-// スクロール位置追跡用
-let isUserScrolledUp = false;
-
-// UIの初期化を行う関数
-export function setupUI(authInstance, databaseInstance, onLoginSuccessCallback, onLogoutSuccessCallback, onNameUpdateSuccessCallback, sendMessageCallback, loadMoreMessagesCallback, uploadImageCallback, reportUserCallback, bannedUsersRef, deleteMessageCallback) {
-    // DOM要素を初期化
+// UIの初期化
+/**
+ * UIのDOM要素を取得し、イベントリスナーを設定して初期化します。
+ * @param {object} authInstance - Firebase Authインスタンス
+ * @param {object} databaseInstance - Firebase Realtime Databaseインスタンス
+ * @param {function} onLoginSuccessCallback - ログイン成功時のコールバック
+ * @param {function} onLogoutSuccessCallback - ログアウト成功時のコールバック
+ * @param {function} onNameUpdateSuccessCallback - ユーザー名更新成功時のコールバック
+ * @param {function} onMessageSendCallback - メッセージ送信時のコールバック
+ * @param {function} onDeleteMessageCallback - メッセージ削除時のコールバック
+ * @param {function} onPushNotificationToggle - プッシュ通知トグル時のコールバック
+ * @param {function} onMessageLimitChange - メッセージ表示数変更時のコールバック
+ * @param {function} onColorModeChange - 背景色モード変更時のコールバック
+ * @param {function} onUserColorChange - ユーザーメッセージ色変更時のコールバック
+ * @param {function} onResetUserColor - ユーザーメッセージ色リセット時のコールバック
+ */
+export function setupUI(
+    authInstance,
+    databaseInstance,
+    onLoginSuccessCallback,
+    onLogoutSuccessCallback,
+    onNameUpdateSuccessCallback,
+    onMessageSendCallback,
+    onDeleteMessageCallback,
+    onPushNotificationToggle,
+    onMessageLimitChange,
+    onColorModeChange,
+    onUserColorChange,
+    onResetUserColor
+) {
+    // DOM要素の参照を取得
     formEl = document.getElementById('message-form');
     inputEl = document.getElementById('message-input');
     messagesEl = document.getElementById('messages');
-    loginBtn = document.getElementById('login-btn');
+    loginBtn = document.getElementById('loginBtn');
     errorAlert = document.getElementById('error-alert');
     onlineUsersCountEl = document.getElementById('online-users-count');
     onlineUsersListEl = document.getElementById('online-users-list');
-    compactModeBtn = document.getElementById('compact-mode-btn');
-    fontSizeS = document.getElementById('font-size-s');
-    fontSizeM = document.getElementById('font-size-m');
-    fontSizeL = document.getElementById('font-size-l');
-    toggleEnterModeBtn = document.getElementById('toggle-enter-mode');
+    compactModeBtn = document.getElementById('compactModeBtn');
+    fontSizeS = document.getElementById('fontSizeS');
+    fontSizeM = document.getElementById('fontSizeM');
+    fontSizeL = document.getElementById('fontSizeL');
+    toggleEnterModeBtn = document.getElementById('toggleEnterModeBtn');
     newNameInput = document.getElementById('new-name-input');
-    saveNameBtn = document.getElementById('save-name-btn');
-    logoutBtn = document.getElementById('logout-btn');
+    saveNameBtn = document.getElementById('saveNameBtn');
+    logoutBtn = document.getElementById('logoutBtn');
     avatarEl = document.getElementById('avatar');
     currentUsernameEl = document.getElementById('current-username');
-    userIdEl = document.getElementById('user-id');
-    toggleDebugModeBtn = document.getElementById('toggle-debug-mode');
+    userIdEl = document.getElementById('user-id-display');
+    toggleDebugModeBtn = document.getElementById('toggleDebugModeBtn');
     debugInfoEl = document.getElementById('debug-info');
     versionInfoEl = document.getElementById('version-info');
-    notificationToggle = document.getElementById('notification-toggle');
-    pushNotificationSwitch = document.getElementById('push-notification-switch');
-    messageDisplayLimitSelect = document.getElementById('message-display-limit');
-    loginDropdown = document.getElementById('login-dropdown');
-    messageLoadingSpinner = document.getElementById('message-loading-spinner');
-    loadingMessageDiv = document.getElementById('loading-message');
-    newMessageBtn = document.getElementById('new-message-btn');
-    userColorPreference = document.getElementById('user-color-preference');
-    userColorPicker = document.getElementById('user-color-picker');
-    resetUserColorBtn = document.getElementById('reset-user-color-btn');
-    userColorDisplay = document.getElementById('user-color-display');
+    notificationToggle = document.getElementById('notificationToggle');
+    pushNotificationSwitch = document.getElementById('pushNotificationSwitch');
+    messageDisplayLimitSelect = document.getElementById('messageDisplayLimitSelect');
+    loginDropdown = document.getElementById('loginDropdown');
+    messageLoadingSpinner = document.querySelector('#loading-message-div .spinner-border');
+    loadingMessageDiv = document.getElementById('loading-message-div');
+    newMessageBtn = document.getElementById('newMessageBtn');
+    userColorPreference = getCookie('colorAssignmentMode') || 'sequential';
+    userColorPicker = document.getElementById('userColorOptions');
+    resetUserColorBtn = document.getElementById('resetUserColorBtn');
+    userColorDisplay = document.getElementById('user-color-display'); // 新しい要素
 
-    // モーダルのDOM要素を取得
-    loginModalEl = document.getElementById('loginModal');
-    unameModalEl = document.getElementById('unameModal');
+    // モーダル要素の取得と初期化
+    // loginModalEl = new bootstrap.Modal(document.getElementById('loginModal')); // id="loginModal" がHTMLに存在しないためコメントアウトまたは削除
+    unameModalEl = new bootstrap.Modal(document.getElementById('usernameModal'));
 
-    // Bootstrap Modalインスタンスを別途作成
-    const loginModalInstance = loginModalEl ? new bootstrap.Modal(loginModalEl) : null;
-    const unameModalInstance = unameModalEl ? new bootstrap.Modal(unameModalEl) : null;
+    // イベントリスナーの設定
+    // ログイン関連
+    document.getElementById('googleLoginBtn').addEventListener('click', () => onLoginSuccessCallback('google'));
+    document.getElementById('twitterLoginBtn').addEventListener('click', () => onLoginSuccessCallback('twitter'));
+    document.getElementById('anonymousLoginBtn').addEventListener('click', () => onLoginSuccessCallback('anonymous'));
+    logoutBtn.addEventListener('click', onLogoutSuccessCallback);
 
-    // ... その他のDOM要素の初期化やイベントリスナーの設定 ...
+    // メッセージ送信
+    formEl.addEventListener('submit', onMessageSendCallback);
 
-    // モーダル非表示時のフォーカス管理
-    if (unameModalEl) { // ここでunameModalElはDOM要素
-        unameModalEl.addEventListener('hidden.bs.modal', () => {
-            unameModalEl.setAttribute('inert', '');
-            if (loginBtn) loginBtn.focus();
-        });
-    }
-
-    if (loginModalEl) { // ここでloginModalElはDOM要素
-        loginModalEl.addEventListener('hidden.bs.modal', () => {
-            loginModalEl.setAttribute('inert', '');
-            if (loginBtn) loginBtn.focus();
-        });
-    }
-
-    // 他のイベントリスナーの設定...
-    if (formEl) {
-        formEl.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const messageText = inputEl.value;
-            callbacks.onSendMessage(messageText);
-        });
-    }
-
-    // 新着メッセージボタン (変更なし) - これはDOM要素に依存するため、DOM要素の初期化後に配置
-    if (newMessageBtn) {
-        newMessageBtn.addEventListener('click', () => {
-            try {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                isUserScrolledUp = false;
-                newMessageBtn.classList.add('d-none');
-            } catch (error) {
-                console.error('新着メッセージボタンエラー:', error);
-            }
-        });
-    }
-
-    // アクティビティトラッキング（ユーザーの離席状態を検知） (変更なし)
-    function resetActivityTimer() {
-        lastActivity = Date.now();
-    }
-
-    ['mousemove', 'keydown', 'click', 'scroll'].forEach(eventType => {
-        document.addEventListener(eventType, resetActivityTimer);
+    // ユーザー名変更
+    document.getElementById('editNameBtn').addEventListener('click', () => {
+        const currentName = currentUsernameEl.textContent;
+        newNameInput.value = currentName;
+        unameModalEl.show();
     });
+    saveNameBtn.addEventListener('click', () => {
+        const newName = newNameInput.value.trim();
+        if (newName) {
+            onNameUpdateSuccessCallback(newName);
+            unameModalEl.hide();
+        } else {
+            showError('ユーザー名を入力してください。');
+        }
+    });
+
+    // メッセージ削除確認モーダル
+    const deleteMessageModal = new bootstrap.Modal(document.getElementById('deleteMessageModal'));
+    let messageToDeleteId = null; // 削除対象のメッセージIDを保持する変数
+
+    messagesEl.addEventListener('click', (event) => {
+        const deleteButton = event.target.closest('.delete-message-btn');
+        if (deleteButton) {
+            messageToDeleteId = deleteButton.dataset.messageId;
+            deleteMessageModal.show();
+        }
+    });
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+        if (messageToDeleteId) {
+            onDeleteMessageCallback(messageToDeleteId);
+            messageToDeleteId = null; // リセット
+            deleteMessageModal.hide();
+        }
+    });
+
+    // 設定関連
+    compactModeBtn.addEventListener('click', () => {
+        document.body.classList.toggle('compact-mode');
+        const isCompact = document.body.classList.contains('compact-mode');
+        setCookie('compactMode', isCompact ? 'true' : 'false', 365);
+        showSuccess(`コンパクトモードを${isCompact ? '有効' : '無効'}にしました。`);
+    });
+
+    fontSizeS.addEventListener('click', () => setFontSize('small'));
+    fontSizeM.addEventListener('click', () => setFontSize('medium'));
+    fontSizeL.addEventListener('click', () => setFontSize('large'));
+
+    toggleEnterModeBtn.addEventListener('click', () => {
+        const currentMode = getCookie('enterSendMode') === 'true';
+        setCookie('enterSendMode', !currentMode ? 'true' : 'false', 365);
+        showSuccess(`Enterで送信モードを${!currentMode ? '有効' : '無効'}にしました。`);
+    });
+
+    notificationToggle.addEventListener('change', (event) => {
+        const isEnabled = event.target.checked;
+        setCookie('notificationSoundEnabled', isEnabled ? 'true' : 'false', 365);
+        initNotify(); // 設定を反映するために再初期化
+        showSuccess(`通知音を${isEnabled ? '有効' : '無効'}にしました。`);
+    });
+
+    pushNotificationSwitch.addEventListener('change', (event) => {
+        onPushNotificationToggle(event.target.checked);
+    });
+
+    messageDisplayLimitSelect.addEventListener('change', (event) => {
+        onMessageLimitChange(parseInt(event.target.value, 10));
+    });
+
+    document.getElementById('colorModeSequential').addEventListener('click', () => onColorModeChange('sequential'));
+    document.getElementById('colorModeRandom').addEventListener('click', () => onColorModeChange('random'));
+    document.getElementById('colorModeManual').addEventListener('click', () => {
+        onColorModeChange('user-selected');
+        document.getElementById('userColorPickerContainer').classList.remove('d-none');
+    });
+
+    // ユーザーメッセージ色選択
+    userColorPicker.addEventListener('click', (event) => {
+        const colorOption = event.target.closest('.color-option');
+        if (colorOption) {
+            const selectedColor = colorOption.dataset.colorClass;
+            onUserColorChange(selectedColor);
+            // 選択状態のUIを更新
+            userColorPicker.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+            colorOption.classList.add('selected');
+        }
+    });
+
+    resetUserColorBtn.addEventListener('click', () => onResetUserColor());
+
+
+    // デバッグモードトグル
+    toggleDebugModeBtn.addEventListener('click', () => {
+        debugInfoEl.classList.toggle('d-none');
+        const isDebugMode = !debugInfoEl.classList.contains('d-none');
+        setCookie('debugMode', isDebugMode ? 'true' : 'false', 365);
+        showSuccess(`デバッグモードを${isDebugMode ? '有効' : '無効'}にしました。`);
+    });
+
+
+    // 初期状態の適用
+    applyInitialSettings();
 }
 
-
-// その他の関数（setCompactMode, setFontSize, updateEnterModeButton, updateUserUI, renderOnlineUsers, startTitleFlash, stopTitleFlash, updateStatusIndicator, disposeTooltip, showTooltip, handleImageError, getClientIpは変更なし）
-
-// Compact Mode
-function setCompactMode(enabled) {
-    document.body.classList.toggle('compact-mode', enabled);
-}
-
-// Font Size
+/**
+ * フォントサイズを設定し、クッキーに保存します。
+ * @param {string} size - 'small', 'medium', 'large'
+ */
 function setFontSize(size) {
     document.body.classList.remove('font-small', 'font-medium', 'font-large');
     document.body.classList.add(`font-${size}`);
     setCookie('fontSize', size, 365);
-    currentFontSize = size;
-    showSuccess(`フォントサイズを「${size === 'small' ? '小' : size === 'medium' ? '中' : '大'}」に設定しました。`);
-}
-
-// Enter Mode Button Text
-function updateEnterModeButton() {
-    if (toggleEnterModeBtn) {
-        toggleEnterModeBtn.textContent = enterToSend ? 'Enterで送信 (Shift+Enterで改行)' : 'Shift+Enterで送信 (Enterで改行)';
-    }
+    showSuccess(`フォントサイズを${size === 'small' ? '小' : size === 'medium' ? '中' : '大'}に設定しました。`);
 }
 
 /**
- * ユーザーUIの更新
- * @param {object} user - Firebase Userオブジェクト
- * @param {boolean} isLoggedIn - ログイン状態
- * @param {object} currentUserInfo - 現在のユーザー情報
+ * 初期設定（クッキーから読み込み）をUIに適用します。
  */
-export function updateUserUI(user, isLoggedIn, currentUserInfo) {
-    if (isLoggedIn && user) {
-        loginBtn.classList.add('d-none');
-        loginDropdown.classList.remove('d-none');
-        currentUsernameEl.textContent = currentUserInfo.displayUsername || '名無し';
-        userIdEl.textContent = user.uid;
-        // userColorPicker の初期値を設定
-        if (userColorPicker) {
-            userColorPicker.value = assignUserBackgroundColor(user.uid);
-            userColorDisplay.style.backgroundColor = userColorPicker.value;
-        }
-
-        // ラジオボタンの初期選択
-        const colorAssignmentMode = getCookie('colorAssignmentMode') || 'sequential';
-        const selectedRadio = document.querySelector(`input[name="colorAssignmentMode"][value="${colorAssignmentMode}"]`);
-        if (selectedRadio) {
-            selectedRadio.checked = true;
-        }
-
-        if (avatarEl) {
-            if (currentUserInfo.photoURL && currentUserInfo.photoURL !== 'null' && currentUserInfo.photoURL !== '') {
-                avatarEl.src = currentUserInfo.photoURL;
-                avatarEl.onerror = () => handleImageError(avatarEl, user.uid, currentUserInfo.displayUsername, currentUserInfo.photoURL);
-            } else {
-                handleImageError(avatarEl, user.uid, currentUserInfo.displayUsername, currentUserInfo.photoURL);
-            }
-        }
+function applyInitialSettings() {
+    // コンパクトモード
+    if (getCookie('compactMode') === 'true') {
+        document.body.classList.add('compact-mode');
+    }
+    // フォントサイズ
+    const savedFontSize = getCookie('fontSize');
+    if (savedFontSize) {
+        setFontSize(savedFontSize);
     } else {
-        loginBtn.classList.remove('d-none');
-        loginBtn.textContent = 'ログイン';
-        loginDropdown.classList.add('d-none');
-        currentUsernameEl.textContent = 'ゲスト';
-        userIdEl.textContent = 'N/A';
-        avatarEl.src = '';
-        avatarEl.classList.add('d-none');
+        setFontSize('medium'); // デフォルト
     }
-}
+    // Enterで送信モード
+    if (getCookie('enterSendMode') === 'true') {
+        // 特にUI変更は不要だが、script.jsでこの設定が使われる
+    }
+    // 通知音
+    if (getCookie('notificationSoundEnabled') === 'true') {
+        notificationToggle.checked = true;
+    } else {
+        notificationToggle.checked = false;
+    }
+    // プッシュ通知はFCM初期化時に別途処理
+    if (getCookie('pushNotificationEnabled') === 'true') {
+        pushNotificationSwitch.checked = true;
+    } else {
+        pushNotificationSwitch.checked = false;
+    }
 
-// オンラインユーザーのリストをレンダリング
-export function renderOnlineUsers(onlineUsers) {
-    if (onlineUsersCountEl) {
-        onlineUsersCountEl.textContent = onlineUsers.length;
+    // メッセージ表示数
+    const savedMessageLimit = getCookie('messageDisplayLimit');
+    if (savedMessageLimit) {
+        messageDisplayLimitSelect.value = savedMessageLimit;
     }
-    if (onlineUsersListEl) {
-        onlineUsersListEl.innerHTML = '';
-        if (onlineUsers.length === 0) {
-            const li = document.createElement('li');
-            li.className = 'list-group-item';
-            li.textContent = 'オンラインユーザーはいません。';
-            onlineUsersListEl.appendChild(li);
-        } else {
-            onlineUsers.forEach(user => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item';
-                li.textContent = user;
-                onlineUsersListEl.appendChild(li);
-            });
+
+    // デバッグモード
+    if (getCookie('debugMode') === 'true') {
+        debugInfoEl.classList.remove('d-none');
+    }
+
+    // 背景色モードとユーザーカラー
+    const savedColorMode = getCookie('colorAssignmentMode');
+    if (savedColorMode) {
+        userColorPreference = savedColorMode;
+        if (savedColorMode === 'user-selected') {
+            document.getElementById('userColorPickerContainer').classList.remove('d-none');
         }
     }
+    // ユーザーカラーオプションの動的生成
+    const colors = [
+        'var(--bs-message-pink)', 'var(--bs-message-lime)', 'var(--bs-message-lilac)',
+        'var(--bs-message-lavender)', 'var(--bs-message-aqua)', 'var(--bs-message-mint)',
+        'var(--bs-message-yellow)', 'var(--bs-message-green)', 'var(--bs-message-cyan)',
+        'var(--bs-message-purple)'
+    ];
+    const colorClassNames = [
+        'bg-user-0', 'bg-user-1', 'bg-user-2', 'bg-user-3', 'bg-user-4',
+        'bg-user-5', 'bg-user-6', 'bg-user-7', 'bg-user-8', 'bg-user-9'
+    ];
+    userColorPicker.innerHTML = ''; // 既存のオプションをクリア
+    colors.forEach((color, index) => {
+        const colorOption = document.createElement('div');
+        colorOption.className = 'color-option';
+        colorOption.style.backgroundColor = color;
+        colorOption.dataset.colorClass = colorClassNames[index];
+        userColorPicker.appendChild(colorOption);
+    });
 }
 
-// タブのタイトルを点滅させる
-let titleFlashInterval;
-let originalTitle = document.title;
 
-export function startTitleFlash(newMessage) {
-    if (titleFlashInterval) return; // 既に点滅中の場合は何もしない
-
-    let toggle = false;
-    titleFlashInterval = setInterval(() => {
-        document.title = toggle ? newMessage : originalTitle;
-        toggle = !toggle;
-    }, 1000); // 1秒ごとに切り替え
-}
-
-export function stopTitleFlash() {
-    if (titleFlashInterval) {
-        clearInterval(titleFlashInterval);
-        titleFlashInterval = null;
-        document.title = originalTitle; // 元のタイトルに戻す
-    }
-}
-
-// ユーザーのアクティビティ状態をUIに反映
+/**
+ * ステータスインジケーターの表示を更新します。
+ * @param {string} status - 'online' または 'offline'
+ */
 export function updateStatusIndicator(status) {
     const statusIndicator = document.getElementById('status-indicator');
     if (statusIndicator) {
@@ -303,6 +355,6 @@ export function handleImageError(imgElement, userId, displayUsername, photoURL) 
         imgElement.outerHTML = `<div class="avatar">${initial}</div>`;
         console.log(`画像読み込みエラー: userId=${userId}, URL=${photoURL || 'なし'}`);
     } catch (error) {
-        console.error('handleImageErrorでのエラー:', error);
+        console.error('handleImageErrorエラー:', error);
     }
 }

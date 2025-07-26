@@ -6,7 +6,7 @@ const isDebug = true; // debugフラグをファイルの先頭で定義
 import { showError, showToast } from './utils.js';
 
 let notificationSound = null;
-let audioContext = null;
+let audioContext;
 let hasUserInteracted = false;
 // クッキーから初期状態を読み込む。クッキーがなければ 'true' (ON) をデフォルトとする。
 let isNotificationSoundEnabled = getCookieLocal('notificationSoundEnabled') === 'false' ? false : true;

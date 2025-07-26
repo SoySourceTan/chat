@@ -202,29 +202,36 @@ export function isMobileDevice() {
 }
 
 /**
- * HTML属性用の文字列をエスケープします。セキュリティを確保し、XSSを防止。
+ * HTML属性値およびJavaScript文字列リテラルとして安全になるように文字列をエスケープします。
+ * 主に `onerror="handleFunction(..., 'escapedString')"` のようにHTML属性内のJSコードで文字列を扱う際に使用します。
  * @param {string} str - エスケープする文字列。
  * @returns {string} エスケープされた文字列。入力が無効な場合は空文字。
  * @example
  * const safeStr = escapeHTMLAttribute('<script>alert("XSS")</script>');
  * @remarks
- * - `&`, `<`, `>`, `"`, `'` をHTMLエンティティに変換。
+ * - `&`, `<`, `>`, `"`, `'`, `/`, `` ` `` をHTMLエンティティまたはJavaScriptセーフな形式に変換。
  * - DOMPurifyなどのライブラリと組み合わせて使用することで、より強固なセキュリティを実現。
  * @throws {Error} 文字列エスケープ中にエラーが発生した場合、コンソールにエラーをログ。
  */
 export function escapeHTMLAttribute(str) {
-  try {
-    if (typeof str !== 'string') {
-      console.warn('[utils.js] escapeHTMLAttribute: 文字列以外の入力が検出されました。', str);
-      return ''; // 文字列以外は空文字を返す
+    try {
+        if (typeof str !== 'string') {
+            console.warn('[utils.js] escapeHTMLAttribute: 文字列以外の入力が検出されました。', str);
+            return ''; // 文字列以外は空文字を返す
+        }
+        // HTML属性値およびJavaScript文字列リテラルとして安全になるようにエスケープする
+        return str
+            .replace(/&/g, '&amp;')    // & を &amp; に
+            .replace(/"/g, '&quot;')   // " を &quot; に
+            .replace(/'/g, '&#39;')    // ' を &#39; に (HTML属性内のJS文字列リテラル向け)
+            .replace(/</g, '&lt;')     // < を &lt; に
+            .replace(/>/g, '&gt;')     // > を &gt; に
+            .replace(/\//g, '&#x2F;')  // / を &#x2F; に (XSS対策)
+            .replace(/`/g, '&#96;');   // ` を &#96; に (テンプレートリテラル対策)
+    } catch (error) {
+        console.error('[utils.js] escapeHTMLAttributeエラー:', error);
+        return '';
     }
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
-  } catch (error) {
-    console.error('[utils.js] escapeHTMLAttributeエラー:', error);
-    return '';
-  }
 }
 
 /**
