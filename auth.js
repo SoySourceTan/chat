@@ -41,7 +41,8 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
             photoURL: user.photoURL || null // TwitterのphotoURLをそのまま使用
         });
 
-        const cleanedPhotoURL = cleanPhotoURL(user.photoURL, user.uid);
+        // cleanPhotoURLはuserIdを引数に取らないように修正済み
+        const cleanedPhotoURL = cleanPhotoURL(user.photoURL); 
         console.log(`[auth.js] Twitterログイン成功: UID=${user.uid}, DisplayName=${user.displayName}, PhotoURL=${cleanedPhotoURL}`);
 
         const userIp = await getClientIp();
@@ -115,7 +116,8 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
             photoURL: user.photoURL || null // GoogleのphotoURLをそのまま使用
         });
 
-        const cleanedPhotoURL = cleanPhotoURL(user.photoURL, user.uid);
+        // cleanPhotoURLはuserIdを引数に取らないように修正済み
+        const cleanedPhotoURL = cleanPhotoURL(user.photoURL);
         console.log(`[auth.js] Googleログイン成功: UID=${user.uid}, DisplayName=${user.displayName}, PhotoURL=${cleanedPhotoURL}`);
 
         const userIp = await getClientIp();
@@ -269,8 +271,8 @@ export async function updateUsername(auth, database, actionsRef, username, onNam
 
         // Realtime Databaseのユーザー情報も更新
         const userId = user.uid;
-        const userRef = ref(database, `users/${userId}`);
-        const currentPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL, userId) : null; // 最新のphotoURLを取得
+        // cleanPhotoURLはuserIdを引数に取らないように修正済み
+        const currentPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : null; 
 
         const updates = {};
         updates[`users/${userId}/username`] = username;
