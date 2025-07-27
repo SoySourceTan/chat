@@ -35,14 +35,15 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
 
-        // Firebase Authのプロフィールを更新 (photoURLを最新に保つ)
+        // TwitterのphotoURLを検証し、icon.pngが含まれている場合はnullに
+        const cleanedPhotoURL = user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null;
+
+        // Firebase Authのプロフィールを更新
         await updateProfile(user, {
-            displayName: user.displayName || '匿名',
-            photoURL: user.photoURL || null // TwitterのphotoURLをそのまま使用
+            displayName: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
+            photoURL: cleanedPhotoURL
         });
 
-        // cleanPhotoURLはuserIdを引数に取らないように修正済み
-        const cleanedPhotoURL = cleanPhotoURL(user.photoURL); 
         console.log(`[auth.js] Twitterログイン成功: UID=${user.uid}, DisplayName=${user.displayName}, PhotoURL=${cleanedPhotoURL}`);
 
         const userIp = await getClientIp();
@@ -51,7 +52,7 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
 
         const updates = {};
         const userData = {
-            username: user.displayName || '匿名',
+            username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
             photoURL: cleanedPhotoURL,
             lastLogin: Date.now(),
             ipAddress: userIp,
@@ -59,20 +60,18 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
         };
 
         if (userSnapshot.exists()) {
-            // 既存ユーザーの情報を更新
             updates[`users/${user.uid}`] = userData;
         } else {
-            // 新規ユーザーの情報を設定
             updates[`users/${user.uid}`] = userData;
             updates[`actions/${push(actionsRef).key}`] = {
                 type: 'newUser',
                 userId: user.uid,
-                username: user.displayName || '匿名',
+                username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
                 timestamp: Date.now()
             };
         }
 
-        await update(ref(database), updates); // 一括更新
+        await update(ref(database), updates);
 
         showSuccess('Twitterでログインしました！');
         if (onLoginSuccess) {
@@ -110,14 +109,15 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
 
-        // Firebase Authのプロフィールを更新 (photoURLを最新に保つ)
+        // GoogleのphotoURLを検証し、icon.pngが含まれている場合はnullに
+        const cleanedPhotoURL = user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null;
+
+        // Firebase Authのプロフィールを更新
         await updateProfile(user, {
-            displayName: user.displayName || '匿名',
-            photoURL: user.photoURL || null // GoogleのphotoURLをそのまま使用
+            displayName: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
+            photoURL: cleanedPhotoURL
         });
 
-        // cleanPhotoURLはuserIdを引数に取らないように修正済み
-        const cleanedPhotoURL = cleanPhotoURL(user.photoURL);
         console.log(`[auth.js] Googleログイン成功: UID=${user.uid}, DisplayName=${user.displayName}, PhotoURL=${cleanedPhotoURL}`);
 
         const userIp = await getClientIp();
@@ -126,7 +126,7 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
 
         const updates = {};
         const userData = {
-            username: user.displayName || '匿名',
+            username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
             photoURL: cleanedPhotoURL,
             lastLogin: Date.now(),
             ipAddress: userIp,
@@ -134,20 +134,18 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
         };
 
         if (userSnapshot.exists()) {
-            // 既存ユーザーの情報を更新
             updates[`users/${user.uid}`] = userData;
         } else {
-            // 新規ユーザーの情報を設定
             updates[`users/${user.uid}`] = userData;
             updates[`actions/${push(actionsRef).key}`] = {
                 type: 'newUser',
                 userId: user.uid,
-                username: user.displayName || '匿名',
+                username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
                 timestamp: Date.now()
             };
         }
 
-        await update(ref(database), updates); // 一括更新
+        await update(ref(database), updates);
 
         showSuccess('Googleでログインしました！');
         if (onLoginSuccess) {
@@ -184,7 +182,7 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
         const result = await signInAnonymously(auth);
         const user = result.user;
 
-        // 匿名ユーザーの場合もphotoURLをnullで更新し、displayNameを設定
+        // 匿名ユーザーの場合、photoURLは常にnull
         await updateProfile(user, {
             displayName: '匿名ユーザー',
             photoURL: null
@@ -196,8 +194,8 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
 
         const updates = {};
         const userData = {
-            username: user.displayName || '匿名ユーザー',
-            photoURL: null, // 匿名ユーザーはphotoURLを持たない
+            username: '匿名ユーザー',
+            photoURL: null,
             lastLogin: Date.now(),
             ipAddress: userIp,
             providerId: 'anonymous'
@@ -210,7 +208,7 @@ export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef
             updates[`actions/${push(actionsRef).key}`] = {
                 type: 'newUser',
                 userId: user.uid,
-                username: user.displayName || '匿名ユーザー',
+                username: '匿名ユーザー',
                 timestamp: Date.now()
             };
         }
@@ -262,24 +260,29 @@ export async function updateUsername(auth, database, actionsRef, username, onNam
             throw new Error('ユーザーがログインしていません。');
         }
 
+        // usernameが文字列であり、有効であることを検証
+        if (typeof username !== 'string' || username.trim() === '') {
+            console.warn(`[auth.js] 無効なユーザー名: ${JSON.stringify(username)}. フォールバックを使用します。`);
+            username = '匿名';
+        }
+        username = username.trim().substring(0, 50); // 長さ制限
+
         // Firebase AuthのdisplayNameを更新
         await updateProfile(user, {
-            displayName: username
-            // photoURLはここでは更新しない。ログイン時に自動的に最新化される想定。
-            // もしユーザーが手動でphotoURLを変更できるようにするなら、ここにロジックを追加。
+            displayName: username,
+            photoURL: user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null
         });
 
         // Realtime Databaseのユーザー情報も更新
         const userId = user.uid;
-        // cleanPhotoURLはuserIdを引数に取らないように修正済み
-        const currentPhotoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : null; 
+        const currentPhotoURL = user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null;
 
         const updates = {};
         updates[`users/${userId}/username`] = username;
-        updates[`users/${userId}/photoURL`] = currentPhotoURL; // photoURLも更新して常に最新を保つ
-        updates[`users/${userId}/lastUpdate`] = Date.now(); // 最終更新日時を追加
+        updates[`users/${userId}/photoURL`] = currentPhotoURL;
+        updates[`users/${userId}/lastUpdate`] = Date.now();
 
-        // アクションログにも記録
+        // アクションログに記録
         const actionRef = push(actionsRef);
         updates[`actions/${actionRef.key}`] = {
             type: 'setUsername',
@@ -293,8 +296,6 @@ export async function updateUsername(auth, database, actionsRef, username, onNam
         let lastError = null;
         while (retries > 0 && !success) {
             try {
-                // ここを修正: 各パスに対して個別に update を呼び出す
-                // update(ref(database), updates) で一括更新可能
                 await update(ref(database), updates);
                 success = true;
             } catch (error) {

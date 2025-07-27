@@ -199,13 +199,12 @@ async function fetchOnlineUsers() {
                   Object.entries(snapshot.val())
                       .filter(([uid, user]) => uid && user && typeof user === 'object')
                       .map(async ([uid, user]) => {
-                          // users/{uid}/photoURLから最新の画像を取得
                           const userRef = ref(getDatabase(), `users/${uid}`);
                           const userData = (await get(userRef)).val() || {};
                           return {
                               userId: uid,
                               username: user.username && typeof user.username === 'string' ? user.username : '匿名',
-                              photoURL: userData.photoURL && typeof userData.photoURL === 'string' ? `${userData.photoURL}?t=${Date.now()}` : '/learning/english-words/chat/images/icon.png'
+                              photoURL: userData.photoURL && typeof userData.photoURL === 'string' ? `${userData.photoURL}?t=${Date.now()}` : null // icon.pngを削除し、nullを返す
                           };
                       })
               )
@@ -253,12 +252,12 @@ function renderOnlineUsers(users) {
                 const displayUsername = username && typeof username === 'string' ? username : '匿名';
                 const escapedUserId = escapeHTMLAttribute(userId);
                 const escapedDisplayUsername = escapeHTMLAttribute(displayUsername);
-                const cleanedPhotoURLForError = escapeHTMLAttribute(cleanPhotoURL(photoURL || '')); // onerrorに渡すURLもクリーンアップ
+                const cleanedPhotoURLForError = escapeHTMLAttribute(cleanPhotoURL(photoURL || ''));
 
+                console.log(`[renderOnlineUsers] userId: ${userId}, username: ${displayUsername}, photoURL: ${photoURL}`);
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
-                    ${photoURL && typeof photoURL === 'string' && photoURL !== '' ? // photoURL が存在し、空文字列でない場合
+                    ${photoURL && typeof photoURL === 'string' && photoURL !== '' ?
                         `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${cleanedPhotoURLForError}')">` :
-                        // photoURL が空文字列の場合
                         `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
                 </span>`;
             })
