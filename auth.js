@@ -23,70 +23,63 @@ function getBasePath() {
  * Twitterでサインインします。
  * @param {object} auth - Firebase Authインスタンス
  * @param {object} database - Firebase Realtime Databaseインスタンス
- * @param {object} actionsRef - Realtime Databaseのアクション参照
- * @param {object} usersRef - Realtime Databaseのユーザー参照
- * @param {function} onLoginSuccess - ログイン成功時のコールバック
+ * @param {function} onLoginSuccess - ログイン成功時に呼び出されるコールバック
  */
-export async function signInWithTwitter(auth, database, actionsRef, usersRef, onLoginSuccess) {
-    if (isLoggingIn) return;
+export async function signInWithTwitter(auth, database, onLoginSuccess) {
+    if (isLoggingIn) {
+        console.warn('[auth.js] ログイン処理が既に進行中です。');
+        return;
+    }
     isLoggingIn = true;
     try {
         const provider = new TwitterAuthProvider();
+        provider.setCustomParameters({
+            'lang': 'ja'
+        });
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
+        console.log('[auth.js] Twitterログイン成功:', user);
 
-        // TwitterのphotoURLを検証し、icon.pngが含まれている場合はnullに
-        const cleanedPhotoURL = user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null;
+        // ユーザー情報をデータベースに保存または更新
+        const userId = user.uid;
+        const username = user.displayName || '匿名';
+        const photoURL = cleanPhotoURL(user.photoURL);
+        const ipAddress = await getClientIp();
 
-        // Firebase Authのプロフィールを更新
-        await updateProfile(user, {
-            displayName: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
-            photoURL: cleanedPhotoURL
+        await set(ref(database, `users/${userId}`), {
+            username: username,
+            photoURL: photoURL,
+            lastLogin: Date.now(),
+            ipAddress: ipAddress,
+            provider: 'twitter'
         });
 
-        console.log(`[auth.js] Twitterログイン成功: UID=${user.uid}, DisplayName=${user.displayName}, PhotoURL=${cleanedPhotoURL}`);
+        // アクションログに記録
+        await push(ref(database, `actions`), {
+            type: 'login',
+            userId: userId,
+            provider: 'twitter',
+            timestamp: Date.now()
+        });
 
-        const userIp = await getClientIp();
-        const userRef = ref(database, `users/${user.uid}`);
-        const userSnapshot = await get(userRef);
-
-        const updates = {};
-        const userData = {
-            username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
-            photoURL: cleanedPhotoURL,
-            lastLogin: Date.now(),
-            ipAddress: userIp,
-            providerId: user.providerData[0]?.providerId || 'twitter.com'
-        };
-
-        if (userSnapshot.exists()) {
-            updates[`users/${user.uid}`] = userData;
-        } else {
-            updates[`users/${user.uid}`] = userData;
-            updates[`actions/${push(actionsRef).key}`] = {
-                type: 'newUser',
-                userId: user.uid,
-                username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
-                timestamp: Date.now()
-            };
-        }
-
-        await update(ref(database), updates);
-
-        showSuccess('Twitterでログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
+        showSuccess('Twitterでログインしました！');
     } catch (error) {
         console.error('[auth.js] Twitterログインエラー:', error);
         if (error.code === 'auth/popup-closed-by-user') {
-            showError('ログインがキャンセルされました。');
+            showError('Twitterログインがキャンセルされました。');
         } else if (error.code === 'auth/cancelled-popup-request') {
-            showError('ポップアップがブロックされました。');
-        } else if (error.code === 'auth/account-exists-with-different-credential') {
-            showError('このメールアドレスは既に別の方法で登録されています。');
+            showError('Twitterログインがキャンセルされました。');
+        } else if (error.code === 'auth/auth-domain-config-required') {
+            showError('Firebase認証ドメイン設定が必要です。');
+        } else if (error.code === 'auth/operation-not-allowed') {
+            showError('Twitterログインが有効になっていません。Firebaseコンソールで有効にしてください。');
+        } else if (error.code === 'auth/unauthorized-domain') {
+            showError('認証ドメインが許可されていません。Firebaseコンソールで設定を確認してください。');
         } else {
-            showError(`Twitterログインに失敗しました: ${error.message}`);
+            showError(`Twitterログインエラー: ${error.message}`);
         }
     } finally {
         isLoggingIn = false;
@@ -97,70 +90,60 @@ export async function signInWithTwitter(auth, database, actionsRef, usersRef, on
  * Googleでサインインします。
  * @param {object} auth - Firebase Authインスタンス
  * @param {object} database - Firebase Realtime Databaseインスタンス
- * @param {object} actionsRef - Realtime Databaseのアクション参照
- * @param {object} usersRef - Realtime Databaseのユーザー参照
- * @param {function} onLoginSuccess - ログイン成功時のコールバック
+ * @param {function} onLoginSuccess - ログイン成功時に呼び出されるコールバック
  */
-export async function signInWithGoogle(auth, database, actionsRef, usersRef, onLoginSuccess) {
-    if (isLoggingIn) return;
+export async function signInWithGoogle(auth, database, onLoginSuccess) {
+    if (isLoggingIn) {
+        console.warn('[auth.js] ログイン処理が既に進行中です。');
+        return;
+    }
     isLoggingIn = true;
     try {
         const provider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
+        console.log('[auth.js] Googleログイン成功:', user);
 
-        // GoogleのphotoURLを検証し、icon.pngが含まれている場合はnullに
-        const cleanedPhotoURL = user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null;
+        // ユーザー情報をデータベースに保存または更新
+        const userId = user.uid;
+        const username = user.displayName || '匿名';
+        const photoURL = cleanPhotoURL(user.photoURL);
+        const ipAddress = await getClientIp();
 
-        // Firebase Authのプロフィールを更新
-        await updateProfile(user, {
-            displayName: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
-            photoURL: cleanedPhotoURL
+        await set(ref(database, `users/${userId}`), {
+            username: username,
+            photoURL: photoURL,
+            lastLogin: Date.now(),
+            ipAddress: ipAddress,
+            provider: 'google'
         });
 
-        console.log(`[auth.js] Googleログイン成功: UID=${user.uid}, DisplayName=${user.displayName}, PhotoURL=${cleanedPhotoURL}`);
+        // アクションログに記録
+        await push(ref(database, `actions`), {
+            type: 'login',
+            userId: userId,
+            provider: 'google',
+            timestamp: Date.now()
+        });
 
-        const userIp = await getClientIp();
-        const userRef = ref(database, `users/${user.uid}`);
-        const userSnapshot = await get(userRef);
-
-        const updates = {};
-        const userData = {
-            username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
-            photoURL: cleanedPhotoURL,
-            lastLogin: Date.now(),
-            ipAddress: userIp,
-            providerId: user.providerData[0]?.providerId || 'google.com'
-        };
-
-        if (userSnapshot.exists()) {
-            updates[`users/${user.uid}`] = userData;
-        } else {
-            updates[`users/${user.uid}`] = userData;
-            updates[`actions/${push(actionsRef).key}`] = {
-                type: 'newUser',
-                userId: user.uid,
-                username: user.displayName && typeof user.displayName === 'string' ? user.displayName : '匿名',
-                timestamp: Date.now()
-            };
-        }
-
-        await update(ref(database), updates);
-
-        showSuccess('Googleでログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
+        showSuccess('Googleでログインしました！');
     } catch (error) {
         console.error('[auth.js] Googleログインエラー:', error);
         if (error.code === 'auth/popup-closed-by-user') {
-            showError('ログインがキャンセルされました。');
+            showError('Googleログインがキャンセルされました。');
         } else if (error.code === 'auth/cancelled-popup-request') {
-            showError('ポップアップがブロックされました。');
-        } else if (error.code === 'auth/account-exists-with-different-credential') {
-            showError('このメールアドレスは既に別の方法で登録されています。');
+            showError('Googleログインがキャンセルされました。');
+        } else if (error.code === 'auth/auth-domain-config-required') {
+            showError('Firebase認証ドメイン設定が必要です。');
+        } else if (error.code === 'auth/operation-not-allowed') {
+            showError('Googleログインが有効になっていません。Firebaseコンソールで有効にしてください。');
+        } else if (error.code === 'auth/unauthorized-domain') {
+            showError('認証ドメインが許可されていません。Firebaseコンソールで設定を確認してください。');
         } else {
-            showError(`Googleログインに失敗しました: ${error.message}`);
+            showError(`Googleログインエラー: ${error.message}`);
         }
     } finally {
         isLoggingIn = false;
@@ -171,77 +154,70 @@ export async function signInWithGoogle(auth, database, actionsRef, usersRef, onL
  * 匿名でサインインします。
  * @param {object} auth - Firebase Authインスタンス
  * @param {object} database - Firebase Realtime Databaseインスタンス
- * @param {object} actionsRef - Realtime Databaseのアクション参照
- * @param {object} usersRef - Realtime Databaseのユーザー参照
- * @param {function} onLoginSuccess - ログイン成功時のコールバック
+ * @param {function} onLoginSuccess - ログイン成功時に呼び出されるコールバック
  */
-export async function signInAnonymouslyUser(auth, database, actionsRef, usersRef, onLoginSuccess) {
-    if (isLoggingIn) return;
+export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
+    if (isLoggingIn) {
+        console.warn('[auth.js] ログイン処理が既に進行中です。');
+        return;
+    }
     isLoggingIn = true;
     try {
         const result = await signInAnonymously(auth);
         const user = result.user;
+        console.log('[auth.js] 匿名ログイン成功:', user);
 
-        // 匿名ユーザーの場合、photoURLは常にnull
-        await updateProfile(user, {
-            displayName: '匿名ユーザー',
-            photoURL: null
+        const userId = user.uid;
+        const defaultUsername = `ゲスト-${userId.substring(0, 4)}`;
+        const photoURL = `${getBasePath()}images/icon.png`; // 匿名ユーザーのデフォルトアイコン
+
+        const ipAddress = await getClientIp();
+
+        // データベースにユーザー情報を保存または更新
+        await set(ref(database, `users/${userId}`), {
+            username: defaultUsername,
+            photoURL: photoURL,
+            lastLogin: Date.now(),
+            ipAddress: ipAddress,
+            provider: 'anonymous'
         });
 
-        const userIp = await getClientIp();
-        const userRef = ref(database, `users/${user.uid}`);
-        const userSnapshot = await get(userRef);
+        // アクションログに記録
+        await push(ref(database, `actions`), {
+            type: 'login',
+            userId: userId,
+            provider: 'anonymous',
+            timestamp: Date.now()
+        });
 
-        const updates = {};
-        const userData = {
-            username: '匿名ユーザー',
-            photoURL: null,
-            lastLogin: Date.now(),
-            ipAddress: userIp,
-            providerId: 'anonymous'
-        };
-
-        if (userSnapshot.exists()) {
-            updates[`users/${user.uid}`] = userData;
-        } else {
-            updates[`users/${user.uid}`] = userData;
-            updates[`actions/${push(actionsRef).key}`] = {
-                type: 'newUser',
-                userId: user.uid,
-                username: '匿名ユーザー',
-                timestamp: Date.now()
-            };
-        }
-
-        await update(ref(database), updates);
-
-        showSuccess('匿名でログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
+        showSuccess('匿名でログインしました！');
     } catch (error) {
         console.error('[auth.js] 匿名ログインエラー:', error);
-        showError(`匿名ログインに失敗しました: ${error.message}`);
+        showError(`匿名ログインエラー: ${error.message}`);
     } finally {
         isLoggingIn = false;
     }
 }
 
 /**
- * ユーザーをログアウトさせます。
+ * サインアウトします。
  * @param {object} auth - Firebase Authインスタンス
- * @param {function} onLogoutSuccess - ログアウト成功時のコールバック
+ * @param {function} onLogoutSuccess - ログアウト成功時に呼び出されるコールバック
  */
 export async function signOutUser(auth, onLogoutSuccess) {
     try {
         await signOut(auth);
-        showSuccess('ログアウトしました。');
+        console.log('[auth.js] ログアウト成功');
         if (onLogoutSuccess) {
             onLogoutSuccess();
         }
+        showSuccess('ログアウトしました。');
     } catch (error) {
         console.error('[auth.js] ログアウトエラー:', error);
-        showError(`ログアウトに失敗しました: ${error.message}`);
+        showError(`ログアウトエラー: ${error.message}`);
     }
 }
 
@@ -249,74 +225,83 @@ export async function signOutUser(auth, onLogoutSuccess) {
  * ユーザー名を更新します。
  * @param {object} auth - Firebase Authインスタンス
  * @param {object} database - Firebase Realtime Databaseインスタンス
- * @param {object} actionsRef - Realtime Databaseのアクション参照
  * @param {string} username - 新しいユーザー名
- * @param {function} onNameUpdateSuccess - ユーザー名更新成功時のコールバック
+ * @param {function} onNameUpdateSuccess - ユーザー名更新成功時に呼び出されるコールバック
+ * @returns {Promise<void>}
  */
-export async function updateUsername(auth, database, actionsRef, username, onNameUpdateSuccess) {
+// auth.js (updateUsername 関数の修正版)
+export async function updateUsername(auth, database, username, onNameUpdateSuccess) {
+    if (typeof username !== 'string' || username.trim() === '') {
+        console.error('[auth.js] 無効なユーザー名:', username);
+        showError('ユーザー名は文字列でなければなりません。');
+        throw new Error('ユーザー名は文字列でなければなりません。');
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+        console.error('[auth.js] ログインしていません。');
+        showError('ログインしていません。');
+        return;
+    }
+
+    const userId = user.uid;
+    console.log('[auth.js] 認証ユーザー情報:', {
+        uid: userId,
+        displayName: user.displayName,
+        email: user.email,
+    });
+
     try {
-        const user = auth.currentUser;
-        if (!user) {
-            throw new Error('ユーザーがログインしていません。');
-        }
-
-        // usernameが文字列であり、有効であることを検証
-        if (typeof username !== 'string' || username.trim() === '') {
-            console.warn(`[auth.js] 無効なユーザー名: ${JSON.stringify(username)}. フォールバックを使用します。`);
-            username = '匿名';
-        }
-        username = username.trim().substring(0, 50); // 長さ制限
-
-        // Firebase AuthのdisplayNameを更新
         await updateProfile(user, {
             displayName: username,
-            photoURL: user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null
         });
+        console.log('[auth.js] Firebase Auth プロフィール更新成功');
+    } catch (error) {
+        console.error('[auth.js] Firebase Auth プロフィール更新エラー:', error);
+        showError(`ユーザー名の更新に失敗しました (Auth): ${error.message}`);
+        throw error;
+    }
 
-        // Realtime Databaseのユーザー情報も更新
-        const userId = user.uid;
-        const currentPhotoURL = user.photoURL && !user.photoURL.includes('icon.png') ? cleanPhotoURL(user.photoURL) : null;
+    const currentPhotoURL =
+        user.photoURL && !user.photoURL.includes('icon.png')
+            ? cleanPhotoURL(user.photoURL)
+            : '/learning/english-words/chat/images/icon.png';
 
-        const updates = {};
-        updates[`users/${userId}/username`] = username;
-        updates[`users/${userId}/photoURL`] = currentPhotoURL;
-        updates[`users/${userId}/lastUpdate`] = Date.now();
+    try {
+        await update(ref(database, `users/${userId}`), {
+            username: String(username),
+            photoURL: currentPhotoURL,
+            lastUpdate: Date.now(),
+        });
+        console.log('[auth.js] users 更新成功');
+    } catch (error) {
+        console.error('[auth.js] users 更新失敗:', error);
+        showError(`ユーザー情報更新エラー: ${error.message}`);
+        throw error;
+    }
 
-        // アクションログに記録
-        const actionRef = push(actionsRef);
-        updates[`actions/${actionRef.key}`] = {
+    try {
+        const actionData = {
             type: 'setUsername',
             userId: userId,
-            username: username,
-            timestamp: Date.now()
+            username: String(username),
+            timestamp: Date.now(),
         };
-
-        let retries = 3;
-        let success = false;
-        let lastError = null;
-        while (retries > 0 && !success) {
-            try {
-                await update(ref(database), updates);
-                success = true;
-            } catch (error) {
-                lastError = error;
-                retries--;
-                console.warn(`[auth.js] ユーザー名更新失敗（残りリトライ: ${retries}）:`, error);
-                if (retries > 0) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-            }
-        }
-        if (!success) {
-            throw lastError || new Error('ユーザー名の保存に失敗しました');
-        }
-
-        showSuccess('ユーザー名を更新しました。');
-        if (onNameUpdateSuccess) {
-            onNameUpdateSuccess(username);
-        }
+        console.log('[auth.js] actions 書き込みデータ:', actionData);
+        console.log('[auth.js] 認証UID:', auth.currentUser.uid);
+        console.log('[auth.js] トークン:', await auth.currentUser.getIdToken());
+        const actionLogRef = push(ref(database, `actions`));
+        console.log('[auth.js] 書き込みパス:', actionLogRef.toString());
+        await set(actionLogRef, actionData);
+        console.log('[auth.js] actions 更新成功');
     } catch (error) {
-        console.error('[auth.js] ユーザー名更新エラー:', error);
-        showError(`ユーザー名の更新に失敗しました: ${error.message}`);
+        console.error('[auth.js] actions 更新失敗:', error);
+        showError(`アクションログ更新エラー: ${error.message}`);
+        throw error;
+    }
+
+    showSuccess('ユーザー名を更新しました。');
+    if (onNameUpdateSuccess) {
+        onNameUpdateSuccess(username, currentPhotoURL);
     }
 }

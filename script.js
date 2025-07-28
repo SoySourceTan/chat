@@ -220,11 +220,13 @@ async function fetchOnlineUsers() {
 async function getUserData(userId) {
     try {
         if (!userId || typeof userId !== 'string') {
+            console.warn('[script.js] 無効なuserId:', userId);
             return { userId, username: '匿名', photoURL: null };
         }
         if (userCache.has(userId)) {
             const cachedData = userCache.get(userId);
-            if (cachedData && cachedData.userId === userId) {
+            if (cachedData && cachedData.userId === userId && typeof cachedData.username === 'string') {
+                console.log('[script.js] キャッシュから取得したユーザーデータ:', cachedData);
                 return cachedData;
             }
             userCache.delete(userId);
@@ -232,6 +234,11 @@ async function getUserData(userId) {
         const snapshot = await get(ref(database, `users/${userId}`));
         const data = snapshot.val() || { username: '匿名', photoURL: null };
         const userData = { userId, username: '匿名', photoURL: null, ...data };
+        if (typeof userData.username !== 'string') {
+            console.warn('[script.js] 無効なusername検出:', userData.username);
+            userData.username = '匿名';
+        }
+        console.log('[script.js] Firebaseから取得したユーザーデータ:', userData);
         userCache.set(userId, userData);
         if (userCache.size > 100) userCache.clear();
         return userData;
@@ -881,7 +888,7 @@ if (userInfo) {
                 unameModal.show();
                 setTimeout(() => unameInput.focus(), 100);
             } catch (error) {
-                console.error('ユーザー名取得エラー:', error);
+                console.error('[script.js] ユーザー名取得エラー:', error);
                 showError('ユーザー名の取得に失敗しました。');
             }
         } else {
@@ -894,8 +901,15 @@ if (confirmName) {
     confirmName.addEventListener('click', async () => {
         const rawInput = unameInput.value;
         const username = rawInput.trim();
+        console.log('[script.js] ユーザー名入力値:', username, '型:', typeof username, '入力要素:', unameInput);
+        if (typeof username !== 'string' || username === '') {
+            console.error('[script.js] 無効なユーザー名:', username);
+            unameInput.classList.add('is-invalid');
+            return;
+        }
         try {
-            await updateUsername(auth, database, actionsRef, onlineUsersRef, username, async (updatedUsername) => {
+            await updateUsername(auth, database, username, async (updatedUsername, updatedPhotoURL) => {
+                console.log('[script.js] ユーザー名更新成功:', updatedUsername, 'photoURL:', updatedPhotoURL);
                 // ユーザー名更新成功時のUI更新
                 const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
                 
@@ -905,19 +919,21 @@ if (confirmName) {
                 // user-info 内のユーザー名表示用のテキスト要素を取得 (新しいIDを使用)
                 const usernameTextSpan = userInfo.querySelector('#current-username-display');
 
-if (userData.photoURL && userData.photoURL !== '') {
-    // photoURLがある場合、画像を表示
-    if (profileImgInUserInfo) {
-        profileImgInUserInfo.src = cleanPhotoURL(userData.photoURL) + '?t=' + Date.now(); // ★ここを修正
-        profileImgInUserInfo.alt = escapeHTMLAttribute(username);
-        profileImgInUserInfo.dataset.uid = user.uid;
-        profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
-        profileImgInUserInfo.classList.add('profile-img-small'); // 必要であればクラスを追加
-    }
-    if (profileAvatarDivInUserInfo) {
-        profileAvatarDivInUserInfo.classList.add('d-none'); // 文字アバターを非表示
-    }
-} else {
+                if (userData.photoURL && userData.photoURL !== '') {
+                    // photoURLがある場合、画像を表示
+                    if (profileImgInUserInfo) {
+                        const photoURL = cleanPhotoURL(userData.photoURL) + '?t=' + Date.now();
+                        console.log('[script.js] 画像パス:', photoURL);
+                        profileImgInUserInfo.src = photoURL;
+                        profileImgInUserInfo.alt = escapeHTMLAttribute(updatedUsername);
+                        profileImgInUserInfo.dataset.uid = auth.currentUser.uid; // 修正: user.uid → auth.currentUser.uid
+                        profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
+                        profileImgInUserInfo.classList.add('profile-img-small'); // 必要であればクラスを追加
+                    }
+                    if (profileAvatarDivInUserInfo) {
+                        profileAvatarDivInUserInfo.classList.add('d-none'); // 文字アバターを非表示
+                    }
+                } else {
                     // photoURLがない場合、文字アバターを表示
                     if (profileImgInUserInfo) {
                         profileImgInUserInfo.classList.add('d-none');
@@ -945,14 +961,15 @@ if (userData.photoURL && userData.photoURL !== '') {
                 unameModal.hide();
                 unameInput.classList.remove('is-invalid');
                 await updateOnlineUsers(); // オンラインユーザーリストも更新
+                showSuccess('ユーザー名を更新しました。');
             });
         } catch (error) {
-            // updateUsername 関数内でエラーが再スローされるため、ここで捕捉してUIを更新
+            console.error('[script.js] ユーザー名更新エラー:', error);
             unameInput.classList.add('is-invalid');
+            showError(`ユーザー名の更新に失敗しました: ${error.message}`);
         }
     });
 }
-
 // タブ点滅機能関連の変数と関数
 let originalTitle = document.title;
 let blinkingInterval = null;

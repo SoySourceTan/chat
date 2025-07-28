@@ -125,13 +125,39 @@ export function setupUI(
         newNameInput.value = currentName;
         unameModalEl.show();
     });
-    saveNameBtn.addEventListener('click', () => {
-        const newName = newNameInput.value.trim();
-        if (newName) {
-            onNameUpdateSuccessCallback(newName);
-            unameModalEl.hide();
-        } else {
+    saveNameBtn.addEventListener('click', async () => { // ★ここをasyncにする
+        const newUsername = newNameInput.value.trim();
+        if (newUsername === '') {
             showError('ユーザー名を入力してください。');
+            return;
+        }
+
+        try {
+            // プログレス表示など
+            // showProgressOverlay(); // 必要であればプログレス表示
+
+            await updateUsername(
+                firebaseServices.auth,
+                firebaseServices.database,
+                firebaseServices.actionsRef,
+                newUsername,
+                (updatedUsername, updatedPhotoURL) => {
+                    // ユーザー名更新成功時のコールバック
+                    if (callbacks.onUsernameUpdated) {
+                        callbacks.onUsernameUpdated(updatedUsername, updatedPhotoURL);
+                    }
+                    // モーダルを閉じる
+                    const unameModal = bootstrap.Modal.getInstance(unameModalEl);
+                    if (unameModal) {
+                        unameModal.hide();
+                    }
+                }
+            );
+            // hideProgressOverlay(); // 必要であればプログレス非表示
+        } catch (error) {
+            console.error('[ui-manager.js] ユーザー名更新エラー:', error);
+            showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
+            // hideProgressOverlay(); // 必要であればプログレス非表示
         }
     });
 
