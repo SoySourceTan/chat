@@ -19,6 +19,15 @@ function getBasePath() {
     return '/chat/'; // For deployed versions
 }
 
+// ユーザー名をクリーンアップするヘルパー関数
+function cleanUsernameString(name) {
+    if (typeof name !== 'string') {
+        return '匿名'; // 文字列でなければデフォルト値を返す
+    }
+    // 制御文字（U+0000-U+001F, U+007F-U+009F）とBOM（U+FEFF）を除去し、前後の空白をトリム
+    return name.replace(/[\u0000-\u001F\u007F-\u009F\uFEFF]/g, '').trim();
+}
+
 /**
  * Twitterでサインインします。
  * @param {object} auth - Firebase Authインスタンス
