@@ -118,7 +118,9 @@ initializeFirebase().then(initialized => {
             const notificationTitle = payload.notification?.title || '新しいメッセージ';
             const notificationOptions = {
                 body: payload.notification?.body || '',
-                icon: payload.data?.icon || `${basePath}images/icon.png`,
+                icon: `${basePath}images/icon.png`,
+                image: `${basePath}images/icon.png`, // 通知内の大きな画像もデフォルトに強制
+                badge: `${basePath}images/icon.png`, // バッジアイコンもデフォルトに強制
                 data: {
                     url: payload.data?.url || `${basePath}`,
                     ...payload.data // その他のカスタムデータをdataオブジェクトに含める

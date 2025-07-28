@@ -8,11 +8,16 @@ import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, i
 import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
+// ui-manager.js から handleImageError をインポート
+import { handleImageError } from './ui-manager.js';
+
+// handleImageError をグローバルスコープに公開
+window.handleImageError = handleImageError;
 
 // Firebase初期化とグローバル変数
 let globalSwRegistration = null; 
 let isFCMInitialized = false;
-let { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = await initializeFirebase(); // ★ここでinitializeFirebaseが呼び出される
+let app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef; // 初期化を遅延
 let isInitialized = false; // 初期化フラグ
 let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
 let isSending = false;
@@ -31,30 +36,6 @@ const userCache = new Map();
 // FCM初期化が完了したことを示すPromise
 let fcmInitPromise = null;
 
-// 画像ロードエラー時に代替アバターを表示する関数
-// onerror属性から呼び出されるため、windowオブジェクトに直接追加
-window.handleImageError = function(imgElement, userId, username, originalPhotoURL) {
-    console.warn(`[script.js] 画像ロードエラー: userId=${userId}, username=${username}, URL=${originalPhotoURL}.`);
-
-    // 既存の<img>要素の親要素を取得
-    const parent = imgElement.parentNode;
-    if (parent) {
-        const initial = username ? username.charAt(0).toUpperCase() : '?';
-        const textAvatarDiv = document.createElement('div');
-        
-        // 元のimg要素のクラスを一部引き継ぐ（例: profile-img, profile-img-small）
-        // ただし、avatarクラスは必ず追加
-        textAvatarDiv.className = 'avatar'; // CSSで定義するクラス
-        if (imgElement.classList.contains('profile-img-small')) {
-            textAvatarDiv.classList.add('avatar-small');
-        }
-
-        textAvatarDiv.textContent = initial;
-
-        // img要素の代わりにdiv要素を挿入
-        parent.replaceChild(textAvatarDiv, imgElement);
-    }
-};
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -318,7 +299,7 @@ async function updateUserUI(user) {
         const loginBtn = document.getElementById('login-btn');
 
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const defaultAvatarPath = isLocalhost ? '/learning/english-words/chat/images/default-avatar.png' : '/chat/images/default-avatar.png';
+        // const defaultAvatarPath = isLocalhost ? '/learning/english-words/chat/images/default-avatar.png' : '/chat/images/default-avatar.png'; // この行は不要
 
         if (user) {
             userCache.delete(user.uid);
@@ -327,10 +308,10 @@ async function updateUserUI(user) {
             let username = userData.username || user.displayName || 'ゲスト';
             username = username.length > 7 ? username.substring(0, 7) + "..." : username;
 
+            // photoURLが存在し、空文字列でない場合
             if (userData.photoURL && userData.photoURL !== '') {
-                // photoURLがある場合、画像を表示
                 if (profileImgInUserInfo) {
-                    profileImgInUserInfo.src = './images/default-avatar.png' // ★ここを修正 (例としてdefault-avatar.pngに)
+                    profileImgInUserInfo.src = cleanPhotoURL(userData.photoURL) + '?t=' + Date.now(); // ユーザーのphotoURLを使用
                     profileImgInUserInfo.alt = escapeHTMLAttribute(username);
                     profileImgInUserInfo.dataset.uid = user.uid;
                     profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
@@ -418,7 +399,7 @@ async function updateUserUI(user) {
         } else {
             // ログアウト時のプロフィールアイコンリセット
             if (profileImgInUserInfo) {
-                profileImgInUserInfo.src = '/learning/english-words/chat/images/icon.png?t=' + Date.now();
+                profileImgInUserInfo.src = './images/default-avatar.png?t=' + Date.now(); // デフォルト画像に戻す
                 profileImgInUserInfo.alt = 'ゲスト';
                 profileImgInUserInfo.dataset.uid = '';
                 profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
@@ -1072,9 +1053,8 @@ if (formEl) {
                 const onlineUsers = await fetchOnlineUsers();
                 console.log('[script.js] オンラインユーザー:', onlineUsers);
 
-                const senderRef = ref(database, `users/${auth.currentUser.uid}`);
-                const senderData = (await get(senderRef)).val() || {};
-                const senderPhotoURL = senderData.photoURL || '/chat/images/icon.png';
+                // Service WorkerのCSP違反を避けるため、デフォルトアイコンを使用
+                const defaultIconPath = './images/icon.png'; 
 
                 for (const onlineUser of onlineUsers) {
                     if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
@@ -1085,7 +1065,7 @@ if (formEl) {
                             notificationBody,
                             {
                                 url: 'https://soysourcetan.github.io/chat',
-                                icon: `${senderPhotoURL}?t=${Date.now()}`
+                                icon: defaultIconPath // ここを修正
                             },
                             auth.currentUser.uid,
                             username
@@ -1232,6 +1212,12 @@ async function loadInitialMessages() {
                     </div>
                 </div>`;
             messagesEl.prepend(li);
+            // ★ここからイベントリスナーを追加
+            const img = li.querySelector('.profile-img');
+            if (img) {
+                img.onerror = () => handleImageError(img, userId, username, photoURL);
+            }
+            // ★ここまで
             setTimeout(() => li.classList.add('show'), 10);
         }
         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1470,7 +1456,7 @@ if (cancelDeleteBtn) {
 if (messagesEl) {
     // ★追加: メッセージリスト内の削除ボタンに対するイベント委譲
     messagesEl.addEventListener('click', (e) => {
-        const deleteButton = e.target.closest('.delete-message');
+        const deleteButton = e.target.closest('.delete-message'); // クラス名を修正
         if (deleteButton) {
             currentMessageIdToDelete = deleteButton.getAttribute('data-message-id');
             if (currentMessageIdToDelete) {
@@ -1581,105 +1567,7 @@ if (messagesEl) {
 
 
 // 認証状態変更リスナー
-auth.onAuthStateChanged(async (user) => {
-    try {
-        await updateUserUI(user);
-
-        if (user) {
-            console.log('[script.js] Firebase認証: ユーザーがログインしました。');
-            // ユーザーログイン時にメッセージの初期読み込みとリアルタイム監視を開始
-            await loadInitialMessages(); // 既存メッセージを読み込む
-            setupMessageListener(); // 新しいメッセージの監視を開始
-
-            if (colorPicker) {
-                if (!getCookie('colorAssignmentMode')) {
-                    setCookie('colorAssignmentMode', 'user-selected', 365);
-                    colorAssignmentMode = 'user-selected';
-                }
-                colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && user);
-                if (colorAssignmentMode === 'user-selected') {
-                    const savedColor = getCookie(`userColor_${user.uid}`);
-                    const defaultColor = backgroundColors[0];
-                    userColorSelect.value = savedColor && backgroundColors.includes(savedColor) ? savedColor : defaultColor;
-                    console.log(`[script.js] ログイン時色設定: ユーザー ${user.uid}, 色: ${userColorSelect.value}`);
-                    if (savedColor && backgroundColors.includes(savedColor)) {
-                        userColorMap.set(user.uid, savedColor);
-                    } else {
-                        userColorMap.set(user.uid, defaultColor);
-                        setCookie(`userColor_${user.uid}`, defaultColor, 365);
-                    }
-                }
-            }
-            
-            // --- ここからトークン保存のコードを追加 ---
-            const idToken = await user.getIdToken();
-            console.log('Firebase ID Token:', idToken);
-            localStorage.setItem('firebase_id_token', idToken);
-
-// ★ここから前回のFCMトークン取得処理をペーストしてください★
-try {
-    // globalSwRegistration を window.globalSwRegistration に変更
-    if (!window.globalSwRegistration) { // <-- ここ
-        console.warn('[script.js] Service Workerの登録が完了していないため、FCMトークンの取得をスキップします。');
-        showError('プッシュ通知機能の初期化に問題があります。');
-        return;
-    }
-
-    // Service Worker登録インスタンス (window.globalSwRegistration) を渡す
-    const fcmToken = await requestNotificationPermission(window.globalSwRegistration); // <-- ここ
-    if (fcmToken) {
-        console.log('[script.js] FCMトークンを取得しました:', fcmToken);
-        await saveFCMToken(user.uid, fcmToken);
-        console.log('[script.js] FCMトークンを保存しました。');
-    } else {
-        console.warn('[script.js] FCMトークンを取得できませんでした。');
-    }
-} catch (error) {
-    console.error('[script.js] FCMトークン処理エラー:', error);
-    showError('FCMトークンの取得または保存に失敗しました。');
-}
-// ★ここまで前回のFCMトークン取得処理をペーストしてください★
-            // --- ここまでトークン保存のコードを追加 ---
-
-        } else {
-            // ユーザーがログアウトしている場合
-            console.log('[script.js] Firebase認証: ユーザーがログアウトしました。');
-            // ユーザーがログアウトしている場合、保存されたトークンを削除する
-            localStorage.removeItem('firebase_id_token');
-            console.log('ユーザーがログアウトしました。トークンを削除しました。');
-
-            // ログアウト時のUIリセット
-            userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
-            loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
-            loginModal.show();
-            loginModalEl.removeAttribute('inert');
-            unameModalEl.setAttribute('inert', '');
-            if (progressOverlay) progressOverlay.classList.add('d-none');
-
-            // ログアウト時にメッセージリスナーを解除（重複呼び出しを防ぐため）
-            if (messageListener) {
-                messageListener();
-                messageListener = null; // リスナーをnullに設定
-            }
-            if (messageRemoveListener) {
-                messageRemoveListener();
-                messageRemoveListener = null; // リスナーをnullに設定
-            }
-            messagesEl.innerHTML = ''; // メッセージ表示エリアをクリア
-        }
-
-    } catch (error) {
-        console.error('[script.js] 認証状態変更エラー:', error);
-        showError('認証状態の更新に失敗しました。ページをリロードしてください。');
-        userInfo.innerHTML = `<span class="status-dot status-away"></span>ゲスト <i class="fas fa-pencil-alt ms-1"></i>`;
-        loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i>`;
-        loginModal.show();
-        loginModalEl.removeAttribute('inert');
-        unameModalEl.setAttribute('inert', '');
-        if (progressOverlay) progressOverlay.classList.add('d-none');
-    }
-});
-
+// auth.onAuthStateChanged(async (user) => { ... }); のブロックは setupFirebase() 内に移動します。
 
 // モーダル非表示時のフォーカス管理 (変更なし)
 if (unameModalEl) {
@@ -1729,52 +1617,67 @@ setInterval(() => {
 // DOMContentLoaded イベントリスナーのセットアップ
 document.addEventListener('DOMContentLoaded', () => {
     // DOM要素の取得
-    formEl = document.getElementById('message-form');
+    formEl = document.getElementById('messageForm'); // IDを修正
+    inputEl = document.getElementById('m'); // IDを修正
     messagesEl = document.getElementById('messages');
-    inputEl = document.getElementById('message-input');
     errorAlert = document.getElementById('error-alert');
     loginBtn = document.getElementById('login-btn');
-    twitterLogin = document.getElementById('twitter-login');
-    googleLogin = document.getElementById('google-login');
-    anonymousLogin = document.getElementById('anonymous-login');
+    twitterLogin = document.getElementById('twitterLogin');
+    googleLogin = document.getElementById('googleLogin');
+    anonymousLogin = document.getElementById('anonymousLogin');
     userInfo = document.getElementById('user-info');
     unameModalEl = document.getElementById('unameModal');
     unameModal = new bootstrap.Modal(unameModalEl);
     loginModalEl = document.getElementById('loginModal');
     loginModal = new bootstrap.Modal(loginModalEl);
-    unameInput = document.getElementById('uname-input');
-    messageCountElement = document.getElementById('messageCount');
-    chatSoundToggle = document.getElementById('chatSoundToggle');
-    notificationSoundToggle = document.getElementById('notificationSoundToggle');
-    userListModal = new bootstrap.Modal(document.getElementById('userListModal'));
-    userListBtn = document.getElementById('userListBtn');
-    colorPickerButton = document.getElementById('colorPickerButton');
-    colorPickerModal = new bootstrap.Modal(document.getElementById('colorPickerModal'));
-    colorPalette = document.getElementById('colorPalette');
-    applyColorButton = document.getElementById('applyColorButton');
-    currentColorDisplay = document.getElementById('currentColorDisplay');
-    colorAssignmentModeToggle = document.getElementById('colorAssignmentModeToggle');
-    newMessagesIndicator = document.getElementById('newMessagesIndicator');
-    newMessageBtn = document.getElementById('newMessageBtn');
-    
+    unameInput = document.getElementById('uname'); // IDを修正
+    // 以下の要素はHTMLに存在しないか、またはui-manager.jsで取得されているため、ここでは削除
+    // messageCountElement = document.getElementById('messageCount');
+    // chatSoundToggle = document.getElementById('chatSoundToggle');
+    // notificationSoundToggle = document.getElementById('notificationSoundToggle');
+    // userListModal = new bootstrap.Modal(document.getElementById('userListModal'));
+    // userListBtn = document.getElementById('userListBtn');
+    // colorPickerButton = document.getElementById('colorPickerButton');
+    // colorPickerModal = new bootstrap.Modal(document.getElementById('colorPickerModal'));
+    // colorPalette = document.getElementById('colorPalette');
+    // applyColorButton = document.getElementById('applyColorButton');
+    // currentColorDisplay = document.getElementById('currentColorDisplay');
+    // colorAssignmentModeToggle = document.getElementById('colorAssignmentModeToggle');
+    // newMessagesIndicator = document.getElementById('newMessagesIndicator');
+    newMessageBtn = document.getElementById('newMessageBtn'); // 再度取得
+
     initNotify(); // notifysound.js の初期化
-    setupEventListeners(); // イベントリスナーの設定
+    setupFirebase(); // Firebaseの初期化と認証状態の監視を開始
 });
 
 async function setupFirebase() {
     try {
         // Firebase 初期化
         const firebaseServices = await initializeFirebase();
-        const { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef } = firebaseServices;
+        app = firebaseServices.app;
+        database = firebaseServices.database;
+        auth = firebaseServices.auth;
+        messagesRef = firebaseServices.messagesRef;
+        usersRef = firebaseServices.usersRef;
+        actionsRef = firebaseServices.actionsRef;
+        bannedUsersRef = firebaseServices.bannedUsersRef;
+        onlineUsersRef = firebaseServices.onlineUsersRef;
 
         // サービスワーカーとFCMの初期化
         if ('serviceWorker' in navigator) {
-            globalSwRegistration = await navigator.serviceWorker.register('/learning/english-words/chat/firebase-messaging-sw.js', { scope: '/learning/english-words/chat/' });
+            globalSwRegistration = await navigator.serviceWorker.getRegistration(); // 既に登録されているものを取得
+            if (!globalSwRegistration) {
+                // サービスワーカーが登録されていない場合は、index.htmlで登録されるのを待つ
+                console.warn('[script.js] Service Workerがまだ登録されていません。');
+                // 登録されるまで待機するか、ユーザーにリロードを促すなどの処理を追加
+                // ここでは単に処理を続行し、FCM初期化はスキップされる可能性を許容
+            }
             try {
-                await initNotifications(firebaseServices.app, firebaseServices.database, globalSwRegistration);
+                // fcmpush.js からインポートした initFCM を使用
+                await initFCM(app, database, globalSwRegistration);
                 isFCMInitialized = true;
             } catch (error) {
-                console.error('[script.js] initNotifications 呼び出しエラー:', error);
+                console.error('[script.js] initNotifications (initFCM) 呼び出しエラー:', error);
                 isFCMInitialized = false;
             }
         } else {
@@ -1845,3 +1748,4 @@ navigator.serviceWorker.addEventListener('message', (event) => {
         showError(`FCM初期化エラー: ${event.data.message}`);
     }
 });
+A

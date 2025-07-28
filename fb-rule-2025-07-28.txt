@@ -1,0 +1,62 @@
+{
+  "rules": {
+    "messages": {
+      ".read": "auth != null",
+      ".indexOn": "timestamp",
+      "$messageId": {
+        ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['username', 'message', 'timestamp', 'userId'])",
+        "username": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "message": { ".validate": "newData.isString() && newData.val().length > 0" },
+        "timestamp": { ".validate": "newData.isNumber()" },
+        "userId": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+        "ipAddress": { ".validate": "newData.isString() || newData.val() == null" },
+        "$other": { ".validate": false }
+      }
+    },
+    "users": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid",
+        "username": { ".read": "auth != null", ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "provider": { ".read": "auth != null && auth.uid == $uid", ".validate": "newData.isString() || newData.val() == null" },
+        "ipAddress": { ".read": "auth != null && auth.uid == $uid", ".validate": "newData.isString() || newData.val() == null" },
+        "photoURL": { ".read": "auth != null", ".validate": "newData.isString() || newData.val() == null" },
+        "email": { ".read": "auth != null && auth.uid == $uid", ".validate": "newData.isString() || newData.val() == null" },
+        "emailVerified": { ".read": "auth != null && auth.uid == $uid", ".validate": "newData.isBoolean() || newData.val() == null" },
+        "fcmToken": { ".read": "auth != null && auth.uid == $uid", ".validate": "newData.isString() || newData.val() == null" },
+        "lastLogin": { ".read": "auth != null && auth.uid == $uid", ".validate": "newData.isNumber() || newData.val() == null" },
+        "lastUpdate": { ".read": "auth != null", ".validate": "newData.isNumber() || newData.val() == null" },
+        "$other": { ".validate": false }
+      }
+    },
+    "actions": {
+      ".read": "auth != null",
+      ".write": "auth != null && newData.child('userId').val() === auth.uid",
+      "$actionId": {
+        ".validate": "newData.hasChildren(['type', 'userId', 'timestamp'])",
+        "type": { ".validate": "newData.isString() && (newData.val() === 'connect' || newData.val() === 'logout' || newData.val() === 'sendMessage' || newData.val() === 'deleteMessage' || newData.val() === 'setUsername')" },
+        "userId": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+        "username": { ".validate": "newData.isString() || newData.val() == null" },
+        "messageId": { ".validate": "newData.isString() || newData.val() == null" },
+        "timestamp": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "bannedUsers": {
+      ".read": "auth != null",
+      ".write": "auth.uid === 'VIZei2kyYeZ2DZkHlJ1hOhXxRsu2'"
+    },
+    "onlineUsers": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth.uid === $uid",
+        "userId": { ".validate": "newData.isString() && newData.val() === $uid" },
+        "username": { ".validate": "newData.isString() || newData.val() == null" },
+        "photoURL": { ".validate": "newData.isString() || newData.val() == null" },
+        "timestamp": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
