@@ -5,33 +5,35 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getDatabase, ref } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 
-// === ここから動的なパス決定ロジックを追加/変更 ===
-function getAppBasePath() {
-    const appUrl = window.location.href; // メインウィンドウのURLを取得
+// === Firebase設定を返す外部サーバーのURLを直接指定します ===
+// GitHub PagesはPHPを実行できないため、PHPファイルはPHPが動作するサーバーに置く必要があります。
+// ここにあなたのfirebase-config.phpがJSONを返す実際のURLを設定してください。
+const FIREBASE_CONFIG_EXTERNAL_URL = 'https://trextacy.com/chat/firebase-config.php'; // ★このURLをあなたのものに置き換える
 
-    // GitHub Pages / trextacy.com の場合 (例: https://soysourcetan.github.io/chat/)
-    // またはローカルホストのサブディレクトリの場合 (例: http://localhost/learning/english-words/chat/)
-    // 'chat/' というパスセグメントを基準にする
+// getAppBasePath 関数と configBaseUrl 変数は、
+// 外部サーバーから設定を取得する場合は不要になりますが、
+// 他の用途で使われている可能性を考慮し、ここではコメントアウトせず、
+// loadFirebaseConfig で直接外部URLを使用するように変更します。
+
+/*
+function getAppBasePath() {
+    const appUrl = window.location.href;
     const pathParts = window.location.pathname.split('/');
     const chatIndex = pathParts.indexOf('chat');
 
     if (chatIndex > -1) {
-        // 'chat' が見つかった場合、その手前までをベースパスとする
         return window.location.origin + pathParts.slice(0, chatIndex + 1).join('/') + '/';
     }
-    // その他の場合 (例: ルートディレクトリでホストされている場合など)
     return window.location.origin + '/';
 }
 
-const configBaseUrl = getAppBasePath(); // 動的に決定されたベースURLを使用
-
-// === ここまで動的なパス決定ロジック ===
-
+const configBaseUrl = getAppBasePath();
+*/
 
 async function loadFirebaseConfig() {
     try {
-        // 動的に決定された configBaseUrl を使用
-        const response = await fetch(`${configBaseUrl}firebase-config.php`, {
+        // 動的に決定された configBaseUrl の代わりに、外部サーバーのURLを直接使用
+        const response = await fetch(FIREBASE_CONFIG_EXTERNAL_URL, {
             method: 'GET',
             headers: { 'Accept': 'application/json' },
             mode: 'cors'

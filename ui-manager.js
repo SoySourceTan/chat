@@ -238,24 +238,6 @@ export function setupUI(
         console.warn('[ui-manager.js] toggleModeBtn (EnterMode) 要素が見つかりませんでした。');
     }
 
-
-    // ★ここから通知音トグルボタンの修正
-    if (notificationButton) {
-        notificationButton.addEventListener('click', () => { // ★変更: 'change' から 'click' に
-            const currentSoundEnabled = getCookie('notificationSoundEnabled') === 'true';
-            const newSoundEnabled = !currentSoundEnabled; // 現在と逆の状態に切り替え
-
-            setCookie('notificationSoundEnabled', newSoundEnabled ? 'true' : 'false', 365);
-            updateNotificationButtonUI(newSoundEnabled); // UIを更新
-            
-            // initNotify() は ui-manager.js ではなく script.js の方で管理されるべきです。
-            // ここではクッキーを更新し、UIを更新するのみに留めます。
-            showSuccess(`通知音を${newSoundEnabled ? '有効' : '無効'}にしました。`);
-        });
-    } else {
-        console.warn('[ui-manager.js] notification-toggle-btn 要素が見つかりませんでした。');
-    }
-
     // pushNotificationSwitch はHTMLにないので、関連するイベントリスナーもコメントアウト
     // if (pushNotificationSwitch) {
     //     pushNotificationSwitch.addEventListener('change', (event) => {
