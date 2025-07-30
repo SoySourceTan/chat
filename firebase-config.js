@@ -5,60 +5,37 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getDatabase, ref } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
 
-// === Firebase設定を返す外部サーバーのURLを直接指定します ===
-// GitHub PagesはPHPを実行できないため、PHPファイルはPHPが動作するサーバーに置く必要があります。
-// ここにあなたのfirebase-config.phpがJSONを返す実際のURLを設定してください。
-const FIREBASE_CONFIG_EXTERNAL_URL = 'https://trextacy.com/chat/firebase-config.php'; // ★このURLをあなたのものに置き換える
+// Firebaseプロジェクトの設定を直接JavaScriptオブジェクトとして定義します。
+// これはFirebase Console > プロジェクト設定 > 全般 > ウェブアプリのSDK設定 から取得できます。
+const firebaseConfig = {
+    apiKey: 'AIzaSyBLMySLkXyeiL2_QLCdolHTOOA6W3TSfYc',
+    authDomain: 'gentle-brace-458923-k9.firebaseapp.com',
+    databaseURL: 'https://gentle-brace-458923-k9-default-rtdb.firebaseio.com',
+    projectId: 'gentle-brace-458923-k9',
+    storageBucket: 'gentle-brace-458923-k9.firebasestorage.app',
+    messagingSenderId: '426876531009',
+    appId: '1:426876531009:web:021b23c449bce5d72031c0',
+    measurementId: 'G-2B5KWNHYED'
+};
 
-// getAppBasePath 関数と configBaseUrl 変数は、
-// 外部サーバーから設定を取得する場合は不要になりますが、
-// 他の用途で使われている可能性を考慮し、ここではコメントアウトせず、
-// loadFirebaseConfig で直接外部URLを使用するように変更します。
-
-/*
-function getAppBasePath() {
-    const appUrl = window.location.href;
-    const pathParts = window.location.pathname.split('/');
-    const chatIndex = pathParts.indexOf('chat');
-
-    if (chatIndex > -1) {
-        return window.location.origin + pathParts.slice(0, chatIndex + 1).join('/') + '/';
-    }
-    return window.location.origin + '/';
-}
-
-const configBaseUrl = getAppBasePath();
-*/
-
-async function loadFirebaseConfig() {
-    try {
-        // 動的に決定された configBaseUrl の代わりに、外部サーバーのURLを直接使用
-        const response = await fetch(FIREBASE_CONFIG_EXTERNAL_URL, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            mode: 'cors'
-        });
-        if (!response.ok) {
-            throw new Error(`HTTPエラー: ステータス ${response.status}`);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error('[firebase-config.js] Firebase設定取得エラー:', error);
-        showError('Firebase設定の取得に失敗しました。');
-        throw error;
-    }
+// Firebase設定を返す関数（同期的に直接オブジェクトを返します）
+function loadFirebaseConfig() {
+    return firebaseConfig;
 }
 
 let app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef;
 let isInitialized = false;
 
+// Firebaseサービスを初期化する関数
 async function initializeFirebase() {
     if (isInitialized) {
         return { app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef };
     }
     try {
-        const firebaseConfig = await loadFirebaseConfig();
-        app = initializeApp(firebaseConfig);
+        // loadFirebaseConfig を同期的に呼び出して設定を取得
+        const config = loadFirebaseConfig();
+        
+        app = initializeApp(config); // 取得した設定でFirebaseアプリを初期化
         database = getDatabase(app);
         auth = getAuth(app);
         messagesRef = ref(database, 'messages');
@@ -72,7 +49,7 @@ async function initializeFirebase() {
     } catch (error) {
         console.error('[firebase-config.js] 初期化エラー:', error);
         showError('Firebaseの初期化に失敗しました。ページをリロードしてください。');
-        throw error;
+        throw error; // エラーを再スローして呼び出し元に伝える
     }
 }
 
