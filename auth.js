@@ -1,7 +1,6 @@
-// auth.js
 import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
-import { ref, set, get, push, remove, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-import { showError, showSuccess, getClientIp, cleanPhotoURL } from './utils.js';
+import { ref, set, get, push, update } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+import { showError, showSuccess, getClientIp, cleanPhotoURL, cleanUsername } from './utils.js';
 
 let isLoggingIn = false;
 
@@ -17,15 +16,6 @@ function getBasePath() {
         return '/'; // Fallback for local dev if chat not in path
     }
     return '/chat/'; // For deployed versions
-}
-
-// ユーザー名をクリーンアップするヘルパー関数
-function cleanUsernameString(name) {
-    if (typeof name !== 'string') {
-        return '匿名'; // 文字列でなければデフォルト値を返す
-    }
-    // 制御文字（U+0000-U+001F, U+007F-U+009F）とBOM（U+FEFF）を除去し、前後の空白をトリム
-    return name.replace(/[\u0000-\u001F\u007F-\u009F\uFEFF]/g, '').trim();
 }
 
 /**
@@ -48,26 +38,34 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         console.log('[auth.js] Twitterログイン成功:', user);
+        console.log('[auth.js] Twitter user.photoURL:', user.photoURL);
 
         // ユーザー情報をデータベースに保存または更新
         const userId = user.uid;
-        const username = user.displayName || '匿名';
-        const photoURL = cleanPhotoURL(user.photoURL);
+        const rawUsername = user.displayName || '匿名';
+        const cleanedUsername = cleanUsername(rawUsername);
+        console.log('[auth.js] 元のユーザー名:', rawUsername, 'クリーンアップ後:', cleanedUsername);
+
+        // プロフィール画像の処理
+        let photoURL = cleanPhotoURL(user.photoURL);
+        if (!photoURL) {
+            console.warn('[auth.js] TwitterのphotoURLが無効または空:', user.photoURL);
+            photoURL = `${getBasePath()}images/icon.png`; // デフォルト画像
+        }
+        console.log('[auth.js] 使用するphotoURL:', photoURL);
         const ipAddress = await getClientIp();
 
         await set(ref(database, `users/${userId}`), {
-            username: username,
+            username: cleanedUsername,
             photoURL: photoURL,
             lastLogin: Date.now(),
             ipAddress: ipAddress,
             provider: 'twitter'
         });
 
-        // アクションログに記録
         await push(ref(database, `actions`), {
-            type: 'login',
+            type: 'connect',
             userId: userId,
-            provider: 'twitter',
             timestamp: Date.now()
         });
 
@@ -112,26 +110,34 @@ export async function signInWithGoogle(auth, database, onLoginSuccess) {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         console.log('[auth.js] Googleログイン成功:', user);
+        console.log('[auth.js] Google user.photoURL:', user.photoURL);
 
         // ユーザー情報をデータベースに保存または更新
         const userId = user.uid;
-        const username = user.displayName || '匿名';
-        const photoURL = cleanPhotoURL(user.photoURL);
+        const rawUsername = user.displayName || '匿名';
+        const cleanedUsername = cleanUsername(rawUsername);
+        console.log('[auth.js] 元のユーザー名:', rawUsername, 'クリーンアップ後:', cleanedUsername);
+
+        // プロフィール画像の処理
+        let photoURL = cleanPhotoURL(user.photoURL);
+        if (!photoURL) {
+            console.warn('[auth.js] GoogleのphotoURLが無効または空:', user.photoURL);
+            photoURL = `${getBasePath()}images/icon.png`; // デフォルト画像
+        }
+        console.log('[auth.js] 使用するphotoURL:', photoURL);
         const ipAddress = await getClientIp();
 
         await set(ref(database, `users/${userId}`), {
-            username: username,
+            username: cleanedUsername,
             photoURL: photoURL,
             lastLogin: Date.now(),
             ipAddress: ipAddress,
             provider: 'google'
         });
 
-        // アクションログに記録
         await push(ref(database, `actions`), {
             type: 'login',
             userId: userId,
-            provider: 'google',
             timestamp: Date.now()
         });
 
@@ -177,25 +183,25 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
         console.log('[auth.js] 匿名ログイン成功:', user);
 
         const userId = user.uid;
-        const defaultUsername = `ゲスト-${userId.substring(0, 4)}`;
-        const photoURL = `${getBasePath()}images/icon.png`; // 匿名ユーザーのデフォルトアイコン
-
+        const rawUsername = `ゲスト-${userId.substring(0, 4)}`;
+        const cleanedUsername = cleanUsername(rawUsername); // cleanUsername を適用
+        console.log('[auth.js] 元のユーザー名:', rawUsername, 'クリーンアップ後:', cleanedUsername);
+        let photoURL = `${getBasePath()}images/icon.png`; // 匿名ユーザーのデフォルトアイコン
+        photoURL = cleanPhotoURL(photoURL) || photoURL; // cleanPhotoURL を適用し、無効なら元の値を保持
+        console.log('[auth.js] 使用するphotoURL:', photoURL);
         const ipAddress = await getClientIp();
 
-        // データベースにユーザー情報を保存または更新
         await set(ref(database, `users/${userId}`), {
-            username: defaultUsername,
+            username: cleanedUsername,
             photoURL: photoURL,
             lastLogin: Date.now(),
             ipAddress: ipAddress,
             provider: 'anonymous'
         });
 
-        // アクションログに記録
         await push(ref(database, `actions`), {
             type: 'login',
             userId: userId,
-            provider: 'anonymous',
             timestamp: Date.now()
         });
 
@@ -238,7 +244,6 @@ export async function signOutUser(auth, onLogoutSuccess) {
  * @param {function} onNameUpdateSuccess - ユーザー名更新成功時に呼び出されるコールバック
  * @returns {Promise<void>}
  */
-// auth.js (updateUsername 関数の修正版)
 export async function updateUsername(auth, database, username, onNameUpdateSuccess) {
     if (typeof username !== 'string' || username.trim() === '') {
         console.error('[auth.js] 無効なユーザー名:', username);
@@ -254,15 +259,12 @@ export async function updateUsername(auth, database, username, onNameUpdateSucce
     }
 
     const userId = user.uid;
-    console.log('[auth.js] 認証ユーザー情報:', {
-        uid: userId,
-        displayName: user.displayName,
-        email: user.email,
-    });
+    const cleanedUsername = cleanUsername(username);
+    console.log('[auth.js] 元のユーザー名:', username, 'クリーンアップ後:', cleanedUsername);
 
     try {
         await updateProfile(user, {
-            displayName: username,
+            displayName: cleanedUsername,
         });
         console.log('[auth.js] Firebase Auth プロフィール更新成功');
     } catch (error) {
@@ -271,15 +273,19 @@ export async function updateUsername(auth, database, username, onNameUpdateSucce
         throw error;
     }
 
-    const currentPhotoURL =
-        user.photoURL && !user.photoURL.includes('icon.png')
-            ? cleanPhotoURL(user.photoURL)
-            : '/learning/english-words/chat/images/icon.png';
+    let photoURL = user.photoURL && !user.photoURL.includes('icon.png')
+        ? cleanPhotoURL(user.photoURL)
+        : `${getBasePath()}images/icon.png`;
+    if (!photoURL) {
+        console.warn('[auth.js] photoURLが無効または空:', user.photoURL);
+        photoURL = `${getBasePath()}images/icon.png`;
+    }
+    console.log('[auth.js] 使用するphotoURL:', photoURL);
 
     try {
         await update(ref(database, `users/${userId}`), {
-            username: String(username),
-            photoURL: currentPhotoURL,
+            username: cleanedUsername,
+            photoURL: photoURL,
             lastUpdate: Date.now(),
         });
         console.log('[auth.js] users 更新成功');
@@ -293,7 +299,7 @@ export async function updateUsername(auth, database, username, onNameUpdateSucce
         const actionData = {
             type: 'setUsername',
             userId: userId,
-            username: String(username),
+            username: cleanedUsername,
             timestamp: Date.now(),
         };
         console.log('[auth.js] actions 書き込みデータ:', actionData);
@@ -311,6 +317,6 @@ export async function updateUsername(auth, database, username, onNameUpdateSucce
 
     showSuccess('ユーザー名を更新しました。');
     if (onNameUpdateSuccess) {
-        onNameUpdateSuccess(username, currentPhotoURL);
+        onNameUpdateSuccess(cleanedUsername, photoURL);
     }
 }

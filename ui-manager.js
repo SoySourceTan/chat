@@ -26,8 +26,8 @@ export let userIdEl;
 export let toggleDebugModeBtn;
 export let debugInfoEl;
 export let versionInfoEl;
-export let notificationToggle;
-export let pushNotificationSwitch;
+// export let notificationToggle; // HTMLに存在しないため削除またはコメントアウト
+// export let pushNotificationSwitch; // HTMLに存在しないため削除またはコメントアウト
 export let messageDisplayLimitSelect;
 export let loginDropdown;
 export let messageLoadingSpinner;
@@ -39,7 +39,7 @@ export let resetUserColorBtn;
 export let userColorDisplay;
 // export let loginModalEl; // loginModalがHTMLに存在しないため削除
 export let unameModalEl;
-
+export let notificationButton; // ★変更: notificationToggle の代わりに notificationButton を追加
 
 // UIの初期化
 /**
@@ -51,7 +51,6 @@ export let unameModalEl;
  * @param {function} onNameUpdateSuccessCallback - ユーザー名更新成功時のコールバック
  * @param {function} onMessageSendCallback - メッセージ送信時のコールバック
  * @param {function} onDeleteMessageCallback - メッセージ削除時のコールバック
- * @param {function} onPushNotificationToggle - プッシュ通知トグル時のコールバック
  * @param {function} onMessageLimitChange - メッセージ表示数変更時のコールバック
  * @param {function} onColorModeChange - 背景色モード変更時のコールバック
  * @param {function} onUserColorChange - ユーザーメッセージ色変更時のコールバック
@@ -65,184 +64,254 @@ export function setupUI(
     onNameUpdateSuccessCallback,
     onMessageSendCallback,
     onDeleteMessageCallback,
-    onPushNotificationToggle,
+    // onPushNotificationToggle, // HTMLに該当要素がないため引数から削除
     onMessageLimitChange,
     onColorModeChange,
     onUserColorChange,
     onResetUserColor
 ) {
     // DOM要素の参照を取得
-    formEl = document.getElementById('message-form');
-    inputEl = document.getElementById('message-input');
+    formEl = document.getElementById('messageForm'); // HTMLのIDは messageForm でした
+    inputEl = document.getElementById('m'); // HTMLのIDは m でした
     messagesEl = document.getElementById('messages');
-    loginBtn = document.getElementById('loginBtn');
+    loginBtn = document.getElementById('login-btn'); // HTMLのIDは login-btn でした
     errorAlert = document.getElementById('error-alert');
-    onlineUsersCountEl = document.getElementById('online-users-count');
-    onlineUsersListEl = document.getElementById('online-users-list');
+    onlineUsersCountEl = document.getElementById('online-users-count'); // HTMLにはonline-users-countがないが、online-usersはある
+    onlineUsersListEl = document.getElementById('online-users-list'); // HTMLには存在しない
     compactModeBtn = document.getElementById('compactModeBtn');
     fontSizeS = document.getElementById('fontSizeS');
     fontSizeM = document.getElementById('fontSizeM');
     fontSizeL = document.getElementById('fontSizeL');
-    toggleEnterModeBtn = document.getElementById('toggleEnterModeBtn');
-    newNameInput = document.getElementById('new-name-input');
-    saveNameBtn = document.getElementById('saveNameBtn');
-    logoutBtn = document.getElementById('logoutBtn');
-    avatarEl = document.getElementById('avatar');
-    currentUsernameEl = document.getElementById('current-username');
-    userIdEl = document.getElementById('user-id-display');
-    toggleDebugModeBtn = document.getElementById('toggleDebugModeBtn');
-    debugInfoEl = document.getElementById('debug-info');
-    versionInfoEl = document.getElementById('version-info');
-    notificationToggle = document.getElementById('notificationToggle');
-    pushNotificationSwitch = document.getElementById('pushNotificationSwitch');
-    messageDisplayLimitSelect = document.getElementById('messageDisplayLimitSelect');
-    loginDropdown = document.getElementById('loginDropdown');
-    messageLoadingSpinner = document.querySelector('#loading-message-div .spinner-border');
-    loadingMessageDiv = document.getElementById('loading-message-div');
+    toggleEnterModeBtn = document.getElementById('toggleModeBtn'); // HTMLのIDは toggleModeBtn でした
+    newNameInput = document.getElementById('uname'); // HTMLのIDは uname でした
+    saveNameBtn = document.getElementById('confirmName'); // HTMLのIDは confirmName でした
+    logoutBtn = document.getElementById('signOut'); // HTMLのIDは signOut でした
+    avatarEl = document.querySelector('.profile-img-small'); // HTMLのavatarはprofile-img-smallクラスを持つimg
+    currentUsernameEl = document.getElementById('current-username-display'); // HTMLのIDは current-username-display でした
+    userIdEl = document.getElementById('user-id-display'); // HTMLには存在しない
+    toggleDebugModeBtn = document.getElementById('toggleDebugModeBtn'); // HTMLには存在しない
+    debugInfoEl = document.getElementById('debug-info'); // HTMLには存在しない
+    notificationButton = document.getElementById('notification-toggle-btn'); // ★変更: ここで正しいIDを参照
+    // notificationToggle = document.getElementById('notificationToggle'); // 削除またはコメントアウト
+    // pushNotificationSwitch = document.getElementById('pushNotificationSwitch'); // HTMLに存在しないため削除またはコメントアウト
+    messageDisplayLimitSelect = document.getElementById('messageDisplayLimitSelect'); // HTMLには存在しない
+    loginDropdown = document.getElementById('loginDropdown'); // HTMLには存在しない
+    messageLoadingSpinner = document.querySelector('#loading-message-div .spinner-border'); // HTMLには存在しない
+    loadingMessageDiv = document.getElementById('loading-message-div'); // HTMLには存在しない
     newMessageBtn = document.getElementById('newMessageBtn');
-    userColorPreference = getCookie('colorAssignmentMode') || 'sequential';
-    userColorPicker = document.getElementById('userColorOptions');
-    resetUserColorBtn = document.getElementById('resetUserColorBtn');
-    userColorDisplay = document.getElementById('user-color-display'); // 新しい要素
+
+    // colorPicker の select 要素を取得
+    userColorPicker = document.getElementById('userColorSelect'); // userColorOptions の代わりに userColorSelect を参照
+    resetUserColorBtn = document.getElementById('resetUserColorBtn'); // HTMLには存在しない
+    userColorDisplay = document.getElementById('user-color-display'); // HTMLには存在しない
 
     // モーダル要素の取得と初期化
-    // loginModalEl = new bootstrap.Modal(document.getElementById('loginModal')); // id="loginModal" がHTMLに存在しないためコメントアウトまたは削除
-    unameModalEl = new bootstrap.Modal(document.getElementById('usernameModal'));
+    // loginModalEl = new bootstrap.Modal(document.getElementById('loginModal')); // id="loginModal" はHTMLに存在するが、変数に export されていないためコメントアウト
+    unameModalEl = new bootstrap.Modal(document.getElementById('unameModal')); // HTMLのIDは unameModal でした
 
     // イベントリスナーの設定
     // ログイン関連
-    document.getElementById('googleLoginBtn').addEventListener('click', () => onLoginSuccessCallback('google'));
-    document.getElementById('twitterLoginBtn').addEventListener('click', () => onLoginSuccessCallback('twitter'));
-    document.getElementById('anonymousLoginBtn').addEventListener('click', () => onLoginSuccessCallback('anonymous'));
-    logoutBtn.addEventListener('click', onLogoutSuccessCallback);
+    // HTMLには id="googleLoginBtn", "twitterLoginBtn", "anonymousLoginBtn" はなく、
+    // それぞれ "googleLogin", "twitterLogin", "anonymousLogin" があります。
+    // loginBtn は id="login-btn" です。
+    // 適切なIDに修正
+    document.getElementById('googleLogin').addEventListener('click', () => onLoginSuccessCallback('google'));
+    document.getElementById('twitterLogin').addEventListener('click', () => onLoginSuccessCallback('twitter'));
+    document.getElementById('anonymousLogin').addEventListener('click', () => onLoginSuccessCallback('anonymous'));
+    
+    if (logoutBtn) { // logoutBtn が取得できた場合のみイベントリスナーを設定
+        logoutBtn.addEventListener('click', onLogoutSuccessCallback);
+    } else {
+        console.warn('[ui-manager.js] logoutBtn 要素が見つかりませんでした。');
+    }
 
-    // メッセージ送信
-    formEl.addEventListener('submit', onMessageSendCallback);
+    if (formEl) { // formEl が取得できた場合のみイベントリスナーを設定
+        formEl.addEventListener('submit', onMessageSendCallback);
+    } else {
+        console.warn('[ui-manager.js] messageForm 要素が見つかりませんでした。');
+    }
 
     // ユーザー名変更
-    document.getElementById('editNameBtn').addEventListener('click', () => {
-        const currentName = currentUsernameEl.textContent;
-        newNameInput.value = currentName;
-        unameModalEl.show();
-    });
-    saveNameBtn.addEventListener('click', async () => { // ★ここをasyncにする
-        const newUsername = newNameInput.value.trim();
-        if (newUsername === '') {
-            showError('ユーザー名を入力してください。');
-            return;
-        }
+    const userInfoDisplay = document.getElementById('user-info'); // HTMLには editNameBtn がないので user-info をクリックイベントにする
+    if (userInfoDisplay) {
+        userInfoDisplay.addEventListener('click', () => {
+            const currentName = currentUsernameEl.textContent;
+            if (newNameInput) { // newNameInput が存在するか確認
+                newNameInput.value = currentName;
+            }
+            unameModalEl.show();
+        });
+    } else {
+        console.warn('[ui-manager.js] user-info 要素が見つかりませんでした。');
+    }
 
-        try {
-            // プログレス表示など
-            // showProgressOverlay(); // 必要であればプログレス表示
+    if (saveNameBtn) { // saveNameBtn が取得できた場合のみイベントリスナーを設定
+        saveNameBtn.addEventListener('click', async () => { // ★ここをasyncにする
+            const newUsername = newNameInput.value.trim();
+            if (newUsername === '') {
+                showError('ユーザー名を入力してください。');
+                return;
+            }
 
-            await updateUsername(
-                firebaseServices.auth,
-                firebaseServices.database,
-                firebaseServices.actionsRef,
-                newUsername,
-                (updatedUsername, updatedPhotoURL) => {
-                    // ユーザー名更新成功時のコールバック
-                    if (callbacks.onUsernameUpdated) {
-                        callbacks.onUsernameUpdated(updatedUsername, updatedPhotoURL);
-                    }
-                    // モーダルを閉じる
-                    const unameModal = bootstrap.Modal.getInstance(unameModalEl);
-                    if (unameModal) {
-                        unameModal.hide();
-                    }
+            try {
+                // showProgressOverlay(); // この関数は ui-manager.js に定義がないためコメントアウト
+                                     // script.js 側でプログレス表示の管理を行うべきです。
+                // FirebaseServices や callbacks は setupUI のスコープ外または引数で渡されていないため、
+                // setupUIの呼び出し元（script.js）で onNameUpdateSuccessCallback を呼び出すべきです。
+                // ここでは引数として onNameUpdateSuccessCallback を受け取っているので、それを利用します。
+
+                await onNameUpdateSuccessCallback(newUsername); // コールバックを実行
+                
+                // モーダルを閉じる
+                // const unameModal = bootstrap.Modal.getInstance(unameModalEl); // getInstance は不要。直接 hide() を呼び出す
+                if (unameModalEl) {
+                    unameModalEl.hide();
                 }
-            );
-            // hideProgressOverlay(); // 必要であればプログレス非表示
-        } catch (error) {
-            console.error('[ui-manager.js] ユーザー名更新エラー:', error);
-            showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
-            // hideProgressOverlay(); // 必要であればプログレス非表示
-        }
-    });
+                // hideProgressOverlay(); // この関数は ui-manager.js に定義がないためコメントアウト
 
+            } catch (error) {
+                console.error('[ui-manager.js] ユーザー名更新エラー:', error);
+                showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
+                // hideProgressOverlay(); // この関数は ui-manager.js に定義がないためコメントアウト
+            }
+        });
+    } else {
+        console.warn('[ui-manager.js] confirmName (saveNameBtn) 要素が見つかりませんでした。');
+    }
+    
     // メッセージ削除確認モーダル
-    const deleteMessageModal = new bootstrap.Modal(document.getElementById('deleteMessageModal'));
+    // HTMLには id="deleteMessageModal" はなく、deleteConfirmModal があります。
+    const deleteMessageModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
     let messageToDeleteId = null; // 削除対象のメッセージIDを保持する変数
 
-    messagesEl.addEventListener('click', (event) => {
-        const deleteButton = event.target.closest('.delete-message-btn');
-        if (deleteButton) {
-            messageToDeleteId = deleteButton.dataset.messageId;
-            deleteMessageModal.show();
-        }
-    });
+    if (messagesEl) { // messagesEl が取得できた場合のみイベントリスナーを設定
+        messagesEl.addEventListener('click', (event) => {
+            const deleteButton = event.target.closest('.delete-message'); // HTMLのクラスは delete-message でした
+            if (deleteButton) {
+                messageToDeleteId = deleteButton.dataset.messageId;
+                deleteMessageModal.show();
+            }
+        });
+    } else {
+        console.warn('[ui-manager.js] messages 要素が見つかりませんでした。');
+    }
 
-    document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
-        if (messageToDeleteId) {
-            onDeleteMessageCallback(messageToDeleteId);
-            messageToDeleteId = null; // リセット
-            deleteMessageModal.hide();
-        }
-    });
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    if (confirmDeleteBtn) { // confirmDeleteBtn が取得できた場合のみイベントリスナーを設定
+        confirmDeleteBtn.addEventListener('click', () => {
+            if (messageToDeleteId) {
+                onDeleteMessageCallback(messageToDeleteId);
+                messageToDeleteId = null; // リセット
+                deleteMessageModal.hide();
+            }
+        });
+    } else {
+        console.warn('[ui-manager.js] confirmDeleteBtn 要素が見つかりませんでした。');
+    }
+
 
     // 設定関連
-    compactModeBtn.addEventListener('click', () => {
-        document.body.classList.toggle('compact-mode');
-        const isCompact = document.body.classList.contains('compact-mode');
-        setCookie('compactMode', isCompact ? 'true' : 'false', 365);
-        showSuccess(`コンパクトモードを${isCompact ? '有効' : '無効'}にしました。`);
-    });
+    if (compactModeBtn) { // compactModeBtn が取得できた場合のみイベントリスナーを設定
+        compactModeBtn.addEventListener('click', () => {
+            document.body.classList.toggle('compact-mode');
+            const isCompact = document.body.classList.contains('compact-mode');
+            setCookie('compactMode', isCompact ? 'true' : 'false', 365);
+            showSuccess(`コンパクトモードを${isCompact ? '有効' : '無効'}にしました。`);
+        });
+    } else {
+        console.warn('[ui-manager.js] compactModeBtn 要素が見つかりませんでした。');
+    }
 
-    fontSizeS.addEventListener('click', () => setFontSize('small'));
-    fontSizeM.addEventListener('click', () => setFontSize('medium'));
-    fontSizeL.addEventListener('click', () => setFontSize('large'));
 
-    toggleEnterModeBtn.addEventListener('click', () => {
-        const currentMode = getCookie('enterSendMode') === 'true';
-        setCookie('enterSendMode', !currentMode ? 'true' : 'false', 365);
-        showSuccess(`Enterで送信モードを${!currentMode ? '有効' : '無効'}にしました。`);
-    });
+    if (fontSizeS) fontSizeS.addEventListener('click', () => setFontSize('small')); else console.warn('[ui-manager.js] fontSizeS 要素が見つかりませんでした。');
+    if (fontSizeM) fontSizeM.addEventListener('click', () => setFontSize('medium')); else console.warn('[ui-manager.js] fontSizeM 要素が見つかりませんでした。');
+    if (fontSizeL) fontSizeL.addEventListener('click', () => setFontSize('large')); else console.warn('[ui-manager.js] fontSizeL 要素が見つかりませんでした。');
 
-    notificationToggle.addEventListener('change', (event) => {
-        const isEnabled = event.target.checked;
-        setCookie('notificationSoundEnabled', isEnabled ? 'true' : 'false', 365);
-        initNotify(); // 設定を反映するために再初期化
-        showSuccess(`通知音を${isEnabled ? '有効' : '無効'}にしました。`);
-    });
 
-    pushNotificationSwitch.addEventListener('change', (event) => {
-        onPushNotificationToggle(event.target.checked);
-    });
+    if (toggleEnterModeBtn) { // toggleEnterModeBtn が取得できた場合のみイベントリスナーを設定
+        toggleEnterModeBtn.addEventListener('click', () => {
+            const currentMode = getCookie('enterSendMode') === 'true';
+            setCookie('enterSendMode', !currentMode ? 'true' : 'false', 365);
+            showSuccess(`Enterで送信モードを${!currentMode ? '有効' : '無効'}にしました。`);
+        });
+    } else {
+        console.warn('[ui-manager.js] toggleModeBtn (EnterMode) 要素が見つかりませんでした。');
+    }
 
-    messageDisplayLimitSelect.addEventListener('change', (event) => {
-        onMessageLimitChange(parseInt(event.target.value, 10));
-    });
 
-    document.getElementById('colorModeSequential').addEventListener('click', () => onColorModeChange('sequential'));
-    document.getElementById('colorModeRandom').addEventListener('click', () => onColorModeChange('random'));
-    document.getElementById('colorModeManual').addEventListener('click', () => {
-        onColorModeChange('user-selected');
-        document.getElementById('userColorPickerContainer').classList.remove('d-none');
-    });
+    // ★ここから通知音トグルボタンの修正
+    if (notificationButton) {
+        notificationButton.addEventListener('click', () => { // ★変更: 'change' から 'click' に
+            const currentSoundEnabled = getCookie('notificationSoundEnabled') === 'true';
+            const newSoundEnabled = !currentSoundEnabled; // 現在と逆の状態に切り替え
 
-    // ユーザーメッセージ色選択
-    userColorPicker.addEventListener('click', (event) => {
-        const colorOption = event.target.closest('.color-option');
-        if (colorOption) {
-            const selectedColor = colorOption.dataset.colorClass;
-            onUserColorChange(selectedColor);
-            // 選択状態のUIを更新
-            userColorPicker.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
-            colorOption.classList.add('selected');
-        }
-    });
+            setCookie('notificationSoundEnabled', newSoundEnabled ? 'true' : 'false', 365);
+            updateNotificationButtonUI(newSoundEnabled); // UIを更新
+            
+            // initNotify() は ui-manager.js ではなく script.js の方で管理されるべきです。
+            // ここではクッキーを更新し、UIを更新するのみに留めます。
+            showSuccess(`通知音を${newSoundEnabled ? '有効' : '無効'}にしました。`);
+        });
+    } else {
+        console.warn('[ui-manager.js] notification-toggle-btn 要素が見つかりませんでした。');
+    }
 
-    resetUserColorBtn.addEventListener('click', () => onResetUserColor());
+    // pushNotificationSwitch はHTMLにないので、関連するイベントリスナーもコメントアウト
+    // if (pushNotificationSwitch) {
+    //     pushNotificationSwitch.addEventListener('change', (event) => {
+    //         onPushNotificationToggle(event.target.checked);
+    //     });
+    // } else {
+    //      console.warn('[ui-manager.js] pushNotificationSwitch 要素が見つかりませんでした。');
+    // }
+
+    // messageDisplayLimitSelect はHTMLにないので、関連するイベントリスナーもコメントアウト
+    // if (messageDisplayLimitSelect) {
+    //     messageDisplayLimitSelect.addEventListener('change', (event) => {
+    //         onMessageLimitChange(parseInt(event.target.value, 10));
+    //     });
+    // } else {
+    //      console.warn('[ui-manager.js] messageDisplayLimitSelect 要素が見つかりませんでした。');
+    // }
+    
+    // colorModeSequential, colorModeRandom, userColorPickerContainer, userColorPicker はHTMLに存在しない
+    // HTMLのid="userColorSelect" を利用
+    const userColorSelect = document.getElementById('userColorSelect');
+    if (userColorSelect) {
+        // 現在のHTML構造に合わせてイベントリスナーを調整
+        userColorSelect.addEventListener('change', (event) => {
+            const selectedColorClass = event.target.value;
+            // '色' オプションが選択された場合は処理しない
+            if (selectedColorClass === '色') {
+                showToast('メッセージの色を選択してください。', 'info');
+                return;
+            }
+            onUserColorChange(selectedColorClass);
+            // 選択状態のUI更新はselect要素なので不要
+        });
+    } else {
+        console.warn('[ui-manager.js] userColorSelect 要素が見つかりませんでした。');
+    }
+    
+    // resetUserColorBtn はHTMLに存在しない
+    // if (resetUserColorBtn) {
+    //     resetUserColorBtn.addEventListener('click', () => onResetUserColor());
+    // } else {
+    //     console.warn('[ui-manager.js] resetUserColorBtn 要素が見つかりませんでした。');
+    // }
 
 
     // デバッグモードトグル
-    toggleDebugModeBtn.addEventListener('click', () => {
-        debugInfoEl.classList.toggle('d-none');
-        const isDebugMode = !debugInfoEl.classList.contains('d-none');
-        setCookie('debugMode', isDebugMode ? 'true' : 'false', 365);
-        showSuccess(`デバッグモードを${isDebugMode ? '有効' : '無効'}にしました。`);
-    });
+    if (toggleDebugModeBtn && debugInfoEl) { // 両方の要素が存在する場合のみイベントリスナーを設定
+        toggleDebugModeBtn.addEventListener('click', () => {
+            debugInfoEl.classList.toggle('d-none');
+            const isDebugMode = !debugInfoEl.classList.contains('d-none');
+            setCookie('debugMode', isDebugMode ? 'true' : 'false', 365);
+            showSuccess(`デバッグモードを${isDebugMode ? '有効' : '無効'}にしました。`);
+        });
+    } else {
+        console.warn('[ui-manager.js] toggleDebugModeBtn または debugInfoEl 要素が見つかりませんでした。');
+    }
 
 
     // 初期状態の適用
@@ -255,8 +324,23 @@ export function setupUI(
  */
 function setFontSize(size) {
     document.body.classList.remove('font-small', 'font-medium', 'font-large');
-    document.body.classList.add(`font-${size}`);
+    // messagesEl のフォントサイズクラスを更新
+    if (messagesEl) {
+        messagesEl.classList.remove('font-size-small', 'font-size-medium', 'font-size-large');
+        messagesEl.classList.add(`font-size-${size}`); // HTMLのmessages要素のクラスは font-size-medium
+    }
     setCookie('fontSize', size, 365);
+    // アクティブボタンの更新 (HTMLの .btn-group)
+    const fontButtons = [fontSizeS, fontSizeM, fontSizeL];
+    fontButtons.forEach(btn => {
+        if (btn) {
+            if (btn.id === `fontSize${size.charAt(0).toUpperCase()}`) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
     showSuccess(`フォントサイズを${size === 'small' ? '小' : size === 'medium' ? '中' : '大'}に設定しました。`);
 }
 
@@ -276,60 +360,48 @@ function applyInitialSettings() {
         setFontSize('medium'); // デフォルト
     }
     // Enterで送信モード
+    // toggleEnterModeBtn のUIはここでは更新しない。必要であれば script.js で処理。
     if (getCookie('enterSendMode') === 'true') {
-        // 特にUI変更は不要だが、script.jsでこの設定が使われる
+        // ここでは特にUI変更は不要だが、script.jsでこの設定が使われる
     }
-    // 通知音
-    if (getCookie('notificationSoundEnabled') === 'true') {
-        notificationToggle.checked = true;
-    } else {
-        notificationToggle.checked = false;
-    }
-    // プッシュ通知はFCM初期化時に別途処理
-    if (getCookie('pushNotificationEnabled') === 'true') {
-        pushNotificationSwitch.checked = true;
-    } else {
-        pushNotificationSwitch.checked = false;
-    }
+    
+    // ★ここから修正: 通知音の初期状態をUIに適用
+    const isSoundEnabled = getCookie('notificationSoundEnabled') === 'true';
+    updateNotificationButtonUI(isSoundEnabled); // ボタンのUIを初期化
 
-    // メッセージ表示数
-    const savedMessageLimit = getCookie('messageDisplayLimit');
-    if (savedMessageLimit) {
-        messageDisplayLimitSelect.value = savedMessageLimit;
-    }
+    // プッシュ通知はFCM初期化時に別途処理 (HTMLに要素がないためコメントアウト)
+    // if (getCookie('pushNotificationEnabled') === 'true') {
+    //     if (pushNotificationSwitch) pushNotificationSwitch.checked = true;
+    // } else {
+    //     if (pushNotificationSwitch) pushNotificationSwitch.checked = false;
+    // }
+
+    // メッセージ表示数 (HTMLに要素がないためコメントアウト)
+    // const savedMessageLimit = getCookie('messageDisplayLimit');
+    // if (savedMessageLimit) {
+    //     if (messageDisplayLimitSelect) messageDisplayLimitSelect.value = savedMessageLimit;
+    // }
 
     // デバッグモード
     if (getCookie('debugMode') === 'true') {
-        debugInfoEl.classList.remove('d-none');
+        if (debugInfoEl) debugInfoEl.classList.remove('d-none');
     }
 
-    // 背景色モードとユーザーカラー
+    // 背景色モードとユーザーカラー (HTMLに該当する要素が少ないため調整)
     const savedColorMode = getCookie('colorAssignmentMode');
     if (savedColorMode) {
         userColorPreference = savedColorMode;
-        if (savedColorMode === 'user-selected') {
-            document.getElementById('userColorPickerContainer').classList.remove('d-none');
-        }
+        // HTMLに userColorPickerContainer がないので、関連する処理はコメントアウト
+        // if (savedColorMode === 'user-selected') {
+        //     document.getElementById('userColorPickerContainer').classList.remove('d-none');
+        // }
     }
-    // ユーザーカラーオプションの動的生成
-    const colors = [
-        'var(--bs-message-pink)', 'var(--bs-message-lime)', 'var(--bs-message-lilac)',
-        'var(--bs-message-lavender)', 'var(--bs-message-aqua)', 'var(--bs-message-mint)',
-        'var(--bs-message-yellow)', 'var(--bs-message-green)', 'var(--bs-message-cyan)',
-        'var(--bs-message-purple)'
-    ];
-    const colorClassNames = [
-        'bg-user-0', 'bg-user-1', 'bg-user-2', 'bg-user-3', 'bg-user-4',
-        'bg-user-5', 'bg-user-6', 'bg-user-7', 'bg-user-8', 'bg-user-9'
-    ];
-    userColorPicker.innerHTML = ''; // 既存のオプションをクリア
-    colors.forEach((color, index) => {
-        const colorOption = document.createElement('div');
-        colorOption.className = 'color-option';
-        colorOption.style.backgroundColor = color;
-        colorOption.dataset.colorClass = colorClassNames[index];
-        userColorPicker.appendChild(colorOption);
-    });
+    // ユーザーカラーオプションの動的生成は HTMLの <select> になったため、不要。
+    // 代わりに、userColorSelect の選択状態を設定する必要がある場合ここにロジックを追加。
+    const savedUserColor = getCookie('userSelectedColor');
+    if (userColorPicker && savedUserColor) {
+        userColorPicker.value = savedUserColor;
+    }
 }
 
 
@@ -338,10 +410,15 @@ function applyInitialSettings() {
  * @param {string} status - 'online' または 'offline'
  */
 export function updateStatusIndicator(status) {
-    const statusIndicator = document.getElementById('status-indicator');
-    if (statusIndicator) {
-        statusIndicator.className = `status-indicator status-${status}`;
-        statusIndicator.title = `現在のステータス: ${status === 'online' ? 'オンライン' : '離席中'}`;
+    // HTMLには id="status-indicator" はなく、status-dot というクラスがあります。
+    const statusDot = document.querySelector('.status-dot');
+    if (statusDot) {
+        statusDot.classList.remove('status-online', 'status-away'); // 既存のステータスクラスを削除
+        statusDot.classList.add(`status-${status}`);
+        // HTMLに title 属性を付与する要素がないため、ここでは特に何も行いません。
+        // 必要であれば、親要素（status-infoなど）にtitleを付与することを検討してください。
+    } else {
+        console.warn('[ui-manager.js] status-dot 要素が見つかりませんでした。');
     }
 }
 
@@ -371,6 +448,34 @@ export function showTooltip(element, message) {
         setTimeout(() => disposeTooltip(element), 500);
     }, 3000);
 }
+
+/**
+ * 通知音トグルボタンのUIを更新します。
+ * @param {boolean} isEnabled - 通知音が有効な場合は true、無効な場合は false。
+ */
+export function updateNotificationButtonUI(isEnabled) {
+    if (notificationButton) { // ui-manager.js の export let notificationButton を参照
+        const icon = notificationButton.querySelector('i.fas');
+        if (icon) {
+            if (isEnabled) {
+                icon.classList.remove('fa-bell-slash');
+                icon.classList.add('fa-bell');
+                notificationButton.setAttribute('aria-label', '通知音を無効にする');
+                notificationButton.classList.remove('btn-outline-secondary'); // 必要に応じてスタイルを変更
+                notificationButton.classList.add('btn-primary');
+            } else {
+                icon.classList.remove('fa-bell');
+                icon.classList.add('fa-bell-slash');
+                notificationButton.setAttribute('aria-label', '通知音を有効にする');
+                notificationButton.classList.remove('btn-primary'); // 必要に応じてスタイルを変更
+                notificationButton.classList.add('btn-outline-secondary');
+            }
+        }
+    } else {
+        console.warn('[ui-manager.js] updateNotificationButtonUI: notificationButton 要素が見つかりません。');
+    }
+}
+
 
 // 画像読み込みエラー処理関数
 export function handleImageError(imgElement, userId, displayUsername, photoURL) {
