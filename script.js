@@ -319,7 +319,8 @@ async function updateUserUI(user) {
 
             // photoURLが無効な場合のフォールバック
             const cleanedPhotoURL = cleanPhotoURL(photoUrlToUse);
-            photoUrlToUse = cleanedPhotoURL || `${getBasePath()}images/icon.png`;
+            // getBasePath() は utils.js に移動済みなので、utils.js からインポートするか、直接パスを指定
+            photoUrlToUse = cleanedPhotoURL || './images/icon.png'; // ★修正: getBasePath()を削除し、相対パスを直接指定
             console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
 
             if (profileImgInUserInfo) {
@@ -882,7 +883,8 @@ if (confirmName) {
                 }
 
                 currentUserPhotoURL = userData.photoURL || null; // ログインユーザーのphotoURLを更新
-                unameModal.hide();
+                console.log('[script.js] ユーザー名更新成功コールバック実行。モーダルを閉じます。'); // ★追加: デバッグログ
+                unameModal.hide(); // <--- この行が実行されているか確認
                 unameInput.classList.remove('is-invalid');
                 await updateOnlineUsers(); // オンラインユーザーリストも更新
                 showSuccess('ユーザー名を更新しました。');
@@ -934,7 +936,7 @@ function stopTabBlinking() {
 if (formEl) {
 formEl._submitHandler = async (e) => {
     try {
-        e.preventDefault();
+        e.preventDefault(); // フォームのデフォルト送信を防ぐ
 
         if (!formEl.checkValidity()) {
             e.stopPropagation();
@@ -954,7 +956,7 @@ formEl._submitHandler = async (e) => {
             return;
         }
 
-        const message = inputEl.value.trim();
+        const message = inputEl.value.trim(); // メッセージのテキストを取得し、前後の空白を除去
         if (message.length === 0) {
             showError('メッセージを入力してください。');
             return;
@@ -968,6 +970,20 @@ formEl._submitHandler = async (e) => {
         isSending = true;
         console.log('[script.js] Enterキー: 送信モードでフォーム送信');
 
+        // ★★★ ここから修正箇所: UIの即時更新 ★★★
+        // 入力フィールドを即座にクリアし、仮想キーボードを非表示にする
+        // これにより、ユーザーはメッセージ送信後すぐにUIの応答性を感じられる
+        inputEl.value = ''; // 入力フィールドの値をクリア
+        inputEl.textContent = ''; // textareaの場合、textContentもクリア
+        formEl.classList.remove('was-validated'); // バリデーション状態をリセット
+
+        // 仮想キーボードを非表示にする
+        if ('virtualKeyboard' in navigator) {
+            navigator.virtualKeyboard.hide();
+            console.log('[script.js] 仮想キーボードを非表示');
+        }
+        // ★★★ ここまで修正箇所 ★★★
+
         const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
         // 修正: cleanUsername を適用
         const cleanedUsername = cleanUsername(userInfo.textContent.replace(/<[^>]+>/g, '').trim());
@@ -976,7 +992,7 @@ formEl._submitHandler = async (e) => {
         // Firebase にメッセージを送信
         await push(messagesRef, {
             username: cleanedUsername,
-            message,
+            message, // クリーンアップ済みのメッセージ内容を使用
             timestamp,
             userId: auth.currentUser.uid,
             ipAddress: userData.ipAddress || 'unknown'
@@ -999,6 +1015,7 @@ formEl._submitHandler = async (e) => {
 
             const defaultIconPath = './chat/images/icon.png';
             for (const onlineUser of onlineUsers) {
+                // 自分のメッセージには通知を送らない
                 if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
                     console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
                     await sendNotification(
@@ -1006,50 +1023,50 @@ formEl._submitHandler = async (e) => {
                         notificationTitle,
                         notificationBody,
                         {
-                            url: 'https://soysourcetan.github.io/chat',
-                            icon: defaultIconPath
+                            url: 'https://soysourcetan.github.io/chat', // 通知クリック時のURL
+                            icon: defaultIconPath // 通知アイコンのパス
                         },
-                        auth.currentUser.uid,
-                        cleanedUsername // クリーンアップ済みのユーザー名を使用
+                        auth.currentUser.uid, // 送信者のユーザーID
+                        cleanedUsername // 送信者のクリーンアップ済みユーザー名
                     );
                 }
             }
         } catch (notificationError) {
             console.error('[script.js] 通知送信エラー:', notificationError);
-            showError('通知の送信に失敗しました。');
+            // showError('通知の送信に失敗しました。'); // 頻繁なエラー表示はUXを損なうため、コンソールログに留める
         }
+
+        // メッセージ送信成功のトースト表示
+        showSuccess('メッセージを送信しました！');
 
     } catch (error) {
         console.error('[script.js] メッセージ送信エラー:', error);
         showError(`メッセージの送信に失敗しました: ${error.message}`);
     } finally {
-        inputEl.value = '';
-        inputEl.textContent = '';
-        formEl.classList.remove('was-validated');
+        // 非同期処理完了後の最終的なUI更新と状態リセット
         isUserScrolledUp = false;
         newMessageBtn.classList.add('d-none');
 
+        // 最新メッセージへのスクロール（メッセージがDOMに追加された後に実行されるのが理想的）
         requestAnimationFrame(() => {
             messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
             console.log('[script.js] メッセージ送信後: トップにスクロール');
         });
 
         if ('virtualKeyboard' in navigator) {
-            navigator.virtualKeyboard.hide();
+            // 仮想キーボードの非表示は上で行われたので、ここでは関連するスタイル調整のみ
             formEl.style.bottom = '10px';
             messagesEl.style.maxHeight = '';
-            console.log('[script.js] 仮想キーボードを非表示');
             setTimeout(() => {
-                inputEl.focus();
-                inputEl.select();
+                inputEl.focus(); // 入力フィールドにフォーカスを戻す
+                inputEl.select(); // テキストを選択状態にする
             }, 300);
         } else {
-            inputEl.focus();
-            inputEl.select();
+            inputEl.focus(); // 入力フィールドにフォーカスを戻す
+            inputEl.select(); // テキストを選択状態にする
         }
 
-        setTimeout(() => inputEl.focus(), 100);
-        isSending = false;
+        isSending = false; // 送信状態フラグをリセット
     }
 };
 
@@ -1427,7 +1444,7 @@ if (messagesEl) {
             scrollTimeout = setTimeout(async () => {
                 // messagesEl.scrollTop が messagesEl の一番下近くに到達したかをチェック
                 const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
+                if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
                     console.log('ローディング開始');
                     isLoading = true;
                     loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
@@ -1458,7 +1475,18 @@ if (messagesEl) {
 
                             // 新しいメッセージをリストの末尾に追加
                             for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複チェック
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
+
+
+                                // ★ここから追加★
+                                console.log(`[メッセージレンダリング前] key: ${key}, 元のusername: "${username}", userId: ${userId}`);
+                                const tempDisplayUsername = cleanUsername(username || '匿名');
+                                console.log(`[メッセージレンダリング後] key: ${key}, cleanUsername適用後: "${tempDisplayUsername}"`);
+                                // ★ここまで追加
+
+
+
+
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
                                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;

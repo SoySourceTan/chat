@@ -27,11 +27,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js"></script>
     <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <!-- 以下のFirebase compat SDKのロードを削除します -->
+    <!--
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-          <script type="module" src="./chclear.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+    -->
+    <script type="module" src="./chclear.js"></script>
 
 </head>
 <body class="d-flex flex-column vh-100">
@@ -86,7 +89,7 @@
     <i class="fas fa-bell"></i> </button>
 </div>
   </nav>
-  
+
   <main class="container main-content d-flex flex-column">
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
     <div class="d-flex justify-content-center"></div>
@@ -199,7 +202,7 @@
                 const chatIndex = pathParts.indexOf('chat');
                 if (chatIndex > -1) {
                     // Firebase Cloud Messagingのサービスワーカーを直接登録
-                    swPath = pathParts.slice(0, chatIndex + 1).join('/') + '/firebase-messaging-sw.js'; 
+                    swPath = pathParts.slice(0, chatIndex + 1).join('/') + '/firebase-messaging-sw.js';
                     swScope = pathParts.slice(0, chatIndex + 1).join('/') + '/';
                 } else {
                     // 'chat'が見つからない場合は、現在のディレクトリを基準にする
