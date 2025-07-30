@@ -1,170 +1,268 @@
 // fcmpush.js
-
-// Firebase SDKの必要なモジュールをインポート
-import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging.js';
-import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
-// getAuthはscript.jsで初期化されるため、ここでは不要です。
-
-// notifysound.js からのインポートはそのまま
+// Firebase SDKのバージョンを11.2.0に統一 (メインスレッドはESMでOK)
+import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-messaging.js';
+import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js'; // Authモジュールを追加
 import { initNotify, notifyNewMessage } from '../notifysound.js';
+import { showError } from '../utils.js';
 
-let messaging; // Firebase Messagingインスタンスを保持する変数
-let db; // Firebase Databaseインスタンスを保持する変数
-let isFCMInitialized = false; // FCMが初期化されたかどうかのフラグ
+const VAPID_KEY = 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw';
 
-// Firebase設定取得関数 (現状維持)
-async function loadFirebaseConfig() {
-    try {
-        const response = await fetch('https://trextacy.com/chat/firebase-config.php', {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-        });
-        if (!response.ok) {
-            throw new Error(`HTTPエラー: ステータス ${response.status}`);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error('[fcmpush.js] Firebase設定取得エラー:', error);
-        throw error;
-    }
-}
+let messaging = null;
+let db = null;
+let auth = null;
+let isFCMInitialized = false;
+let serviceWorkerRegistrationInstance = null;
+let firebaseAppInstance = null; // Firebase App インスタンスを保持する変数
 
-// initNotifications 関数がFirebaseのappインスタンスとdatabaseインスタンス、authインスタンスを受け取るように変更
-export async function initNotifications(firebaseApp, databaseInstance, authInstance) {
-    console.log('[fcmpush.js] initNotifications 開始');
+/**
+ * FCMサービスを初期化します。
+ * この関数はFirebaseアプリとデータベースインスタンスが既に初期化されていることを前提とします。
+ * @param {object} appInstance - Firebaseアプリインスタンス
+ * @param {object} databaseInstance - Firebase Realtime Databaseインスタンス
+ * @param {ServiceWorkerRegistration} swRegistration - サービスワーカー登録インスタンス
+ */
+export async function initNotifications(appInstance, databaseInstance, swRegistration) {
+    console.log('[fcmpush.js] initNotifications 開始。初期化済み:', isFCMInitialized, 'firebaseApp:', appInstance, 'databaseInstance:', databaseInstance, 'swRegistration:', swRegistration);
     if (isFCMInitialized) {
         console.log('[fcmpush.js] FCMは既に初期化済みです。');
         return;
     }
 
+    // インスタンスをグローバル変数に設定
+    firebaseAppInstance = appInstance;
+    db = databaseInstance;
+    auth = getAuth(firebaseAppInstance);
+    serviceWorkerRegistrationInstance = swRegistration;
+
+    const waitForServiceWorkerActive = (reg) => {
+        return new Promise(resolve => {
+            if (reg.active) {
+                console.log('[fcmpush.js] Service Workerは既にアクティブです。');
+                return resolve(reg.active);
+            }
+
+            const worker = reg.installing || reg.waiting;
+            if (worker) {
+                worker.addEventListener('statechange', () => {
+                    if (worker.state === 'activated') {
+                        console.log('[fcmpush.js] Service Workerがアクティブになりました。');
+                        resolve(reg.active);
+                    }
+                });
+            } else {
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'activated') {
+                                console.log('[fcmpush.js] Service Workerが新しくアクティブになりました。');
+                                resolve(reg.active);
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    };
+
     try {
-        if (!firebaseApp) {
-            console.error('[fcmpush.js] Firebaseアプリが未定義です。');
-            return;
+        if (serviceWorkerRegistrationInstance) {
+            console.log('[fcmpush.js] Service Workerアクティブ化を待機中...');
+            await waitForServiceWorkerActive(serviceWorkerRegistrationInstance);
+            console.log('[fcmpush.js] Service Workerアクティブ化完了。');
+        } else {
+            console.warn('[fcmpush.js] serviceWorkerRegistrationInstance がnullのため、Service Workerの準備を待てません。FCM初期化をスキップする可能性があります。');
+            throw new Error('Service Worker registration is not available.');
         }
 
-        console.log('[fcmpush.js] FCMサービス初期化開始');
-        // 渡されたfirebaseAppインスタンスからMessagingサービスを取得
-        messaging = getMessaging(firebaseApp);
-        db = databaseInstance; // Databaseインスタンスを保持
-        isFCMInitialized = true;
-        console.log('[fcmpush.js] FCMサービス初期化成功。');
+        try {
+            messaging = getMessaging(firebaseAppInstance);
+            console.log('[fcmpush.js] FCMサービスインスタンス取得成功。');
 
-        // メッセージ受信時のハンドラを設定
-        // onMessage はフォアグラウンドで動作しているアプリがメッセージを受信したときにトリガーされます。
-onMessage(messaging, (payload) => {
-    console.log('[fcmpush.js] フォアグラウンドプッシュメッセージ受信:', payload);
-    const notificationTitle = payload.notification.title;
-    const notificationOptions = {
-        body: payload.notification.body,
-        icon: payload.notification.icon || '/learning/english-words/chat/images/icon.png',
-        data: payload.data
-    };
-    notifyNewMessage(notificationOptions);
-    if (Notification.permission === 'granted') {
-        new Notification(notificationTitle, notificationOptions);
-    }
-});
+            // --- 新しい変更点 ---
+            // getMessaging() が成功したら、すぐに getToken() を試して接続を確立する
+            if (Notification.permission === 'granted') {
+                console.log('[fcmpush.js] 通知許可済みのため、FCMトークンの先行取得を試みます。');
+                const tempToken = await getToken(messaging, {
+                    vapidKey: VAPID_KEY,
+                    serviceWorkerRegistration: serviceWorkerRegistrationInstance
+                });
+                if (tempToken) {
+                    console.log('[fcmpush.js] FCMトークンの先行取得に成功:', tempToken.substring(0, 10) + '...');
+                    // このトークンは認証済みユーザー用ではないので、保存はしない
+                } else {
+                    console.warn('[fcmpush.js] FCMトークンの先行取得はできませんでした。');
+                }
+            } else {
+                console.log('[fcmpush.js] 通知が許可されていないため、FCMトークンの先行取得はスキップします。');
+            }
+            // --- ここまで新しい変更点 ---
 
-        // トークン更新時のハンドラを設定
-        // onTokenRefreshはFirebase SDK v9+では非推奨であり、getToken()が自動的にトークンを更新します。
-        // しかし、互換レイヤーを使用しているため、念のため残しますが、getToken()の呼び出しで十分です。
-        // onTokenRefresh(messaging, async () => { // getMessagingから取得したmessagingインスタンスを渡す
-        //     console.log('[fcmpush.js] FCMトークンが更新されました。');
-        //     try {
-        //         if (authInstance.currentUser) {
-        //             const refreshedToken = await getToken(messaging); // getMessagingから取得したmessagingインスタンスを渡す
-        //             await saveFCMToken(authInstance.currentUser.uid, refreshedToken);
-        //             console.log('[fcmpush.js] 新しいFCMトークンをFirebaseに保存しました。');
-        //         }
-        //     } catch (error) {
-        //         console.error('[fcmpush.js] FCMトークン更新と保存エラー:', error);
-        //     }
-        // });
+
+            isFCMInitialized = true; // FCM初期化成功フラグをここでセット
+
+            // フォアグラウンドでメッセージを受信した際の処理
+            onMessage(messaging, (payload) => {
+                console.log('[fcmpush.js] フォアグラウンドメッセージを受信しました:', payload);
+                if (payload.notification) {
+                    notifyNewMessage({
+                        title: payload.notification.title || '新しいメッセージ',
+                        body: payload.notification.body || 'チャットに新着メッセージがあります。',
+                        iconUrl: './images/icon.png'
+                    });
+                } else {
+                    console.warn('[fcmpush.js] 受信したペイロードに通知データがありません。', payload);
+                }
+            });
+        } catch (innerError) {
+            console.error('[fcmpush.js] getMessaging()またはonMessage設定エラー:', innerError);
+            showError('通知サービスの初期化に失敗しました。');
+            throw innerError;
+        }
 
     } catch (error) {
-        console.error('[fcmpush.js] FCMサービス初期化エラー:', error);
-        // エラーを再スローして、呼び出し元で処理できるようにする
-        throw error;
+        console.error('[fcmpush.js] FCM通知サービス初期化の全体的なエラー:', error);
+        showError('通知サービスの初期化に失敗しました: ' + error.message);
+    }
+
+    // 認証状態の監視は、通知トークン取得のトリガーとして使用
+    if (auth) {
+        auth.onAuthStateChanged(async (user) => {
+            console.log('[fcmpush.js] 認証状態変更:', user ? user.uid : '未ログイン');
+            if (user) {
+                if (messaging && serviceWorkerRegistrationInstance) {
+                    console.log('[fcmpush.js] 認証済みユーザー、Service Worker登録済み。FCMトークン取得を試みます。');
+                    const token = await requestNotificationPermission(); // getTokenはrequestNotificationPermission内で呼び出す
+                    if (token) {
+                        await saveFCMToken(user.uid, token);
+                    } else {
+                        console.warn('[fcmpush.js] FCMトークンが取得できませんでした (権限拒否またはSW未登録)。');
+                    }
+                } else {
+                    console.log('[fcmpush.js] MessagingインスタンスまたはService Workerが利用できないため、FCMトークンを取得しません。');
+                }
+            } else {
+                console.log('[fcmpush.js] ユーザーが未ログインのため、FCMトークンを取得しません。');
+            }
+        });
+    } else {
+        console.error('[fcmpush.js] Firebase Authインスタンスが利用できません。認証状態の監視ができません。');
+        showError('認証サービスの初期化に失敗しました。');
     }
 }
 
-// 通知許可をリクエストし、FCMトークンを取得する関数
-export async function requestNotificationPermission(serviceWorkerRegistration) {
-    console.log('[fcmpush.js] 通知許可をリクエスト中...');
+/**
+ * 通知権限を要求し、FCMトークンを取得します。
+ * @returns {Promise<string|null>} FCMトークン、または許可が拒否された場合はnull
+ */
+export async function requestNotificationPermission() {
+    console.log('[fcmpush.js] requestNotificationPermission 開始。Messagingインスタンス:', messaging, 'swRegistration:', serviceWorkerRegistrationInstance);
+    // messagingインスタンスが確実に利用可能であることを前提とする
+    if (!messaging) {
+        console.error('[fcmpush.js] Messagingインスタンスが初期化されていません。initNotificationsが呼び出されていることを確認してください。');
+        showError('通知サービスが利用できません。');
+        return null;
+    }
+
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
             console.log('[fcmpush.js] 通知許可が与えられました。');
-            // FCMトークンを取得
-            // VAPIDキーはFirebaseプロジェクト設定の「Cloud Messaging」タブで確認できます。
 
-            // ★ここを修正: サービスワーカーの登録を明示的に指定
-            // fcmpush.js は /learning/english-words/chat/chat/fcmpush.js
-            // firebase-messaging-sw.js は /learning/english-words/chat/firebase-messaging-sw.js
-            // なので、相対パスは '../firebase-messaging-sw.js' になります。
-            const registration = await navigator.serviceWorker.getRegistration('../firebase-messaging-sw.js'); // 相対パスを指定
-
-            let currentToken;
-            if (registration) {
-                currentToken = await getToken(messaging, {
-                    vapidKey: 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw', // ★あなたのVAPIDキーに置き換えてください
-                    serviceWorkerRegistration: registration // 登録済みのサービスワーカーを渡す
-                });
+            if (serviceWorkerRegistrationInstance) {
+                const getTokenOptions = {
+                    vapidKey: VAPID_KEY,
+                    serviceWorkerRegistration: serviceWorkerRegistrationInstance
+                };
+                const currentToken = await getToken(messaging, getTokenOptions);
+                if (currentToken) {
+                    console.log('[fcmpush.js] FCMクライアントトークン:', currentToken);
+                    return currentToken;
+                } else {
+                    console.warn('[fcmpush.js] FCMトークンを取得できませんでした (権限拒否またはSW未登録)。');
+                    showError('通知トークンが取得できませんでした。');
+                    return null;
+                }
             } else {
-                console.warn('[fcmpush.js] サービスワーカーがまだ登録されていません。デフォルトの動作を試みます。');
-                currentToken = await getToken(messaging, { vapidKey: 'BKsBnmdJMsGJqwWG6tsEYPKA5OAsesBv6JEUAuNojta_lXqw1vMRAe8f1zFCNdyr4OckeZ4RV-3AsO9gWubUYKw' }); // ★あなたのVAPIDキーに置き換えてください
-            }
-
-            if (currentToken) {
-                console.log('[fcmpush.js] FCMクライアントトークン:', currentToken);
-                return currentToken;
-            } else {
-                console.warn('[fcmpush.js] FCMトークンを取得できませんでした。');
+                console.warn('[fcmpush.js] サービスワーカー登録インスタンスが提供されていません。トークン取得スキップ。');
+                showError('サービスワーカーが登録されていないため、通知トークンを取得できません。');
                 return null;
             }
         } else {
             console.warn('[fcmpush.js] 通知許可が拒否されました。');
+            showError('通知権限が拒否されたため、プッシュ通知は受信できません。');
             return null;
         }
     } catch (error) {
         console.error('[fcmpush.js] 通知許可リクエストまたはトークン取得エラー:', error);
+
+        if (error.code === 'messaging/permission-blocked') {
+            console.warn('[fcmpush.js] 通知はブラウザによってブロックされています。');
+            showError('通知がブラウザによってブロックされています。設定を確認してください。');
+        } else {
+            showError(`通知の許可中にエラーが発生しました: ${error.message}`);
+        }
         return null;
     }
 }
 
-// FCMトークンをFirebase Realtime Databaseに保存する関数
+/**
+ * FCMトークンをデータベースに保存します。
+ * @param {string} userId - ユーザーID
+ * @param {string} token - FCMトークン
+ * @returns {Promise<string|null>} 保存されたトークン、またはエラーの場合はnull
+ */
 export async function saveFCMToken(userId, token) {
-    if (!userId || !token) {
-        console.warn('[fcmpush.js] userIdまたはトークンが無効なため、FCMトークンの保存をスキップします。');
-        return;
-    }
+    console.log('[fcmpush.js] saveFCMToken 開始。ユーザーID:', userId, 'トークン:', token);
     try {
-        // 渡されたdbインスタンスとref関数を使用
-        const userTokenRef = ref(db, `users/${userId}/fcmToken`); 
-        await set(userTokenRef, token);
-        console.log(`[fcmpush.js] ユーザー ${userId} のFCMトークンを保存しました。`);
+        if (!userId || !token) {
+            throw new Error('ユーザーIDまたはトークンが指定されていません。');
+        }
+        if (!db) {
+            throw new Error('データベースインスタンスが初期化されていません。');
+        }
+
+        // ユーザーごとに複数のトークンを保存できるように、トークン自体をキーとする
+        const tokenRef = ref(db, `fcmTokens/${userId}/${token}`);
+        await set(tokenRef, {
+            token,
+            timestamp: Date.now(),
+            userId
+        });
+        console.log('[fcmpush.js] FCMトークンをデータベースに保存:', token);
+        return token;
     } catch (error) {
         console.error('[fcmpush.js] FCMトークン保存エラー:', error);
-        throw error;
+        showError(`FCMトークンの保存に失敗しました: ${error.message}`);
+        return null;
     }
 }
 
-// 他のユーザーに通知を送信する関数 (PHPバックエンド経由)
+/**
+ * 通知を送信します。
+ * @param {string} userId - 通知を送信するユーザーのID
+ * @param {string} title - 通知のタイトル
+ * @param {string} body - 通知の本文
+ * @param {object} [data={}] - 通知に含める追加データ
+ * @param {string|null} [senderUserId=null] - 送信者のユーザーID
+ * @param {string} [username='匿名'] - 送信者のユーザー名
+ * @returns {Promise<object>} 通知送信APIからのレスポンス
+ */
 export async function sendNotification(userId, title, body, data = {}, senderUserId = null, username = '匿名') {
     try {
         const validatedUsername = (username && typeof username === 'string' && username.trim() !== '') ? username.trim() : '匿名';
         console.log('[fcmpush.js] 通知送信準備:', { userId, title, body, username: validatedUsername });
-        const url = 'https://trextacy.com/chat/send-notification.php'; // ★あなたのPHPスクリプトのURL
+        const url = 'https://trextacy.com/chat/send-notification.php';
         const payload = {
-            userId: userId || null, // 受信者のuserId
+            userId: userId || null,
             title: title || '',
             body: body || '',
-            data: { ...data, url: data.url || 'https://soysourcetan.github.io/chat/' }, // デフォルトURLを設定
+            data: { ...data, url: data.url || 'https://soysourcetan.github.io/chat/' },
             senderUserId: senderUserId || null,
             username: validatedUsername
         };
-        console.log('[fcmppush.js] 通知送信リクエスト:', payload);
+        console.log('[fcmpush.js] 通知送信リクエスト:', payload);
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -184,6 +282,7 @@ export async function sendNotification(userId, title, body, data = {}, senderUse
         return result;
     } catch (error) {
         console.error('[fcmpush.js] 通知送信エラー:', error);
+        showError(`通知の送信に失敗しました: ${error.message}`);
         throw error;
     }
 }
