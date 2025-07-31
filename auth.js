@@ -1,22 +1,8 @@
 import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 import { ref, set, get, push, update, remove } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
-import { showError, showSuccess, getClientIp, cleanPhotoURL, cleanUsername } from './utils.js';
+import { showError, showSuccess, getClientIp, cleanPhotoURL, cleanUsername, getBasePath } from './utils.js';
 
 let isLoggingIn = false;
-
-// Helper to get base path dynamically
-function getBasePath() {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocalhost) {
-        const pathParts = window.location.pathname.split('/');
-        const chatIndex = pathParts.indexOf('chat');
-        if (chatIndex > -1) {
-            return pathParts.slice(0, chatIndex + 1).join('/') + '/';
-        }
-        return '/'; // Fallback for local dev if chat not in path
-    }
-    return '/chat/'; // For deployed versions
-}
 
 /**
  * Twitterでサインインします。
@@ -40,12 +26,8 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         const userId = user.uid;
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
         // cleanPhotoURL を使用して photoURL をクリーンアップ
-        let photoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : `${getBasePath()}images/icon.png`;
-        if (!photoURL || photoURL.trim() === '') {
-            console.warn('[auth.js] photoURLが無効または空:', user.photoURL);
-            photoURL = `${getBasePath()}images/icon.png`;
-        }
-        console.log('[auth.js] 使用するphotoURL:', photoURL);
+let photoURL = cleanPhotoURL(user.photoURL || ''); 
+console.log('[auth.js] 使用するphotoURL:', photoURL);
 
 
         await update(ref(database, `users/${userId}`), {
@@ -118,11 +100,7 @@ export async function signInWithGoogle(auth, database, onLoginSuccess) {
 
         const userId = user.uid;
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
-        let photoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : `${getBasePath()}images/icon.png`;
-        if (!photoURL || photoURL.trim() === '') {
-            console.warn('[auth.js] photoURLが無効または空:', user.photoURL);
-            photoURL = `${getBasePath()}images/icon.png`;
-        }
+        let photoURL = cleanPhotoURL(user.photoURL || '');
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
@@ -193,7 +171,7 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
 
         const userId = user.uid;
         const cleanedUsername = cleanUsername(`ゲスト-${userId.substring(0, 4)}`);
-        let photoURL = `${getBasePath()}images/icon.png`; // 匿名ユーザーはデフォルトアイコン
+        let photoURL = cleanPhotoURL(''); // 匿名ユーザーは空文字列を渡し、cleanPhotoURLがデフォルトアイコンを決定
 
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
@@ -269,29 +247,25 @@ export async function signOutUser(auth, database, userId) {
  * @param {string} newUsername - 新しいユーザー名
  * @param {string} userId - 更新するユーザーのID
  */
-export async function updateUsername(auth, database, newUsername, userId) {
+export async function updateUsername(auth, database, newUsername) {
     try {
         const user = auth.currentUser;
         if (!user) {
             throw new Error('ユーザーがログインしていません。');
         }
-
+        const userId = user.uid; // ★修正: ここで user.uid を取得
         const cleanedUsername = cleanUsername(newUsername);
         console.log('[auth.js] クリーンアップされたユーザー名:', cleanedUsername);
 
-        // ★追加: Firebase Authenticationのプロフィールを更新
+        // Firebase Authenticationのプロフィールを更新
         await updateProfile(user, {
             displayName: cleanedUsername,
         });
         console.log('[auth.js] Firebase Auth プロフィール更新成功');
 
-
         // photoURLは既存のものを維持するか、デフォルトに設定
-        let photoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : `${getBasePath()}images/icon.png`;
-        if (!photoURL || photoURL.trim() === '') {
-            console.warn('[auth.js] photoURLが無効または空:', user.photoURL);
-            photoURL = `${getBasePath()}images/icon.png`;
-        }
+        // user.photoURL が null の場合でもデフォルト画像を使用するように修正
+        let photoURL = cleanPhotoURL(user.photoURL || '');
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         // Realtime Databaseのユーザー情報を更新
@@ -310,8 +284,7 @@ export async function updateUsername(auth, database, newUsername, userId) {
             const actionData = {
                 type: 'setUsername',
                 userId: userId,
-                // ★追加: 変更前のユーザー名も記録するとより良い
-                oldUsername: user.displayName, 
+                oldUsername: user.displayName,
                 newUsername: cleanedUsername,
                 timestamp: Date.now(),
             };
@@ -320,10 +293,11 @@ export async function updateUsername(auth, database, newUsername, userId) {
         }
 
         showSuccess('ユーザー名が更新されました！');
-        return true;
+        // ユーザー名とphotoURLを返却し、呼び出し元でUIを更新できるようにする
+        return { updatedUsername: cleanedUsername, updatedPhotoURL: photoURL };
     } catch (error) {
         console.error('[auth.js] ユーザー名更新エラー:', error);
-        showError(`ユーザー名更新エラー: ${error.message}`);
-        throw error;
+        showError('ユーザー名の更新に失敗しました。' + error.message);
+        throw error; // エラーを再スローして、呼び出し元でキャッチできるようにする
     }
 }

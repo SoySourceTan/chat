@@ -132,11 +132,11 @@ export function setupUI(
     }
 
     // ユーザー名変更
-    const userInfoDisplay = document.getElementById('user-info'); // HTMLには editNameBtn がないので user-info をクリックイベントにする
+    const userInfoDisplay = document.getElementById('user-info');
     if (userInfoDisplay) {
         userInfoDisplay.addEventListener('click', () => {
             const currentName = currentUsernameEl.textContent;
-            if (newNameInput) { // newNameInput が存在するか確認
+            if (newNameInput) {
                 newNameInput.value = currentName;
             }
             unameModalEl.show();
@@ -145,37 +145,32 @@ export function setupUI(
         console.warn('[ui-manager.js] user-info 要素が見つかりませんでした。');
     }
 
-    if (saveNameBtn) { // saveNameBtn が取得できた場合のみイベントリスナーを設定
-        saveNameBtn.addEventListener('click', async () => { // ★ここをasyncにする
-            const newUsername = newNameInput.value.trim();
-            if (newUsername === '') {
-                showError('ユーザー名を入力してください。');
-                return;
-            }
+    if (saveNameBtn) {
+        saveNameBtn.addEventListener('click', async () => {
+            const newUsername = newNameInput.value.trim();
+            if (newUsername === '') {
+                showError('ユーザー名を入力してください。');
+                return;
+            }
 
-            try {
-                // showProgressOverlay(); // この関数は ui-manager.js に定義がないためコメントアウト
-                                     // script.js 側でプログレス表示の管理を行うべきです。
-                // FirebaseServices や callbacks は setupUI のスコープ外または引数で渡されていないため、
-                // setupUIの呼び出し元（script.js）で onNameUpdateSuccessCallback を呼び出すべきです。
-                // ここでは引数として onNameUpdateSuccessCallback を受け取っているので、それを利用します。
-
-                await onNameUpdateSuccessCallback(newUsername); // コールバックを実行
-                
-                // モーダルを閉じる
-                // const unameModal = bootstrap.Modal.getInstance(unameModalEl); // getInstance は不要。直接 hide() を呼び出す
-                if (unameModalEl) {
-                    unameModalEl.hide();
-                }
-                // hideProgressOverlay(); // この関数は ui-manager.js に定義がないためコメントアウト
-
-            } catch (error) {
-                console.error('[ui-manager.js] ユーザー名更新エラー:', error);
-                showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
-                // hideProgressOverlay(); // この関数は ui-manager.js に定義がないためコメントアウト
-            }
-        });
-    } else {
+            console.log('[ui-manager.js] ユーザー名更新処理開始。onNameUpdateSuccessCallbackを呼び出します。'); // ★追加
+            try {
+                await onNameUpdateSuccessCallback(newUsername);
+                console.log('[ui-manager.js] onNameUpdateSuccessCallbackが完了しました。モーダルを非表示にします。'); // ★追加
+                if (unameModalEl) {
+                    console.log('[ui-manager.js] unameModalElが存在します。hide()を呼び出します。', unameModalEl); // ★追加
+                    unameModalEl.hide();
+                    console.log('[ui-manager.js] unameModalEl.hide()が呼び出されました。'); // ★追加
+                } else {
+                    console.warn('[ui-manager.js] unameModalEl が見つかりません。モーダルを閉じられません。'); // ★追加
+                }
+                showSuccess('ユーザー名が正常に更新されました！');
+            } catch (error) {
+                console.error('[ui-manager.js] ユーザー名更新エラー:', error);
+                showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
+            }
+        });
+    } else {
         console.warn('[ui-manager.js] confirmName (saveNameBtn) 要素が見つかりませんでした。');
     }
     

@@ -1148,17 +1148,20 @@ async function loadInitialMessages() {
             li.setAttribute('role', 'listitem');
             li.setAttribute('data-timestamp', timestamp);
             const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-const formattedMessage = formatMessage(message); // これはメッセージ本文用
-li.innerHTML = `
-    <div class="message bg-transparent p-2 row">
-        <div class="col-auto profile-icon">
-            ${photoURL && photoURL !== '' ?
-                `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapeHTMLAttribute(cleanUsername(username))}" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(cleanUsername(username))}', '${escapeHTMLAttribute(cleanPhotoURL(photoURL))}')">` :
-                `<div class="avatar">${cleanUsername(username).charAt(0).toUpperCase()}</div>`}
-        </div>
-        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-            <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
+            const formattedMessage = formatMessage(message); // これはメッセージ本文用
 
+            // ここで username をクリーンアップして表示用に準備
+            const displayUserName = cleanUsername(username); // cleanUsernameはutils.jsからインポート済み
+
+            li.innerHTML = `
+                <div class="message bg-transparent p-2 row">
+                    <div class="col-auto profile-icon">
+                        ${photoURL && photoURL !== '' ?
+                            `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapeHTMLAttribute(displayUserName)}" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(displayUserName)}', '${escapeHTMLAttribute(cleanPhotoURL(photoURL))}')">` :
+                            `<div class="avatar">${displayUserName.charAt(0).toUpperCase()}</div>`}
+                    </div>
+                    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                        <strong>${escapeHTMLAttribute(displayUserName || '匿名')}</strong>
                         <small class="text-muted ms-2">${date}</small>
                         ${auth.currentUser && auth.currentUser.uid === userId ?
                             `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
@@ -1170,10 +1173,13 @@ li.innerHTML = `
                     </div>
                 </div>`;
             messagesEl.prepend(li);
-            // ★ここからイベントリスナーを追加
+
+            // ★修正箇所: img.onerror イベントハンドラの呼び出し
             const img = li.querySelector('.profile-img');
             if (img) {
-                img.onerror = () => handleImageError(img, userId, displayUsername, cleanPhotoURL(photoURL));
+                // handleImageErrorに渡す引数を調整
+                // 3番目の引数として、クリーンアップされたユーザー名を渡す
+                img.onerror = () => handleImageError(img, userId, displayUserName, cleanPhotoURL(photoURL));
             }
             // ★ここまで
             setTimeout(() => li.classList.add('show'), 10);
@@ -1602,19 +1608,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loginModalEl = document.getElementById('loginModal');
     loginModal = new bootstrap.Modal(loginModalEl);
     unameInput = document.getElementById('uname'); // IDを修正
-    // 以下の要素はHTMLに存在しないか、またはui-manager.jsで取得されているため、ここでは削除
-    // messageCountElement = document.getElementById('messageCount');
-    // chatSoundToggle = document.getElementById('chatSoundToggle');
-    // notificationSoundToggle = document.getElementById('notificationSoundToggle');
-    // userListModal = new bootstrap.Modal(document.getElementById('userListModal'));
-    // userListBtn = document.getElementById('userListBtn');
-    // colorPickerButton = document.getElementById('colorPickerButton');
-    // colorPickerModal = new bootstrap.Modal(document.getElementById('colorPickerModal'));
-    // colorPalette = document.getElementById('colorPalette');
-    // applyColorButton = document.getElementById('applyColorButton');
-    // currentColorDisplay = document.getElementById('currentColorDisplay');
-    // colorAssignmentModeToggle = document.getElementById('colorAssignmentModeToggle');
-    // newMessagesIndicator = document.getElementById('newMessagesIndicator');
     newMessageBtn = document.getElementById('newMessageBtn'); // 再度取得
 
     setupFirebase(); // Firebaseの初期化と認証状態の監視を開始
