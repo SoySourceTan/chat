@@ -28,12 +28,6 @@
     <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <!-- 以下のFirebase compat SDKのロードを削除します -->
-    <!--
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-    -->
     <script type="module" src="./chclear.js"></script>
 
 </head>
@@ -92,6 +86,7 @@
 
   <main class="container main-content d-flex flex-column">
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+    <div id="success-alert" class="alert alert-success d-none" role="alert"></div>
     <div class="d-flex justify-content-center"></div>
     <div class="messages-container flex-grow-1">
       <ul id="messages" class="list-group font-size-medium" role="list"></ul>
@@ -235,3 +230,4 @@
     <script type="module" src="./script.js"></script>
 </body>
 </html>
+

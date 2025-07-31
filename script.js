@@ -1,29 +1,35 @@
 // script.js
-console.log("cleanUsername の型:", typeof cleanUsername);
+
+// 必要なモジュールをインポート
 import { initNotifications as initFCM, sendNotification, requestNotificationPermission, saveFCMToken } from './chat/fcmpush.js';
 import { initializeFirebase } from './firebase-config.js'; // firebase-config.jsから初期化関数をインポート
 import { initNotify, notifyNewMessage } from './notifysound.js';
-import { getDatabase, ref, push, onChildAdded, set, get, child, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
-// ★修正点: cleanPhotoURL を utils.js からインポート
-import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js'; // cleanUsernameを追加
-import { initFirebaseServices } from './firebase-service.js';
-// auth.js からログイン関連関数をインポート
-import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
-// ui-manager.js から handleImageError をインポート
+import { getDatabase, ref, push, onChildAdded, set, get, child, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js';
+// import { initFirebaseServices } from './firebase-service.js'; // このインポートは使用されていないようです。必要なければ削除を検討してください。
+import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, updateUsername } from './auth.js'; // signOutUser は直接呼び出すため、ここではインポートしない
 import { handleImageError } from './ui-manager.js';
 
 // handleImageError をグローバルスコープに公開
 window.handleImageError = handleImageError;
+
+// ★★★ 追加: isDebug変数をscript.jsのトップレベルで定義 ★★★
+const isDebug = true;
 
 // Firebase初期化とグローバル変数
 let globalSwRegistration = null; 
 let isFCMInitialized = false;
 let app, database, auth, messagesRef, usersRef, actionsRef, bannedUsersRef, onlineUsersRef; // 初期化を遅延
 let isInitialized = false; // 初期化フラグ
+
+// DOM要素の宣言のみ行い、初期化はDOMContentLoaded内で行う
 let formEl, messagesEl, inputEl, errorAlert, loginBtn, twitterLogin, googleLogin, anonymousLogin, userInfo, unameModalEl, unameModal, loginModalEl, loginModal, unameInput, confirmName, onlineUsersEl, compactModeBtn, fontSizeS, fontSizeM, fontSizeL, signOutBtn, newMessageBtn, toggleModeBtn, loadingIndicator, progressOverlay, navbarRow2;
+let colorModeDropdown, userColorSelect, colorPicker; // 新たに追加するDOM要素の変数もここで宣言
+
 let isSending = false;
 let isUserScrolledUp = false;
-let isEnterSendMode = getCookie('enterSendMode') === 'true';
+// isEnterSendMode の初期化をDOMContentLoaded内に移動するため、ここでは宣言のみ
+let isEnterSendMode;
 let messagesElScrollHandler = null;
 let scrollTimeout = null; // スクロールイベントのデバウンス用
 let isLoading = false;
@@ -36,7 +42,6 @@ const userCache = new Map();
 
 // FCM初期化が完了したことを示すPromise
 let fcmInitPromise = null;
-
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -52,8 +57,8 @@ const backgroundColors = [
     'bg-user-4', // 水色
     'bg-user-5'  // 薄い水色
 ];
-// 背景色割り当てモード
-let colorAssignmentMode = getCookie('colorAssignmentMode') || 'user-selected';
+// colorAssignmentMode の初期化をDOMContentLoaded内に移動するため、ここでは宣言のみ
+let colorAssignmentMode;
 
 // ユーザー背景色割り当て関数
 function assignUserBackgroundColor(userId) {
@@ -63,31 +68,31 @@ function assignUserBackgroundColor(userId) {
         }
 
         let colorClass;
-        console.log(`モード: ${colorAssignmentMode}, ユーザー: ${userId}`);
+        if (isDebug) console.log(`モード: ${colorAssignmentMode}, ユーザー: ${userId}`); // isDebugを使用
         if (colorAssignmentMode === 'random') {
             const randomIndex = Math.floor(Math.random() * backgroundColors.length);
             colorClass = backgroundColors[randomIndex];
-            console.log(`ランダム割り当て: ${colorClass}`);
+            if (isDebug) console.log(`ランダム割り当て: ${colorClass}`); // isDebugを使用
         } else if (colorAssignmentMode === 'sequential') {
             const index = userColorMap.size % backgroundColors.length;
             colorClass = backgroundColors[index];
-            console.log(`順番割り当て: ${colorClass} (インデックス: ${index})`);
+            if (isDebug) console.log(`順番割り当て: ${colorClass} (インデックス: ${index})`); // isDebugを使用
         } else if (colorAssignmentMode === 'user-selected') {
             if (auth.currentUser && userId === auth.currentUser.uid) {
                 const selectedColor = getCookie(`userColor_${userId}`);
                 colorClass = selectedColor && backgroundColors.includes(selectedColor)
                     ? selectedColor
                     : backgroundColors[0];
-                console.log(`ユーザー選択（現在のユーザー）: ${colorClass} (クッキー: ${selectedColor})`);
+                if (isDebug) console.log(`ユーザー選択（現在のユーザー）: ${colorClass} (クッキー: ${selectedColor})`); // isDebugを使用
             } else {
                 const selectedColor = getCookie(`userColor_${userId}`);
                 if (selectedColor && backgroundColors.includes(selectedColor)) {
                     colorClass = selectedColor;
-                    console.log(`ユーザー選択（他のユーザー）: ${colorClass} (クッキー: ${selectedColor})`);
+                    if (isDebug) console.log(`ユーザー選択（他のユーザー）: ${colorClass} (クッキー: ${selectedColor})`); // isDebugを使用
                 } else {
                     const index = userColorMap.size % backgroundColors.length;
                     colorClass = backgroundColors[index];
-                    console.log(`ユーザー選択（フォールバック・順番割り当て）: ${colorClass} (インデックス: ${index})`);
+                    if (isDebug) console.log(`ユーザー選択（フォールバック・順番割り当て）: ${colorClass} (インデックス: ${index})`); // isDebugを使用
                 }
             }
         } else {
@@ -96,7 +101,7 @@ function assignUserBackgroundColor(userId) {
         }
 
         userColorMap.set(userId, colorClass);
-        console.log(`userColorMap 更新:`, userColorMap);
+        if (isDebug) console.log(`userColorMap 更新:`, userColorMap); // isDebugを使用
         return colorClass;
     } catch (error) {
         console.error('背景色割り当てエラー:', error);
@@ -104,60 +109,7 @@ function assignUserBackgroundColor(userId) {
     }
 }
 
-// 背景色モードのドロップダウンイベントリスナー
-const colorModeDropdown = document.getElementById('colorModeDropdown');
-if (colorModeDropdown) {
-    const dropdownItems = colorModeDropdown.nextElementSibling.querySelectorAll('.dropdown-item');
-    dropdownItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            const mode = e.target.getAttribute('data-mode');
-            if (['sequential', 'random', 'user-selected'].includes(mode)) {
-                colorAssignmentMode = mode;
-                setCookie('colorAssignmentMode', mode, 365);
-                console.log(`背景色モード変更: ${mode}`);
-                userColorMap.clear();
-                reloadMessages();
-                const colorPicker = document.getElementById('colorPicker');
-                if (colorPicker) {
-                    colorPicker.classList.toggle('show', mode === 'user-selected' && auth.currentUser);
-                }
-            } else {
-                console.warn(`無効なモード選択: ${mode}`);
-            }
-        });
-    });
-}
-
-// DOM要素
-formEl = document.getElementById('messageForm');
-messagesEl = document.getElementById('messages');
-inputEl = document.getElementById('m');
-errorAlert = document.getElementById('error-alert');
-loginBtn = document.getElementById('login-btn');
-twitterLogin = document.getElementById('twitterLogin');
-googleLogin = document.getElementById('googleLogin');
-anonymousLogin = document.getElementById('anonymousLogin');
-userInfo = document.getElementById('user-info');
-unameModalEl = document.getElementById('unameModal');
-unameModal = new bootstrap.Modal(unameModalEl);
-loginModalEl = document.getElementById('loginModal');
-loginModal = new bootstrap.Modal(loginModalEl);
-unameInput = document.getElementById('uname');
-confirmName = document.getElementById('confirmName');
-onlineUsersEl = document.getElementById('online-users');
-compactModeBtn = document.getElementById('compactModeBtn');
-fontSizeS = document.getElementById('fontSizeS');
-fontSizeM = document.getElementById('fontSizeM');
-fontSizeL = document.getElementById('fontSizeL');
-signOutBtn = document.getElementById('signOut');
-newMessageBtn = document.getElementById('newMessageBtn');
-toggleModeBtn = document.getElementById('toggleModeBtn');
-loadingIndicator = document.getElementById('loading-indicator');
-progressOverlay = document.getElementById('progress-overlay');
-navbarRow2 = document.getElementById('navsec');
-const userColorSelect = document.getElementById('userColorSelect'); // userColorSelect の定義を追加
-const colorPicker = document.getElementById('colorPicker'); // colorPicker の定義を追加
+// 背景色モードのドロップダウンイベントリスナー (DOMContentLoaded内で初期化されるため、ここではif文を削除)
 
 // ステータスインジケーター更新
 function updateStatusIndicator() {
@@ -191,7 +143,7 @@ async function fetchOnlineUsers() {
                       })
               )
             : [];
-        console.log('[script.js] オンラインユーザー取得成功:', users);
+        if (isDebug) console.log('[script.js] オンラインユーザー取得成功:', users); // isDebugを使用
         return users;
     } catch (error) {
         console.error('[script.js] オンラインユーザー取得エラー:', error);
@@ -208,7 +160,7 @@ async function getUserData(userId) {
         if (userCache.has(userId)) {
             const cachedData = userCache.get(userId);
             if (cachedData && cachedData.userId === userId && typeof cachedData.username === 'string') {
-                console.log('[script.js] キャッシュから取得したユーザーデータ:', cachedData);
+                if (isDebug) console.log('[script.js] キャッシュから取得したユーザーデータ:', cachedData); // isDebugを使用
                 return cachedData;
             }
             userCache.delete(userId);
@@ -220,7 +172,7 @@ async function getUserData(userId) {
             console.warn('[script.js] 無効なusername検出:', userData.username);
             userData.username = '匿名';
         }
-        console.log('[script.js] Firebaseから取得したユーザーデータ:', userData);
+        if (isDebug) console.log('[script.js] Firebaseから取得したユーザーデータ:', userData); // isDebugを使用
         userCache.set(userId, userData);
         if (userCache.size > 100) userCache.clear();
         return userData;
@@ -234,19 +186,20 @@ async function getUserData(userId) {
 function renderOnlineUsers(users) {
     try {
         if (!users || users.length === 0) {
+            if (isDebug) console.log('[renderOnlineUsers] ユーザーリストが空です。'); // isDebugを使用
             return '<span class="text-muted">オンラインのユーザーはいません</span>';
         }
-        return users
+        const renderedHtml = users
             .filter(user => user && user.userId && typeof user.userId === 'string')
             .map(({ userId, username, photoURL }) => {
                 // ここで username に cleanUsername を適用
-                const displayUsername = username && typeof username === 'string' ? cleanUsername(username) : '匿名'; // ★修正点: cleanUsername を適用
+                const displayUsername = username && typeof username === 'string' ? cleanUsername(username) : '匿名';
                 const escapedUserId = escapeHTMLAttribute(userId);
-                const escapedDisplayUsername = escapeHTMLAttribute(displayUsername); // escapeHTMLAttribute は cleanUsername の後に適用
+                const escapedDisplayUsername = escapeHTMLAttribute(displayUsername);
 
                 const cleanedPhotoURLForError = escapeHTMLAttribute(cleanPhotoURL(photoURL || ''));
 
-                console.log(`[renderOnlineUsers] userId: ${userId}, username: ${displayUsername}, photoURL: ${photoURL}`);
+                if (isDebug) console.log(`[renderOnlineUsers] userId: ${userId}, username: ${displayUsername}, photoURL: ${photoURL}`); // isDebugを使用
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
                     ${photoURL && typeof photoURL === 'string' && photoURL !== '' ?
                         `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${cleanedPhotoURLForError}')">` :
@@ -254,6 +207,8 @@ function renderOnlineUsers(users) {
                 </span>`;
             })
             .join('');
+        if (isDebug) console.log('[renderOnlineUsers] 生成されたHTML:', renderedHtml); // isDebugを使用
+        return renderedHtml;
     } catch (error) {
         console.error('オンラインユーザー描画エラー:', error);
         return '<span class="text-muted">オンラインユーザーの表示に失敗しました</span>';
@@ -272,7 +227,8 @@ async function updateOnlineUsers() {
         const users = await fetchOnlineUsers();
         const limitedUsers = users.slice(0, 50);
         if (onlineUsersEl) {
-            onlineUsersEl.innerHTML = renderOnlineUsers(limitedUsers); // getUserDataをスキップ
+            onlineUsersEl.innerHTML = renderOnlineUsers(limitedUsers);
+            if (isDebug) console.log('[script.js] onlineUsersElにオンラインユーザーをレンダリングしました。'); // isDebugを使用
         }
     } catch (error) {
         console.error('オンラインユーザー更新エラー:', error);
@@ -299,7 +255,7 @@ async function updateUserUI(user) {
         if (user) {
             userCache.delete(user.uid);
             const userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
-            console.log('updateUserUIで取得されたuserData (DBから):', userData);
+            if (isDebug) console.log('updateUserUIで取得されたuserData (DBから):', userData); // isDebugを使用
 
             let username = userData.username || user.displayName || 'ゲスト';
             username = cleanUsername(username);
@@ -314,14 +270,14 @@ async function updateUserUI(user) {
             if (user.photoURL && user.photoURL !== '' && !isAuthPhotoGeneric && cleanPhotoURL(user.photoURL) !== cleanPhotoURL(userData.photoURL || '')) {
                 await update(ref(database, `users/${user.uid}`), { photoURL: user.photoURL });
                 photoUrlToUse = user.photoURL;
-                console.log(`[updateUserUI] ユーザー ${user.uid} のphotoURLをAuthからDBに保存/更新しました: ${user.photoURL}`);
+                if (isDebug) console.log(`[updateUserUI] ユーザー ${user.uid} のphotoURLをAuthからDBに保存/更新しました: ${user.photoURL}`); // isDebugを使用
             }
 
             // photoURLが無効な場合のフォールバック
             const cleanedPhotoURL = cleanPhotoURL(photoUrlToUse);
             // getBasePath() は utils.js に移動済みなので、utils.js からインポートするか、直接パスを指定
             photoUrlToUse = cleanedPhotoURL || './images/icon.png'; // ★修正: getBasePath()を削除し、相対パスを直接指定
-            console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
+            if (isDebug) console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse); // isDebugを使用
 
             if (profileImgInUserInfo) {
                 if (photoUrlToUse && photoUrlToUse !== '') {
@@ -481,7 +437,7 @@ if (toggleModeBtn) {
             toggleModeBtn.setAttribute('aria-label', isEnterSendMode ? '送信モードに切り替え' : '改行モードに切り替え');
             setCookie('enterSendMode', isEnterSendMode, 365);
             showTooltip(toggleModeBtn, newTitle);
-            console.log('入力モード切替:', isEnterSendMode ? '送信モード' : '改行モード', 'クッキー値:', getCookie('enterSendMode'));
+            if (isDebug) console.log('入力モード切替:', isEnterSendMode ? '送信モード' : '改行モード', 'クッキー値:', getCookie('enterSendMode')); // isDebugを使用
         } catch (error) {
             console.error('モード切り替えエラー:', error);
         }
@@ -500,7 +456,7 @@ if (colorModeDropdown) {
                 colorPicker.classList.toggle('show', colorAssignmentMode === 'user-selected' && auth.currentUser);
             }
             userColorMap.clear();
-            console.log('モード変更:', colorAssignmentMode, 'userColorMap リセット');
+            if (isDebug) console.log('モード変更:', colorAssignmentMode, 'userColorMap リセット'); // isDebugを使用
             reloadMessages();
             showSuccess(`背景色モードを${colorAssignmentMode === 'sequential' ? '順番' : colorAssignmentMode === 'random' ? 'ランダム' : '自分で選択'}に変更しました。`);
         });
@@ -525,7 +481,7 @@ if (userColorSelect) {
             if (backgroundColors.includes(selectedColor)) {
                 setCookie(`userColor_${auth.currentUser.uid}`, selectedColor, 365);
                 userColorMap.set(auth.currentUser.uid, selectedColor);
-                console.log(`ユーザー ${auth.currentUser.uid} の色選択: ${selectedColor}`);
+                if (isDebug) console.log(`ユーザー ${auth.currentUser.uid} の色選択: ${selectedColor}`); // isDebugを使用
                 reloadMessages();
                 const colorName = userColorSelect.options[userColorSelect.selectedIndex].text;
                 showSuccess(`メッセージの背景色を${colorName}に変更しました。`);
@@ -578,7 +534,7 @@ if (inputEl) {
             document.body.classList.remove('keyboard-active');
             if ('virtualKeyboard' in navigator) {
                 navigator.virtualKeyboard.hide();
-                console.log('仮想キーボードを非表示');
+                if (isDebug) console.log('仮想キーボードを非表示'); // isDebugを使用
                 formEl.style.bottom = '10px';
             }
         } catch (error) {
@@ -593,14 +549,14 @@ if (inputEl) {
                 if (isEnterSendMode) {
                     e.preventDefault();
                     formEl.dispatchEvent(new Event('submit', { cancelable: true }));
-                    console.log('Enterキー: 送信モードでフォーム送信');
+                    if (isDebug) console.log('Enterキー: 送信モードでフォーム送信'); // isDebugを使用
                 } else {
                     // 改行モードではデフォルトの改行動作を許可
-                    console.log('Enterキー: 改行モードで改行挿入');
+                    if (isDebug) console.log('Enterキー: 改行モードで改行挿入'); // isDebugを使用
                 }
             } else if (e.key === 'Enter' && e.shiftKey) {
                 // Shift+Enterは常に改行
-                console.log('Shift+Enter: 改行挿入');
+                if (isDebug) console.log('Shift+Enter: 改行挿入'); // isDebugを使用
             }
         } catch (error) {
             console.error('キー入力処理エラー:', error);
@@ -620,18 +576,24 @@ if (messagesEl) {
                 isUserScrolledUp = currentScrollTop > 10;
                 newMessageBtn.classList.toggle('d-none', !isUserScrolledUp);
                 const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-                if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) {
-                    console.log('ローディング開始');
+                if (messagesEl.scrollTop >= scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
+                    if (isDebug) console.log('ローディング開始'); // isDebugを使用
                     isLoading = true;
                     loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
                     loadingIndicator.style.display = 'block';
+
                     try {
                         const startTime = performance.now();
                         const messages = messagesEl.querySelectorAll('[data-timestamp]');
                         lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
+
                         if (lastTimestamp) {
+                            // Firebaseから過去のメッセージを10件取得
                             const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
+                            // 取得したメッセージをタイムスタンプの新しい順（降順）にソート
                             const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
+
+                            // ユーザーデータの取得とキャッシュはそのまま
                             const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
                             const userDataPromises = userIds.map(async userId => {
                                 if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
@@ -642,19 +604,10 @@ if (messagesEl) {
                             });
                             const userDataArray = await Promise.all(userDataPromises);
                             const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
+
+                            // 新しいメッセージをリストの末尾に追加
                             for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-
-
-                                // ★ここから追加★
-                                console.log(`[メッセージレンダリング前] key: ${key}, 元のusername: "${username}", userId: ${userId}`);
-                                const tempDisplayUsername = cleanUsername(username || '匿名');
-                                console.log(`[メッセージレンダリング後] key: ${key}, cleanUsername適用後: "${tempDisplayUsername}"`);
-                                // ★ここまで追加
-
-
-
-
+                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue; // 重複チェック
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
                                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
@@ -682,7 +635,7 @@ if (messagesEl) {
                                             ${formattedMessage}
                                         </div>
                                     </div>`;
-                                messagesEl.appendChild(li);
+                                messagesEl.appendChild(li); // 新しいものから古いものが上から下に並ぶよう、末尾に追加
                                 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
@@ -695,7 +648,7 @@ if (messagesEl) {
                         loadingIndicator.style.display = 'none';
                     }
                 }
-            }, 200);
+            }, 200); // デバウンス時間
         } catch (error) {
             console.error('スクロール処理エラー:', error);
         }
@@ -730,11 +683,11 @@ function formatMessage(message) {
 // メッセージ再描画関数
 async function reloadMessages() {
     try {
-        console.log('メッセージ再描画開始, モード:', colorAssignmentMode);
+        if (isDebug) console.log('メッセージ再描画開始, モード:', colorAssignmentMode); // isDebugを使用
         messagesEl.innerHTML = '';
         await loadInitialMessages();
         setupMessageListener();
-        console.log('メッセージ再描画完了, userColorMap:', userColorMap);
+        if (isDebug) console.log('メッセージ再描画完了, userColorMap:', userColorMap); // isDebugを使用
     } catch (error) {
         console.error('メッセージ再描画エラー:', error);
         showError('メッセージの再読み込みに失敗しました。');
@@ -752,7 +705,7 @@ if (twitterLogin) {
     twitterLogin.addEventListener('click', async () => {
         // auth.js に処理を委譲
         // 引数を auth.js の定義に合わせる (actionsRef と usersRef は auth.js 内部で取得すべき)
-        await signInWithTwitter(auth, database, async (user) => { // ★ ここを修正
+        await signInWithTwitter(auth, database, async (user) => {
             // ログイン成功時の追加処理
             await updateUserUI(user);
         });
@@ -762,7 +715,7 @@ if (twitterLogin) {
 // Googleログイン
 if (googleLogin) {
     googleLogin.addEventListener('click', async () => {
-        await signInWithGoogle(auth, database, async (user) => { // ★ ここを修正
+        await signInWithGoogle(auth, database, async (user) => {
             await updateUserUI(user);
         });
     });
@@ -771,8 +724,15 @@ if (googleLogin) {
 // 匿名ログイン
 if (anonymousLogin) {
     anonymousLogin.addEventListener('click', async () => {
-        await signInAnonymouslyUser(auth, database, async (user) => { // ★ ここを修正
+        await signInAnonymouslyUser(auth, database, async (user) => {
             await updateUserUI(user);
+            // 匿名ログイン成功後、ユーザー名設定モーダルを開く
+            if (user && user.isAnonymous) {
+                if (unameModal) { // unameModal が初期化されていることを確認
+                    unameModal.show();
+                    setTimeout(() => unameInput.focus(), 100);
+                }
+            }
         });
     });
 }
@@ -781,6 +741,9 @@ if (anonymousLogin) {
 if (loginBtn) {
     loginBtn.addEventListener('click', async () => {
         if (auth.currentUser) {
+            // ★修正: signOutUser に渡す引数を auth.currentUser.uid のみに変更
+            // auth.js の signOutUser 関数は actionsRef, onlineUsersRef, username を直接受け取るように修正済み
+            // script.js からはそれらの値を渡す必要がある
             await signOutUser(auth, database, actionsRef, onlineUsersRef, userInfo.textContent.replace(/<[^>]+>/g, '').trim(), () => {
                 // ログアウト成功時の追加処理 (auth.onAuthStateChanged でUIが更新されるため、ここでは特別不要)
             });
@@ -794,6 +757,9 @@ if (loginBtn) {
 
 if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
+        // ★修正: signOutUser に渡す引数を auth.currentUser.uid のみに変更
+        // auth.js の signOutUser 関数は actionsRef, onlineUsersRef, username を直接受け取るように修正済み
+        // script.js からはそれらの値を渡す必要がある
         await signOutUser(auth, database, actionsRef, onlineUsersRef, userInfo.textContent.replace(/<[^>]+>/g, '').trim(), () => {
             unameModal.hide();
             unameModalEl.setAttribute('inert', '');
@@ -826,15 +792,15 @@ if (confirmName) {
     confirmName.addEventListener('click', async () => {
         const rawInput = unameInput.value;
         const username = rawInput.trim();
-        console.log('[script.js] ユーザー名入力値:', username, '型:', typeof username, '入力要素:', unameInput);
+        if (isDebug) console.log('[script.js] ユーザー名入力値:', username, '型:', typeof username, '入力要素:', unameInput); // isDebugを使用
         if (typeof username !== 'string' || username === '') {
-            console.error('[script.js] 無効なユーザー名:', username);
+            if (isDebug) console.error('[script.js] 無効なユーザー名:', username); // isDebugを使用
             unameInput.classList.add('is-invalid');
             return;
         }
         try {
             await updateUsername(auth, database, username, async (updatedUsername, updatedPhotoURL) => {
-                console.log('[script.js] ユーザー名更新成功:', updatedUsername, 'photoURL:', updatedPhotoURL);
+                if (isDebug) console.log('[script.js] ユーザー名更新成功:', updatedUsername, 'photoURL:', updatedPhotoURL); // isDebugを使用
                 // ユーザー名更新成功時のUI更新
                 const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
                 
@@ -848,7 +814,7 @@ if (confirmName) {
                     // photoURLがある場合、画像を表示
                     if (profileImgInUserInfo) {
                         const photoURL = cleanPhotoURL(userData.photoURL) + '?t=' + Date.now();
-                        console.log('[script.js] 画像パス:', photoURL);
+                        if (isDebug) console.log('[script.js] 画像パス:', photoURL); // isDebugを使用
                         profileImgInUserInfo.src = photoURL;
                         profileImgInUserInfo.alt = escapeHTMLAttribute(updatedUsername);
                         profileImgInUserInfo.dataset.uid = auth.currentUser.uid; // 修正: user.uid → auth.currentUser.uid
@@ -883,8 +849,7 @@ if (confirmName) {
                 }
 
                 currentUserPhotoURL = userData.photoURL || null; // ログインユーザーのphotoURLを更新
-                console.log('[script.js] ユーザー名更新成功コールバック実行。モーダルを閉じます。'); // ★追加: デバッグログ
-                unameModal.hide(); // <--- この行が実行されているか確認
+                unameModal.hide();
                 unameInput.classList.remove('is-invalid');
                 await updateOnlineUsers(); // オンラインユーザーリストも更新
                 showSuccess('ユーザー名を更新しました。');
@@ -941,7 +906,7 @@ formEl._submitHandler = async (e) => {
         if (!formEl.checkValidity()) {
             e.stopPropagation();
             formEl.classList.add('was-validated');
-            console.log('[script.js] フォームバリデーション失敗');
+            if (isDebug) console.log('[script.js] フォームバリデーション失敗'); // isDebugを使用
             return;
         }
 
@@ -968,7 +933,7 @@ formEl._submitHandler = async (e) => {
         }
 
         isSending = true;
-        console.log('[script.js] Enterキー: 送信モードでフォーム送信');
+        if (isDebug) console.log('[script.js] Enterキー: 送信モードでフォーム送信'); // isDebugを使用
 
         // ★★★ ここから修正箇所: UIの即時更新 ★★★
         // 入力フィールドを即座にクリアし、仮想キーボードを非表示にする
@@ -980,7 +945,7 @@ formEl._submitHandler = async (e) => {
         // 仮想キーボードを非表示にする
         if ('virtualKeyboard' in navigator) {
             navigator.virtualKeyboard.hide();
-            console.log('[script.js] 仮想キーボードを非表示');
+            if (isDebug) console.log('[script.js] 仮想キーボードを非表示'); // isDebugを使用
         }
         // ★★★ ここまで修正箇所 ★★★
 
@@ -1011,13 +976,13 @@ formEl._submitHandler = async (e) => {
             const notificationTitle = `新しいメッセージ from ${cleanedUsername}`;
             const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
             const onlineUsers = await fetchOnlineUsers();
-            console.log('[script.js] オンラインユーザー:', onlineUsers);
+            if (isDebug) console.log('[script.js] オンラインユーザー:', onlineUsers); // isDebugを使用
 
             const defaultIconPath = './chat/images/icon.png';
             for (const onlineUser of onlineUsers) {
                 // 自分のメッセージには通知を送らない
                 if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
-                    console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
+                    if (isDebug) console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`); // isDebugを使用
                     await sendNotification(
                         onlineUser.userId,
                         notificationTitle,
@@ -1050,7 +1015,7 @@ formEl._submitHandler = async (e) => {
         // 最新メッセージへのスクロール（メッセージがDOMに追加された後に実行されるのが理想的）
         requestAnimationFrame(() => {
             messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-            console.log('[script.js] メッセージ送信後: トップにスクロール');
+            if (isDebug) console.log('[script.js] メッセージ送信後: トップにスクロール'); // isDebugを使用
         });
 
         if ('virtualKeyboard' in navigator) {
@@ -1087,44 +1052,44 @@ if (inputEl) {
 
 // 初期メッセージ読み込み
 async function loadInitialMessages() {
-    console.log('[script.js] loadInitialMessages関数が呼び出されました。');
+    if (isDebug) console.log('[script.js] loadInitialMessages関数が呼び出されました。'); // isDebugを使用
     try {
         if (!auth.currentUser) {
-            console.log('[script.js] 未ログインのためメッセージ読み込みをスキップ');
+            if (isDebug) console.log('[script.js] 未ログインのためメッセージ読み込みをスキップ'); // isDebugを使用
             return;
         }
-        console.log('[script.js] ユーザーはログイン済みです:', auth.currentUser.uid);
+        if (isDebug) console.log('[script.js] ユーザーはログイン済みです:', auth.currentUser.uid); // isDebugを使用
 
         if (!progressOverlay) {
             console.warn('[script.js] progress-overlay要素が見つかりません。');
             return;
         }
         progressOverlay.classList.remove('d-none');
-        console.log('[script.js] progressOverlayを表示しました。');
+        if (isDebug) console.log('[script.js] progressOverlayを表示しました。'); // isDebugを使用
 
         const startTime = performance.now();
-        console.log('[script.js] メッセージ取得クエリを作成中...');
+        if (isDebug) console.log('[script.js] メッセージ取得クエリを作成中...'); // isDebugを使用
         const initialMessagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(10));
 
-        console.log('[script.js] Firebaseからメッセージのスナップショットを取得中...');
+        if (isDebug) console.log('[script.js] Firebaseからメッセージのスナップショットを取得中...'); // isDebugを使用
         const snapshot = await get(initialMessagesQuery);
-        console.log('[script.js] メッセージのスナップショットを取得しました。snapshot.exists():', snapshot.exists());
+        if (isDebug) console.log('[script.js] メッセージのスナップショットを取得しました。snapshot.exists():', snapshot.exists()); // isDebugを使用
 
         const messages = snapshot.val() ? Object.entries(snapshot.val()).sort((a, b) => a[1].timestamp - b[1].timestamp) : [];
-        console.log('[script.js] 取得したメッセージの数:', messages.length);
+        if (isDebug) console.log('[script.js] 取得したメッセージの数:', messages.length); // isDebugを使用
         if (messages.length === 0) {
-            console.log('[script.js] 取得されたメッセージがありません。');
+            if (isDebug) console.log('[script.js] 取得されたメッセージがありません。'); // isDebugを使用
         }
 
         const userIds = [...new Set(messages.map(([_, msg]) => msg.userId))];
-        console.log('[script.js] 関連するユーザーID:', userIds);
+        if (isDebug) console.log('[script.js] 関連するユーザーID:', userIds); // isDebugを使用
 
         const userDataPromises = userIds.map(async userId => {
             if (userCache.has(userId)) {
-                console.log(`[script.js] ユーザーデータ (キャッシュから): ${userId}`);
+                if (isDebug) console.log(`[script.js] ユーザーデータ (キャッシュから): ${userId}`); // isDebugを使用
                 return { userId, data: userCache.get(userId) };
             }
-            console.log(`[script.js] ユーザーデータ (Firebaseから取得): ${userId}`);
+            if (isDebug) console.log(`[script.js] ユーザーデータ (Firebaseから取得): ${userId}`); // isDebugを使用
             const snapshot = await get(ref(database, `users/${userId}`));
             const data = snapshot.val() || {};
             userCache.set(userId, data);
@@ -1132,14 +1097,14 @@ async function loadInitialMessages() {
         });
         const userDataArray = await Promise.all(userDataPromises);
         const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-        console.log('[script.js] ユーザーデータマップ:', userDataMap);
+        if (isDebug) console.log('[script.js] ユーザーデータマップ:', userDataMap); // isDebugを使用
 
         messagesEl.innerHTML = '';
         latestInitialTimestamp = messages.length ? Math.max(...messages.map(([_, msg]) => msg.timestamp)) : null;
-        console.log('[script.js] 最新の初期メッセージタイムスタンプ:', latestInitialTimestamp);
+        if (isDebug) console.log('[script.js] 最新の初期メッセージタイムスタンプ:', latestInitialTimestamp); // isDebugを使用
 
         for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of messages) {
-            console.log(`[script.js] メッセージをレンダリング中: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`);
+            if (isDebug) console.log(`[script.js] メッセージをレンダリング中: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`); // isDebugを使用
             const isLatest = key === messages[messages.length - 1]?.[0]; // 最新メッセージを判定
             const photoURL = userDataMap[userId]?.photoURL;
             const li = document.createElement('li');
@@ -1170,23 +1135,23 @@ async function loadInitialMessages() {
                     </div>
                 </div>`;
             messagesEl.prepend(li);
-            // ★ここからイベントリスナーを追加
+            // ここからイベントリスナーを追加
             const img = li.querySelector('.profile-img');
             if (img) {
                 img.onerror = () => handleImageError(img, userId, username, photoURL);
             }
-            // ★ここまで
+            // ここまで
             setTimeout(() => li.classList.add('show'), 10);
         }
         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-        console.log('[script.js] メッセージ表示後: トップにスクロールしました。');
+        if (isDebug) console.log('[script.js] メッセージ表示後: トップにスクロールしました。'); // isDebugを使用
     } catch (error) {
         console.error('[script.js] 初期メッセージ読み込みエラー:', error);
         showError('メッセージの読み込みに失敗しました。');
     } finally {
         if (progressOverlay) progressOverlay.classList.add('d-none');
-        console.log('[script.js] progressOverlayを非表示にしました。');
-        console.log('[script.js] loadInitialMessages関数が完了しました。');
+        if (isDebug) console.log('[script.js] progressOverlayを非表示にしました。'); // isDebugを使用
+        if (isDebug) console.log('[script.js] loadInitialMessages関数が完了しました。'); // isDebugを使用
     }
 }
 
@@ -1195,67 +1160,66 @@ let messageListener = null;
 let messageRemoveListener = null;
 
 function setupMessageListener() {
-    console.log('[script.js] setupMessageListener関数が呼び出されました。');
+    if (isDebug) console.log('[script.js] setupMessageListener関数が呼び出されました。'); // isDebugを使用
     try {
         if (messageListener) {
-            console.log('[script.js] 既存のmessageListenerを解除します。');
+            if (isDebug) console.log('[script.js] 既存のmessageListenerを解除します。'); // isDebugを使用
             messageListener(); // 既存のリスナーを解除
         }
         if (messageRemoveListener) {
-            console.log('[script.js] 既存のmessageRemoveListenerを解除します。');
+            if (isDebug) console.log('[script.js] 既存のmessageRemoveListenerを解除します。'); // isDebugを使用
             messageRemoveListener(); // 既存のリスナーを解除
         }
 
         // 最新の初期メッセージタイムスタンプが存在する場合、それ以降のメッセージのみを監視するクエリを作成
         let listenerQuery = messagesRef;
         if (latestInitialTimestamp) {
-            console.log(`[script.js] setupMessageListener: 最新の初期タイムスタンプ (${latestInitialTimestamp}) 以降のメッセージを監視します。`);
+            if (isDebug) console.log(`[script.js] setupMessageListener: 最新の初期タイムスタンプ (${latestInitialTimestamp}) 以降のメッセージを監視します。`); // isDebugを使用
             listenerQuery = query(messagesRef, orderByChild('timestamp'), startAfter(latestInitialTimestamp));
         } else {
-            console.log('[script.js] setupMessageListener: latestInitialTimestampが設定されていないため、全ての新しいメッセージを監視します。');
+            if (isDebug) console.log('[script.js] setupMessageListener: latestInitialTimestampが設定されていないため、全ての新しいメッセージを監視します。'); // isDebugを使用
             // 初期メッセージがない場合は、以降に投稿されるメッセージをすべて監視
             listenerQuery = query(messagesRef, orderByChild('timestamp'));
         }
 
-        messageListener = onChildAdded(listenerQuery, async (snapshot) => { // ★ ここを修正
-            console.log('[script.js] onChildAddedイベントが発生しました。');
-            try {
-                const { username, message, timestamp, userId = 'anonymous', ipAddress, fcmMessageId } = snapshot.val();
-                const key = snapshot.key;
-                console.log(`[script.js] 新しいメッセージ: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`);
+        messageListener = onChildAdded(listenerQuery, async (snapshot) => {
+            if (isDebug) console.log('[script.js] onChildAddedイベントが発生しました。'); // isDebugを使用
+            try {
+                const { username, message, timestamp, userId = 'anonymous', ipAddress, fcmMessageId } = snapshot.val();
+                const key = snapshot.key;
+                if (isDebug) console.log(`[script.js] 新しいメッセージ: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`); // isDebugを使用
 
-                // ここでのtimestamp <= latestInitialTimestampのチェックは不要になるはずですが、
-                // 念のため残しておくとより堅牢になります。
-                if (timestamp <= latestInitialTimestamp) {
-                    console.log('[script.js] メッセージは初期読み込み済みのためスキップします。（リスナー側でフィルタリング済み）');
-                    return;
-                }
-                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
-                    console.log('[script.js] メッセージは既にDOMに存在するためスキップします。');
-                    return;
-                }
+                // ここでのtimestamp <= latestInitialTimestampのチェックは不要になるはずですが、
+                // 念のため残しておくとより堅牢になります。
+                if (timestamp <= latestInitialTimestamp) {
+                    if (isDebug) console.log('[script.js] メッセージは初期読み込み済みのためスキップします。（リスナー側でフィルタリング済み）'); // isDebugを使用
+                    return;
+                }
+                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
+                    if (isDebug) console.log('[script.js] メッセージは既にDOMに存在するためスキップします。'); // isDebugを使用
+                    return;
+                }
 
-                console.log(`[script.js] ユーザーデータ取得中 for userId: ${userId}`);
-                const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
-                userCache.set(userId, userData);
-                if (userCache.size > 100) {
-                    console.log('[script.js] userCacheが大きくなったためクリアしました。');
-                    userCache.clear();
-                }
-                const photoURL = userData.photoURL;
-                const formattedMessage = formatMessage(message);
+                if (isDebug) console.log(`[script.js] ユーザーデータ取得中 for userId: ${userId}`); // isDebugを使用
+                const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
+                userCache.set(userId, userData);
+                if (userCache.size > 100) {
+                    if (isDebug) console.log('[script.js] userCacheが大きくなったためクリアしました。'); // isDebugを使用
+                    userCache.clear();
+                }
+                const photoURL = userData.photoURL;
+                const formattedMessage = formatMessage(message);
 
-                // ★ 修正点: cleanUsernameを適用して、きれいなユーザー名を取得する
+                // cleanUsernameを適用して、きれいなユーザー名を取得する
                 const displayUsername = cleanUsername(username || '匿名');
-                // ★ここまで修正
 
-                const li = document.createElement('li');
-                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3 ${assignUserBackgroundColor(userId)}`;
-                li.setAttribute('data-message-id', key); 
-                li.setAttribute('data-user-id', userId);
-                li.setAttribute('role', 'listitem');
-                li.setAttribute('data-timestamp', timestamp);
-                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+                const li = document.createElement('li');
+                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3 ${assignUserBackgroundColor(userId)}`;
+                li.setAttribute('data-message-id', key); 
+                li.setAttribute('data-user-id', userId);
+                li.setAttribute('role', 'listitem');
+                li.setAttribute('data-timestamp', timestamp);
+                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
 li.innerHTML = `
     <div class="message bg-transparent p-2 row">
         <div class="col-auto profile-icon">
@@ -1273,13 +1237,13 @@ li.innerHTML = `
             ${formattedMessage}
         </div>
     </div>`;
-                messagesEl.prepend(li);
-                // ★ここからイベントリスナーを追加
+                messagesEl.prepend(li);
+                // ここからイベントリスナーを追加
 const img = li.querySelector('.profile-img');
 if (img) {
-    img.onerror = () => handleImageError(img, userId, displayUsername, photoURL); // ★ここも displayUsername が使われているか
+    img.onerror = () => handleImageError(img, userId, displayUsername, photoURL);
 }
-                // ★ここまで
+                // ここまで
                 setTimeout(() => li.classList.add('show'), 10);
                 if (!isUserScrolledUp) {
                     requestAnimationFrame(() => {
@@ -1290,23 +1254,23 @@ if (img) {
                     newMessageBtn.classList.remove('d-none');
                 }
                 // 現在のユーザー以外のメッセージで通知
-                console.log('[タブ点滅デバッグ] document.hidden:', document.hidden);
-                console.log('[タブ点滅デバッグ] auth.currentUser.uid:', auth.currentUser ? auth.currentUser.uid : '未ログイン');
-                console.log('[タブ点滅デバッグ] message.userId:', userId);
+                if (isDebug) console.log('[タブ点滅デバッグ] document.hidden:', document.hidden); // isDebugを使用
+                if (isDebug) console.log('[タブ点滅デバッグ] auth.currentUser.uid:', auth.currentUser ? auth.currentUser.uid : '未ログイン'); // isDebugを使用
+                if (isDebug) console.log('[タブ点滅デバッグ] message.userId:', userId); // isDebugを使用
 
                 const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
                 if (document.hidden && userId !== currentUserId) {
-                    console.log('[タブ点滅デバッグ] 通知条件を満たしました: タブ非表示 AND 他ユーザーからのメッセージ');
+                    if (isDebug) console.log('[タブ点滅デバッグ] 通知条件を満たしました: タブ非表示 AND 他ユーザーからのメッセージ'); // isDebugを使用
                     startTabBlinking();
                     notifyNewMessage({ title: username, body: message });
                 } else {
-                    console.log('[タブ点滅デバッグ] 通知条件を満たしませんでした。');
+                    if (isDebug) console.log('[タブ点滅デバッグ] 通知条件を満たしませんでした。'); // isDebugを使用
                     if (!document.hidden) {
-                        console.log('理由: タブが表示されているため。');
+                        if (isDebug) console.log('理由: タブが表示されているため。'); // isDebugを使用
                         stopTabBlinking();
                     }
                     if (userId === currentUserId) {
-                        console.log('理由: 自身のメッセージであるため。');
+                        if (isDebug) console.log('理由: 自身のメッセージであるため。'); // isDebugを使用
                     }
                 }
             } catch (error) {
@@ -1315,7 +1279,7 @@ if (img) {
             }
         });
         messageRemoveListener = onChildRemoved(messagesRef, (snapshot) => {
-            console.log('[script.js] onChildRemovedイベントが発生しました。');
+            if (isDebug) console.log('[script.js] onChildRemovedイベントが発生しました。'); // isDebugを使用
             try {
                 const key = snapshot.key;
                 const messageEl = messagesEl.querySelector(`[data-message-id="${key}"]`);
@@ -1337,205 +1301,26 @@ if (img) {
 }
 
 // 削除対象のメッセージIDを一時的に保持する変数
-// この変数は、スクリプトの他の部分からもアクセスできるよう、
-// グローバルスコープ、または関連する関数群を囲む上位スコープに配置してください。
 let currentMessageIdToDelete = null;
 
 // HTMLからモーダル要素とボタン要素を取得します。
 // これらの要素は、ページの読み込み時に一度だけ取得されるべきです。
 // 例えば、DOMContentLoadedイベントリスナーの内部など、初期化処理の場所で定義してください。
-const deleteConfirmModalEl = document.getElementById('deleteConfirmModal');
-const deleteConfirmModal = new bootstrap.Modal(deleteConfirmModalEl); // Bootstrapモーダルインスタンス
+let deleteConfirmModalEl; // DOMContentLoaded内で初期化
+let deleteConfirmModal; // DOMContentLoaded内で初期化
 
-const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-const cancelDeleteBtn = document.getElementById('cancelDeleteBtn'); // モーダル内のキャンセルボタンも取得することを推奨
+let confirmDeleteBtn; // DOMContentLoaded内で初期化
+let cancelDeleteBtn; // DOMContentLoaded内で初期化
 
 // 削除実行ボタン (confirmDeleteBtn) のイベントリスナーを一度だけ登録
 // これにより、クリックされるたびにイベントリスナーが重複して登録されるのを防ぎます。
-if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener('click', async () => {
-        // currentMessageIdToDelete が設定されていることを確認
-        if (!currentMessageIdToDelete) {
-            console.error('削除対象のメッセージIDが設定されていません。');
-            showError('メッセージの削除に失敗しました。');
-            deleteConfirmModal.hide(); // モーダルを閉じる
-            return;
-        }
-
-        try {
-            const messageRef = ref(database, `messages/${currentMessageIdToDelete}`);
-            const snapshot = await get(messageRef);
-
-            if (!snapshot.exists()) {
-                showError('メッセージが見つかりません');
-                return;
-            }
-            if (snapshot.val().userId !== auth.currentUser.uid) {
-                showError('自分のメッセージのみ削除できます');
-                return;
-            }
-
-            await remove(messageRef); // Firebaseからメッセージを削除
-            const messageEl = messagesEl.querySelector(`[data-message-id="${currentMessageIdToDelete}"]`);
-            if (messageEl) {
-                messageEl.classList.remove('show');
-                setTimeout(() => messageEl.remove(), 300);
-            }
-            await push(actionsRef, {
-                type: 'deleteMessage',
-                userId: auth.currentUser.uid,
-                username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
-                messageId: currentMessageIdToDelete,
-                timestamp: Date.now()
-            });
-            showSuccess('メッセージを削除しました。'); // 削除成功時のトースト通知
-        } catch (error) {
-            console.error('メッセージ削除エラー:', error);
-            showError(`メッセージの削除に失敗しました: ${error.message}`);
-        } finally {
-            deleteConfirmModal.hide(); // 削除が成功しても失敗してもモーダルを閉じる
-            inputEl.focus(); // 入力フィールドにフォーカスを戻す
-            currentMessageIdToDelete = null; // 保持していたメッセージIDをリセット
-        }
-    });
-}
 
 // キャンセルボタン (cancelDeleteBtn) のイベントリスナーも追加することを推奨
-if (cancelDeleteBtn) {
-    cancelDeleteBtn.addEventListener('click', () => {
-        deleteConfirmModal.hide(); // モーダルを閉じる
-        inputEl.focus(); // 入力フィールドにフォーカスを戻す
-        currentMessageIdToDelete = null; // 保持していたメッセージIDをリセット
-    });
-}
 
 
 // ====== ここから新しい「削除処理」コードブロック ======
 
-// messagesEl が存在する場合のみ処理
-if (messagesEl) {
-    // ★追加: メッセージリスト内の削除ボタンに対するイベント委譲
-    messagesEl.addEventListener('click', (e) => {
-        const deleteButton = e.target.closest('.delete-message'); // クラス名を修正
-        if (deleteButton) {
-            currentMessageIdToDelete = deleteButton.getAttribute('data-message-id');
-            if (currentMessageIdToDelete) {
-                deleteConfirmModal.show();
-            } else {
-                console.warn('削除ボタンに data-message-id が見つかりません。');
-            }
-        }
-    });
-
-    // 既存のイベントリスナーがあれば削除 (重複登録防止)
-    // messagesEl._scrollHandler が定義されていることを前提とする
-    // この行は存在しない可能性もあるため、エラーにならないように注意
-    if (messagesEl._scrollHandler) {
-        messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
-    }
-
-    // スクロールハンドラーを定義
-    messagesEl._scrollHandler = async () => {
-        try {
-            // setTimeout によるデバウンス処理はそのまま残しても良いですが、
-            // messagesEl のスクロールイベント自体に直接 `async` を付けても動作します。
-            // ここでは元のsetTimeout構造を尊重しつつ、window.scrollYのチェックを削除します。
-            if (scrollTimeout) clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(async () => {
-                // messagesEl.scrollTop が messagesEl の一番下近くに到達したかをチェック
-                const scrollTopMax = messagesEl.scrollHeight - messagesEl.clientHeight;
-                if (messagesEl.scrollTop > scrollTopMax - 200 && !isLoading) { // >= に変更するとより確実にトリガーされます
-                    console.log('ローディング開始');
-                    isLoading = true;
-                    loadingIndicator.textContent = '過去の10件のメッセージを読み込み中...';
-                    loadingIndicator.style.display = 'block';
-
-                    try {
-                        const messages = messagesEl.querySelectorAll('[data-timestamp]');
-                        // lastTimestamp は現在表示されているメッセージの中で最も古いものを取得
-                        lastTimestamp = messages.length ? Math.min(...Array.from(messages).map(m => Number(m.getAttribute('data-timestamp')))) : null;
-
-                        if (lastTimestamp) {
-                            // Firebaseから過去のメッセージを10件取得
-                            const olderMessages = await get(query(messagesRef, orderByChild('timestamp'), endAt(lastTimestamp - 1), limitToLast(10)));
-                            // 取得したメッセージをタイムスタンプの新しい順（降順）にソート
-                            const olderMessagesArray = olderMessages.val() ? Object.entries(olderMessages.val()).sort((a, b) => b[1].timestamp - a[1].timestamp) : [];
-
-                            // ユーザーデータの取得とキャッシュはそのまま
-                            const userIds = [...new Set(olderMessagesArray.map(([_, msg]) => msg.userId).filter(id => id != null))];
-                            const userDataPromises = userIds.map(async userId => {
-                                if (userCache.has(userId)) return { userId, data: userCache.get(userId) };
-                                const snapshot = await get(ref(database, `users/${userId}`));
-                                const data = snapshot.val() || {};
-                                userCache.set(userId, data);
-                                return { userId, data };
-                            });
-                            const userDataArray = await Promise.all(userDataPromises);
-                            const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-
-                            // 新しいメッセージをリストの末尾に追加
-                            for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of olderMessagesArray) {
-                                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) continue;
-
-
-                                // ★ここから追加★
-                                console.log(`[メッセージレンダリング前] key: ${key}, 元のusername: "${username}", userId: ${userId}`);
-                                const tempDisplayUsername = cleanUsername(username || '匿名');
-                                console.log(`[メッセージレンダリング後] key: ${key}, cleanUsername適用後: "${tempDisplayUsername}"`);
-                                // ★ここまで追加
-
-
-
-
-                                const photoURL = userDataMap[userId]?.photoURL;
-                                const li = document.createElement('li');
-                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
-                                li.setAttribute('data-message-id', key);
-                                li.setAttribute('role', 'listitem');
-                                li.setAttribute('data-timestamp', timestamp);
-                                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-                                const formattedMessage = formatMessage(message);
-                                li.innerHTML = `
-                                    <div class="message bg-transparent p-2 row">
-                                        <div class="col-auto profile-icon">
-                                            ${photoURL ?
-                                                `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
-                                                `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
-                                        </div>
-                                        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                                            <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
-                                            <small class="text-muted ms-2">${date}</small>
-                                            ${auth.currentUser && auth.currentUser.uid === userId ?
-                                                `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-                                                    <i class="fa fa-trash"></i>
-                                                </button>` : ''}
-                                        </div>
-                                        <div class="col-12 message-body mt-2">
-                                            ${formattedMessage}
-                                        </div>
-                                    </div>`;
-                                messagesEl.appendChild(li); // 新しいものから古いものが上から下に並ぶよう、末尾に追加
-                                setTimeout(() => li.classList.add('show'), 10);
-                            }
-                        }
-                    } catch (error) {
-                        console.error('過去メッセージ取得エラー:', error);
-                        showError('過去のメッセージが取得できませんでした。');
-                    } finally {
-                        isLoading = false;
-                        loadingIndicator.textContent = 'ロード中...';
-                        loadingIndicator.style.display = 'none';
-                    }
-                }
-            }, 200); // デバウンス時間
-        } catch (error) {
-            console.error('スクロール処理エラー:', error);
-        }
-    };
-
-    messagesEl.addEventListener('scroll', messagesEl._scrollHandler);
-}
-
+// messagesEl が存在する場合のみ処理 (DOMContentLoaded内でイベントリスナーを設定するため、ここではif文を削除)
 
 // 認証状態変更リスナー
 // auth.onAuthStateChanged(async (user) => { ... }); のブロックは setupFirebase() 内に移動します。
@@ -1588,8 +1373,8 @@ setInterval(() => {
 // DOMContentLoaded イベントリスナーのセットアップ
 document.addEventListener('DOMContentLoaded', () => {
     // DOM要素の取得
-    formEl = document.getElementById('messageForm'); // IDを修正
-    inputEl = document.getElementById('m'); // IDを修正
+    formEl = document.getElementById('messageForm');
+    inputEl = document.getElementById('m');
     messagesEl = document.getElementById('messages');
     errorAlert = document.getElementById('error-alert');
     loginBtn = document.getElementById('login-btn');
@@ -1601,27 +1386,262 @@ document.addEventListener('DOMContentLoaded', () => {
     unameModal = new bootstrap.Modal(unameModalEl);
     loginModalEl = document.getElementById('loginModal');
     loginModal = new bootstrap.Modal(loginModalEl);
-    unameInput = document.getElementById('uname'); // IDを修正
-    // 以下の要素はHTMLに存在しないか、またはui-manager.jsで取得されているため、ここでは削除
-    // messageCountElement = document.getElementById('messageCount');
-    // chatSoundToggle = document.getElementById('chatSoundToggle');
-    // notificationSoundToggle = document.getElementById('notificationSoundToggle');
-    // userListModal = new bootstrap.Modal(document.getElementById('userListModal'));
-    // userListBtn = document.getElementById('userListBtn');
-    // colorPickerButton = document.getElementById('colorPickerButton');
-    // colorPickerModal = new bootstrap.Modal(document.getElementById('colorPickerModal'));
-    // colorPalette = document.getElementById('colorPalette');
-    // applyColorButton = document.getElementById('applyColorButton');
-    // currentColorDisplay = document.getElementById('currentColorDisplay');
-    // colorAssignmentModeToggle = document.getElementById('colorAssignmentModeToggle');
-    // newMessagesIndicator = document.getElementById('newMessagesIndicator');
-    newMessageBtn = document.getElementById('newMessageBtn'); // 再度取得
+    unameInput = document.getElementById('uname');
+    newMessageBtn = document.getElementById('newMessageBtn');
+    onlineUsersEl = document.getElementById('online-users');
+    compactModeBtn = document.getElementById('compactModeBtn');
+    fontSizeS = document.getElementById('fontSizeS');
+    fontSizeM = document.getElementById('fontSizeM');
+    fontSizeL = document.getElementById('fontSizeL');
+    signOutBtn = document.getElementById('signOut');
+    toggleModeBtn = document.getElementById('toggleModeBtn');
+    loadingIndicator = document.getElementById('loading-indicator');
+    progressOverlay = document.getElementById('progress-overlay');
+    navbarRow2 = document.getElementById('navsec');
+    colorModeDropdown = document.getElementById('colorModeDropdown');
+    userColorSelect = document.getElementById('userColorSelect');
+    colorPicker = document.getElementById('colorPicker');
 
+    // 削除確認モーダル関連の要素
+    deleteConfirmModalEl = document.getElementById('deleteConfirmModal');
+    deleteConfirmModal = new bootstrap.Modal(deleteConfirmModalEl);
+    confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+
+    // クッキーに依存する変数の初期化をここで行う
+    isEnterSendMode = getCookie('enterSendMode') === 'true';
+    colorAssignmentMode = getCookie('colorAssignmentMode') || 'user-selected';
+
+    if (isDebug) console.log('[script.js] DOMContentLoadedでonlineUsersElを取得:', onlineUsersEl); // isDebugを使用
+
+    // DOM要素が利用可能になった後にイベントリスナーを設定
+    if (formEl) {
+        formEl.addEventListener('submit', formEl._submitHandler);
+    }
+
+    // ログイン認証イベントリスナー
+    if (twitterLogin) {
+        twitterLogin.addEventListener('click', async () => {
+            await signInWithTwitter(auth, database, async (user) => {
+                await updateUserUI(user);
+            });
+        });
+    }
+
+    if (googleLogin) {
+        googleLogin.addEventListener('click', async () => {
+            await signInWithGoogle(auth, database, async (user) => {
+                await updateUserUI(user);
+            });
+        });
+    }
+
+    if (anonymousLogin) {
+        anonymousLogin.addEventListener('click', async () => {
+            await signInAnonymouslyUser(auth, database, async (user) => {
+                await updateUserUI(user);
+                // 匿名ログイン成功後、ユーザー名設定モーダルを開く
+                if (user && user.isAnonymous) {
+                    if (unameModal) { // unameModal が初期化されていることを確認
+                        unameModal.show();
+                        setTimeout(() => unameInput.focus(), 100);
+                    }
+                }
+            });
+        });
+    }
+
+    if (loginBtn) {
+        loginBtn.addEventListener('click', async () => {
+            if (auth.currentUser) {
+                // ★修正: signOutUser に渡す引数を auth.currentUser.uid のみに変更
+                await signOutUser(auth, database, auth.currentUser.uid); // auth.js の signOutUser の引数に合わせる
+            } else {
+                loginModalEl.removeAttribute('inert');
+                loginModal.show();
+                setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
+            }
+        });
+    }
+
+    if (signOutBtn) {
+        signOutBtn.addEventListener('click', async () => {
+            // ★修正: signOutUser に渡す引数を auth.currentUser.uid のみに変更
+            await signOutUser(auth, database, auth.currentUser.uid); // auth.js の signOutUser の引数に合わせる
+            unameModal.hide();
+            unameModalEl.setAttribute('inert', '');
+            document.getElementById('login-btn').focus();
+        });
+    }
+
+    if (userInfo) {
+        userInfo.addEventListener('click', async () => {
+            if (auth.currentUser) {
+                try {
+                    const userData = await get(ref(database, `users/${auth.currentUser.uid}`));
+                    unameInput.value = userData.val()?.username || '';
+                    unameModalEl.removeAttribute('inert');
+                    unameModal.show();
+                    setTimeout(() => unameInput.focus(), 100);
+                } catch (error) {
+                    console.error('[script.js] ユーザー名取得エラー:', error);
+                    showError('ユーザー名の取得に失敗しました。');
+                }
+            } else {
+                showError('ログインしてください。');
+            }
+        });
+    }
+
+    if (confirmName) {
+        confirmName.addEventListener('click', async () => {
+            const rawInput = unameInput.value;
+            const username = rawInput.trim();
+            if (isDebug) console.log('[script.js] ユーザー名入力値:', username, '型:', typeof username, '入力要素:', unameInput); // isDebugを使用
+            if (typeof username !== 'string' || username === '') {
+                if (isDebug) console.error('[script.js] 無効なユーザー名:', username); // isDebugを使用
+                unameInput.classList.add('is-invalid');
+                return;
+            }
+            try {
+                await updateUsername(auth, database, username, async (updatedUsername, updatedPhotoURL) => {
+                    if (isDebug) console.log('[script.js] ユーザー名更新成功:', updatedUsername, 'photoURL:', updatedPhotoURL); // isDebugを使用
+                    const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+                    const profileImgInUserInfo = userInfo.querySelector('.profile-img-small');
+                    let profileAvatarDivInUserInfo = userInfo.querySelector('.avatar-small');
+                    const usernameTextSpan = userInfo.querySelector('#current-username-display');
+
+                    if (userData.photoURL && userData.photoURL !== '') {
+                        if (profileImgInUserInfo) {
+                            const photoURL = cleanPhotoURL(userData.photoURL) + '?t=' + Date.now();
+                            if (isDebug) console.log('[script.js] 画像パス:', photoURL); // isDebugを使用
+                            profileImgInUserInfo.src = photoURL;
+                            profileImgInUserInfo.alt = escapeHTMLAttribute(updatedUsername);
+                            profileImgInUserInfo.dataset.uid = auth.currentUser.uid;
+                            profileImgInUserInfo.classList.remove('d-none');
+                        }
+                        if (profileAvatarDivInUserInfo) {
+                            profileAvatarDivInUserInfo.classList.add('d-none');
+                        }
+                    } else {
+                        if (profileImgInUserInfo) {
+                            profileImgInUserInfo.classList.add('d-none');
+                        }
+                        if (!profileAvatarDivInUserInfo) {
+                            profileAvatarDivInUserInfo = document.createElement('div');
+                            profileAvatarDivInUserInfo.className = 'avatar-small me-1';
+                            if (usernameTextSpan) {
+                                userInfo.insertBefore(profileAvatarDivInUserInfo, usernameTextSpan);
+                            } else {
+                                userInfo.appendChild(profileAvatarDivInUserInfo);
+                            }
+                        }
+                        profileAvatarDivInUserInfo.textContent = updatedUsername.charAt(0).toUpperCase();
+                        profileAvatarDivInUserInfo.classList.remove('d-none');
+                    }
+
+                    if (usernameTextSpan) {
+                        usernameTextSpan.textContent = updatedUsername;
+                    }
+
+                    currentUserPhotoURL = userData.photoURL || null;
+                    unameModal.hide();
+                    unameInput.classList.remove('is-invalid');
+                    await updateOnlineUsers();
+                    showSuccess('ユーザー名を更新しました。');
+                });
+            } catch (error) {
+                console.error('[script.js] ユーザー名更新エラー:', error);
+                unameInput.classList.add('is-invalid');
+                showError(`ユーザー名の更新に失敗しました: ${error.message}`);
+            }
+        });
+    }
+
+    // メッセージスクロール処理のイベントリスナー設定
+    if (messagesEl) {
+        // 既存のイベントリスナーがあれば削除 (重複登録防止)
+        if (messagesEl._scrollHandler) {
+            messagesEl.removeEventListener('scroll', messagesEl._scrollHandler);
+        }
+        messagesEl.addEventListener('scroll', messagesEl._scrollHandler);
+    }
+
+    // 削除確認モーダル関連のイベントリスナー設定
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (!currentMessageIdToDelete) {
+                console.error('削除対象のメッセージIDが設定されていません。');
+                showError('メッセージの削除に失敗しました。');
+                deleteConfirmModal.hide();
+                return;
+            }
+            try {
+                const messageRef = ref(database, `messages/${currentMessageIdToDelete}`);
+                const snapshot = await get(messageRef);
+                if (!snapshot.exists()) {
+                    showError('メッセージが見つかりません');
+                    return;
+                }
+                if (snapshot.val().userId !== auth.currentUser.uid) {
+                    showError('自分のメッセージのみ削除できます');
+                    return;
+                }
+                await remove(messageRef);
+                const messageEl = messagesEl.querySelector(`[data-message-id="${currentMessageIdToDelete}"]`);
+                if (messageEl) {
+                    messageEl.classList.remove('show');
+                    setTimeout(() => messageEl.remove(), 300);
+                }
+                await push(actionsRef, {
+                    type: 'deleteMessage',
+                    userId: auth.currentUser.uid,
+                    username: userInfo.textContent.replace(/<[^>]+>/g, '').trim(),
+                    messageId: currentMessageIdToDelete,
+                    timestamp: Date.now()
+                });
+                showSuccess('メッセージを削除しました。');
+            } catch (error) {
+                console.error('メッセージ削除エラー:', error);
+                showError(`メッセージの削除に失敗しました: ${error.message}`);
+            } finally {
+                deleteConfirmModal.hide();
+                inputEl.focus();
+                currentMessageIdToDelete = null;
+            }
+        });
+    }
+
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', () => {
+            deleteConfirmModal.hide();
+            inputEl.focus();
+            currentMessageIdToDelete = null;
+        });
+    }
+
+    // メッセージリスト内の削除ボタンに対するイベント委譲
+    if (messagesEl) {
+        messagesEl.addEventListener('click', (e) => {
+            const deleteButton = e.target.closest('.delete-message');
+            if (deleteButton) {
+                currentMessageIdToDelete = deleteButton.getAttribute('data-message-id');
+                if (currentMessageIdToDelete) {
+                    deleteConfirmModal.show();
+                } else {
+                    console.warn('削除ボタンに data-message-id が見つかりません。');
+                }
+            }
+        });
+    }
+
+    initNotify(); // notifysound.js の初期化
     setupFirebase(); // Firebaseの初期化と認証状態の監視を開始
 });
 
 async function setupFirebase() {
-    console.log('[script.js] setupFirebase関数が呼び出されました。');
+    if (isDebug) console.log('[script.js] setupFirebase関数が呼び出されました。'); // isDebugを使用
     try {
         // Step 1: Firebaseコアサービスを初期化（最も重要！）
         const firebaseServices = await initializeFirebase();
@@ -1633,7 +1653,7 @@ async function setupFirebase() {
         actionsRef = firebaseServices.actionsRef;
         bannedUsersRef = firebaseServices.bannedUsersRef;
         onlineUsersRef = firebaseServices.onlineUsersRef;
-        console.log('[script.js] Firebaseコアサービス初期化完了。');
+        if (isDebug) console.log('[script.js] Firebaseコアサービス初期化完了。'); // isDebugを使用
         initNotify(); // 通知音の初期化
 
         // Step 2: Service Workerの登録と取得
@@ -1644,7 +1664,7 @@ async function setupFirebase() {
                 swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', {
                     scope: './' // Service Workerのスコープ
                 });
-                console.log('[script.js] Service Worker登録成功:', swRegistration);
+                if (isDebug) console.log('[script.js] Service Worker登録成功:', swRegistration); // isDebugを使用
 
                 // Step 3: FCM通知サービスを初期化
                 // initNotifications (initFCM) には、初期化済みのFirebase AppインスタンスとDatabaseインスタンスを渡す
@@ -1653,7 +1673,7 @@ async function setupFirebase() {
                     try {
                         await initFCM(app, database, swRegistration);
                         isFCMInitialized = true;
-                        console.log('[script.js] FCM通知サービス初期化完了。');
+                        if (isDebug) console.log('[script.js] FCM通知サービス初期化完了。'); // isDebugを使用
 
                         // FCMトークンの取得と保存（初回訪問時または通知が許可されていない場合のみ）
                         // ここで通知許可を求めるのは、ユーザーがログインしているかどうかにかかわらず、
@@ -1664,13 +1684,13 @@ async function setupFirebase() {
                             if (fcmToken) {
                                 // トークンが取得できた場合、後でログイン時に保存するために保持する
                                 // または、ログイン状態を監視して後で保存する
-                                console.log('[script.js] FCMトークン取得済み（ユーザーログイン時に保存予定）:', fcmToken);
+                                if (isDebug) console.log('[script.js] FCMトークン取得済み（ユーザーログイン時に保存予定）:', fcmToken); // isDebugを使用
                                 setCookie('notificationPermissionAsked', 'true', 365); // 許可を求めたことを記録
                             } else {
                                 console.warn('[script.js] FCMトークンが取得できませんでした（通知許可拒否またはSWエラー）。');
                             }
                         } else {
-                            console.log('[script.js] 過去に通知許可を求めています。');
+                            if (isDebug) console.log('[script.js] 過去に通知許可を求めています。'); // isDebugを使用
                             // 既に許可済みの場合、getTokenを呼び出して既存のトークンを取得し、
                             // ユーザーがログイン状態になったら保存を試みる
                             // requestNotificationPermission() はgetTokenを含んでいるため、ここでは不要かもしれない
@@ -1695,10 +1715,13 @@ async function setupFirebase() {
         // Step 4: Firebase Authの状態変更を監視 (FCM初期化後に実行)
         auth.onAuthStateChanged(async (user) => {
             try {
+                if (isDebug) console.log('[script.js] 認証状態変更:', user ? user.uid : '未ログイン'); // isDebugを使用
+
                 if (user) {
                     await updateUserUI(user);
                     await loadInitialMessages();
                     setupMessageListener();
+                    await updateOnlineUsers(); // ログイン時にオンラインユーザーを更新
 
                     // ログイン時色設定
                     const userColorFromCookie = getCookie(`userColor_${user.uid}`);
@@ -1711,18 +1734,10 @@ async function setupFirebase() {
                     // FCMが初期化済みであれば、ここでトークンの保存を試みる
                     if (isFCMInitialized) {
                         try {
-                            // requestNotificationPermission() を再度呼び出すとプロンプトが何度も表示される可能性があるので注意。
-                            // initFCM成功時に一度だけ許可を求めている前提なら、ここではgetTokenで既存トークンを取得し保存する。
-                            // 例: const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
-                            // 現状の fcmpush.js の requestNotificationPermission は getToken を含んでいるため、
-                            // ここでそれを呼び出すのは、プロンプト表示を許容するか、fcmpush.jsを修正してgetTokenをexportする必要がある。
-                            // ここではシンプルに、initFCMでトークンが取得できていて、それがユーザーに紐付いていれば保存する、という想定。
-                            // あるいは、requestNotificationPermission がトークンを返したら、それをどこかに保持しておき、
-                            // ここで user.uid と共に saveFCMToken を呼び出す。
-                            const currentFCMToken = await requestNotificationPermission(); // 許可済みならプロンプトは出ないはず
+                            const currentFCMToken = await requestNotificationPermission();
                             if (currentFCMToken) {
                                 await saveFCMToken(user.uid, currentFCMToken);
-                                console.log('[script.js] ログイン時FCMトークンをデータベースに保存済み。');
+                                if (isDebug) console.log('[script.js] ログイン時FCMトークンをデータベースに保存済み。'); // isDebugを使用
                             } else {
                                 console.warn('[script.js] ログイン済みだがFCMトークンが利用できない、または許可されていません。');
                             }
@@ -1735,6 +1750,38 @@ async function setupFirebase() {
 
                     const idToken = await user.getIdToken();
                     localStorage.setItem('firebase_id_token', idToken);
+
+                    // ★★★ ログインモーダルを閉じる処理を追加 ★★★
+                    if (loginModal) {
+                        loginModal.hide();
+                        if (isDebug) console.log('[script.js] ログインモーダルを閉じました。');
+                    }
+                    // ★★★ ここまで追加 ★★★
+
+                    const loginDropdown = document.getElementById('loginDropdown');
+                    if (loginDropdown) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(loginDropdown);
+                        if (bsCollapse) {
+                            bsCollapse.hide();
+                        }
+                    }
+                    const loginButton = document.getElementById('login-btn'); // loginBtnはDOMContentLoadedで取得済み
+                    if (loginButton) {
+                        loginButton.setAttribute('aria-expanded', 'false');
+                    }
+
+                    // 匿名ログインの場合、ユーザー名設定モーダルを開く
+                    if (user.isAnonymous) {
+                        setTimeout(() => {
+                            if (unameModal) { // unameModal が初期化されていることを確認
+                                unameModal.show();
+                                setTimeout(() => unameInput.focus(), 100);
+                            } else {
+                                console.warn('[script.js] unameModal が見つかりません。');
+                            }
+                        }, 500); // 少し遅延させてUIの更新を待つ
+                    }
+
                 } else {
                     updateUserUI(null);
                     localStorage.removeItem('firebase_id_token');
@@ -1742,6 +1789,9 @@ async function setupFirebase() {
                     if (messageListener) messageListener();
                     if (messageRemoveListener) messageRemoveListener();
                     messagesEl.innerHTML = '';
+                    if (onlineUsersEl) { // ログアウト時にオンラインユーザーリストをクリア
+                        onlineUsersEl.innerHTML = '<span class="text-muted">ログインしてオンライン状況を確認</span>';
+                    }
                 }
             } catch (error) {
                 console.error('[script.js] 認証状態変更エラー:', error);
@@ -1754,8 +1804,6 @@ async function setupFirebase() {
     }
 }
 
-
-
 // showProgressOverlay 関数の追加 (定義がなかったので追加)
 function showProgressOverlay() {
     if (progressOverlay) {
@@ -1765,7 +1813,7 @@ function showProgressOverlay() {
 
 
 navigator.serviceWorker.addEventListener('message', (event) => {
-    console.log('[script.js] サービスワーカーからのメッセージ:', event.data);
+    if (isDebug) console.log('[script.js] サービスワーカーからのメッセージ:', event.data); // isDebugを使用
     if (event.data.type === 'FCM_INIT_ERROR') {
         showError(`FCM初期化エラー: ${event.data.message}`);
     }
