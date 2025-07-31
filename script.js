@@ -3,7 +3,7 @@ console.log("cleanUsername の型:", typeof cleanUsername);
 import { initNotifications as initFCM, sendNotification, requestNotificationPermission, saveFCMToken } from './chat/fcmpush.js';
 import { initializeFirebase } from './firebase-config.js'; // firebase-config.jsから初期化関数をインポート
 import { initNotify, notifyNewMessage } from './notifysound.js';
-import { getDatabase, ref, push, onChildAdded, set, get, child, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
+import { getDatabase, ref, push, onChildAdded, set, get, child, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
 // ★修正点: cleanPhotoURL を utils.js からインポート
 import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js'; // cleanUsernameを追加
 import { initFirebaseServices } from './firebase-service.js';
@@ -1617,7 +1617,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // newMessagesIndicator = document.getElementById('newMessagesIndicator');
     newMessageBtn = document.getElementById('newMessageBtn'); // 再度取得
 
-    initNotify(); // notifysound.js の初期化
     setupFirebase(); // Firebaseの初期化と認証状態の監視を開始
 });
 
