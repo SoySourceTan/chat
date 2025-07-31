@@ -1,5 +1,5 @@
-import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js'; // ★修正点: []と()を削除
-import { ref, set, get, push, update, remove } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js'; // ★修正点: []と()を削除
+import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
+import { ref, set, get, push, update, remove } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
 import { showError, showSuccess, getClientIp, cleanPhotoURL, cleanUsername } from './utils.js';
 
 let isLoggingIn = false;
@@ -279,6 +279,13 @@ export async function updateUsername(auth, database, newUsername, userId) {
         const cleanedUsername = cleanUsername(newUsername);
         console.log('[auth.js] クリーンアップされたユーザー名:', cleanedUsername);
 
+        // ★追加: Firebase Authenticationのプロフィールを更新
+        await updateProfile(user, {
+            displayName: cleanedUsername,
+        });
+        console.log('[auth.js] Firebase Auth プロフィール更新成功');
+
+
         // photoURLは既存のものを維持するか、デフォルトに設定
         let photoURL = user.photoURL ? cleanPhotoURL(user.photoURL) : `${getBasePath()}images/icon.png`;
         if (!photoURL || photoURL.trim() === '') {
@@ -303,7 +310,9 @@ export async function updateUsername(auth, database, newUsername, userId) {
             const actionData = {
                 type: 'setUsername',
                 userId: userId,
-                username: cleanedUsername,
+                // ★追加: 変更前のユーザー名も記録するとより良い
+                oldUsername: user.displayName, 
+                newUsername: cleanedUsername,
                 timestamp: Date.now(),
             };
             await push(ref(database, `actions`), actionData);
