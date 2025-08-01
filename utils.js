@@ -245,7 +245,6 @@ export function escapeHTMLAttribute(str) {
  */
 export function cleanPhotoURL(photoURL) {
     const basePath = getBasePath();
-    // ここを修正: デフォルトアイコンの相対パスを 'images/icon.png' から 'icon.png' に変更
     const defaultIconRelativePath = 'icon.png';
 
     // 無効なURLや空のURLを処理し、デフォルト画像URLを返します。
@@ -255,9 +254,18 @@ export function cleanPhotoURL(photoURL) {
     }
 
     try {
-        // ネイティブのURLコンストラクタを使用して、URLを安全かつ確実に結合・解決します。
-        // photoURLが絶対パス(http/https)であればそのまま使用され、相対パスであればbasePathと結合されます。
-        const finalUrl = new URL(photoURL, basePath).href;
+        let cleanedUrl = photoURL;
+        // 過去のデータに '/images/icon.png' が含まれている場合を考慮し、それを除去する
+        if (cleanedUrl.endsWith('/images/icon.png')) {
+            cleanedUrl = cleanedUrl.replace('/images/icon.png', '/icon.png');
+        }
+        // 相対パス 'images/icon.png' も考慮
+        if (cleanedUrl === 'images/icon.png') {
+            cleanedUrl = 'icon.png';
+        }
+
+        // URLコンストラクタを使用して、絶対URLか相対URLかを自動的に判断し、適切なURLを生成
+        const finalUrl = new URL(cleanedUrl, basePath).href;
         console.log('[utils.js] cleanPhotoURL: URLを解決後:', finalUrl);
         return finalUrl;
 
