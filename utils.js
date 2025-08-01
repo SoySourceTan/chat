@@ -7,6 +7,13 @@
  * which is crucial for resolving relative paths (e.g., for images).
  * @returns {string} The calculated base path.
  */
+/**
+ * Helper to get base path dynamically based on the deployment environment.
+ * This function determines the base URL for the application,
+ * which is crucial for resolving relative paths (e.g., for images).
+ * It returns the correct base path for both localhost and GitHub Pages.
+ * @returns {string} The calculated base path (always ends with a slash).
+ */
 export function getBasePath() {
     try {
         const hostname = window.location.hostname;
