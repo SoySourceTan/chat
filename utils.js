@@ -10,7 +10,7 @@
 /**
  * Helper to get base path dynamically based on the deployment environment.
  * This function determines the base URL for the application,
- * which is crucial for resolving relative paths (e.g., for images).
+ * which is crucial for resolving relative paths (e.g., for images).\
  * It returns the correct base path for both localhost and GitHub Pages.
  * @returns {string} The calculated base path (always ends with a slash).
  */
@@ -125,13 +125,13 @@ export function showToast(message) {
         toastEl.setAttribute('aria-live', 'assertive');
         toastEl.setAttribute('aria-atomic', 'true');
         toastEl.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">
-          ${message}
-        </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>
-    `;
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
 
         toastContainer.appendChild(toastEl);
 
@@ -251,47 +251,80 @@ export function escapeHTMLAttribute(str) {
 
 /**
  * プロフィール画像のURLをクリーンアップし、絶対パスに変換します。
- * 無効なURLの場合、現在のアプリケーションのベースパスに基づいたデフォルトのアイコンパスを返します。
- * @param {string} photoURL - クリーンアップするプロフィール画像のURL。
- * @returns {string} クリーンアップされた絶対URL、またはデフォルトのアイコンURL。
+ * データベースに保存されたphotoURLが有効な場合、そのURLを返します。
+ * 無効なURL（null, undefined, 空文字列）の場合や、
+ * 過去に誤って保存されたlocalhostパスの場合、nullを返します。
+ * UI側でphotoURLがnullの場合は頭文字表示のフォールバックが適用されます。
+ * @param {string | null | undefined} photoURL - クリーンアップするプロフィール画像のURL。
+ * @returns {string | null} クリーンアップされた絶対URL、またはnull（フォールバック用）。
  */
 export function cleanPhotoURL(photoURL) {
-    const basePath = getBasePath();
-    const defaultIconRelativePath = 'images/icon.png';
-
-    // 無効なURLや空のURLを処理し、デフォルト画像URLを返します。
+    // photoURLがnull, undefined, または空文字列の場合、そのままnullを返します。
+    // UI側でnullの場合に頭文字表示のフォールバックが適用されます。
     if (typeof photoURL !== 'string' || photoURL.trim() === '') {
-        console.warn('[utils.js] cleanPhotoURL: URLが無効または空です。デフォルト画像を使用します:', photoURL);
-        return new URL(defaultIconRelativePath, basePath).href;
+        console.log('[utils.js] cleanPhotoURL: URLが無効または空です。nullを返します。');
+        return null;
     }
 
     try {
-        let cleanedUrl = photoURL;
-        
-        // localhostのURLを現在のドメインに置き換える
+        let cleanedUrl = photoURL.trim();
+
+        // 過去に誤ってlocalhostパスが保存されている場合の処理
+        // auth.jsの修正により今後は発生しないが、既存データのために残す
         if (cleanedUrl.includes('localhost')) {
-            const currentOrigin = window.location.origin;
-            // 正規表現を使用して、プロトコルとポート番号を含むlocalhostを現在のオリジンに置き換えます
-            cleanedUrl = cleanedUrl.replace(/^https?:\/\/localhost(:\d+)?/, currentOrigin);
+            // 現行の basePath が localhost を含む場合はそのまま使用するが、
+            // それ以外の場合はこのphotoURLは使用せずnullを返す。
+            // なぜなら、auth.jsの修正により、localhostのphotoURLは保存されなくなったため、
+            // 既存のlocalhostのphotoURLは、新しいGitHub Pages環境では使えないことがほとんど。
+            const currentHostname = window.location.hostname;
+            if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+                // 現在がlocalhost環境であれば、そのままのURL（または適切な修正を加える）
+                // ただし、/images/icon.pngがついてる場合、/icon.pngに修正する必要がある
+                cleanedUrl = cleanedUrl.replace(/^https?:\/\/localhost(:\d+)?\/learning\/english-words\/chat\/\/images\/icon\.png$/, `${window.location.origin}/learning/english-words/chat/icon.png`);
+                cleanedUrl = cleanedUrl.replace(/^https?:\/\/localhost(:\d+)?\/chat\/\/images\/icon\.png$/, `${window.location.origin}/chat/icon.png`);
+                console.warn('[utils.js] cleanPhotoURL: 過去のlocalhostパスを現在のlocalhostパスに修正しました:', cleanedUrl);
+                return cleanedUrl;
+            } else {
+                // 現在がlocalhost環境でない場合、過去のlocalhostパスは無効と判断し、nullを返す
+                console.warn('[utils.js] cleanPhotoURL: 過去のlocalhostパスは現在の環境では無効です。nullを返します:', photoURL);
+                return null;
+            }
         }
         
-        // 過去のデータに '/images/icon.png' が含まれている場合を考慮し、それを除去する
-        if (cleanedUrl.endsWith('/images/icon.png')) {
+        // GitHub Pagesのパスで、誤って/images/icon.pngが保存されている場合も考慮
+        // auth.jsの修正により今後は発生しないが、既存データのために残す
+        if (cleanedUrl.startsWith(window.location.origin + '/chat/images/icon.png')) {
+            // https://soysourcetan.github.io/chat/images/icon.png -> https://soysourcetan.github.io/chat/icon.png
             cleanedUrl = cleanedUrl.replace('/images/icon.png', '/icon.png');
+            console.warn('[utils.js] cleanPhotoURL: GitHub Pagesの誤ったアイコンパスを修正しました:', cleanedUrl);
+            return cleanedUrl;
         }
-        // 相対パス 'images/icon.png' も考慮
-        if (cleanedUrl === 'images/icon.png') {
-            cleanedUrl = 'icon.png';
+
+        // Twitterの_normalを_400x400に変換 (auth.jsでも行われるが、念のためこちらでも対応)
+        if (cleanedUrl.includes('pbs.twimg.com') && cleanedUrl.endsWith('_normal.jpg')) {
+             cleanedUrl = cleanedUrl.replace('_normal.jpg', '_400x400.jpg');
+             console.log('[utils.js] cleanPhotoURL: TwitterのURLを_400x400に修正しました:', cleanedUrl);
         }
-        
-        // URLコンストラクタを使用して、絶対URLか相対URLかを自動的に判断し、適切なURLを生成
-        const finalUrl = new URL(cleanedUrl, basePath).href;
-        console.log('[utils.js] cleanPhotoURL: URLを解決後:', finalUrl);
-        return finalUrl;
+
+        // URLコンストラクタを使用して、絶対URLとして検証し、無効な場合はnullを返します。
+        // basePathはここでは直接は使いませんが、new URL()の第二引数として渡すことで相対URLを解決できます。
+        try {
+            const url = new URL(cleanedUrl, getBasePath()); // basePathを基準として相対URLも解決
+            // プロトコルが http または https であることを確認
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                console.warn('[utils.js] cleanPhotoURL: 不正なプロトコルのURLです。nullを返します:', cleanedUrl);
+                return null;
+            }
+            // URLが有効かつプロトコルが正しい場合はそのhrefを返します。
+            return url.href;
+        } catch (urlError) {
+            console.warn('[utils.js] cleanPhotoURL: URLコンストラクタで解決できないURLです。nullを返します:', cleanedUrl, urlError);
+            return null;
+        }
 
     } catch (error) {
-        console.error('[utils.js] cleanPhotoURL: URL処理中にエラーが発生しました。デフォルト画像を使用します:', error);
-        return new URL(defaultIconRelativePath, basePath).href;
+        console.error('[utils.js] cleanPhotoURL: URL処理中に予期せぬエラーが発生しました。nullを返します:', error);
+        return null;
     }
 }
 
@@ -314,13 +347,13 @@ export function cleanUsername(username) {
     cleaned = cleaned.replace(/<[^>]+>/g, '');
 
     // 2. 改行コード、タブ、連続する空白をすべて除去（単一のスペースにもしない）
-    //    これにより「み みちこ」が「みちこ」になる
+    //    これにより「み みちこ」が「みちこ」になる
     cleaned = cleaned.replace(/[\n\t\s]+/g, '');
 
     // 3. 特定の「ゴミ」文字を除去
-    //    例えば「?」や括弧など、ユーザー名に含めたくない文字をここに追加
-    //    今回はログで確認された「?」と、一般的な不要文字をいくつか追加します。
-    //    必要に応じてこの正規表現を調整してください。
+    //    例えば「?」や括弧など、ユーザー名に含めたくない文字をここに追加
+    //    今回はログで確認された「?」と、一般的な不要文字をいくつか追加します。
+    //    必要に応じてこの正規表現を調整してください。
     cleaned = cleaned.replace(/[?!()[\]{}@#$%^&*+=|\\<>,./~`!]/g, '');
 
     // 4. 前後の空白をトリム
