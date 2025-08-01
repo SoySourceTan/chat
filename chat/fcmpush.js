@@ -1,8 +1,8 @@
 // fcmpush.js
-// Firebase SDKのバージョンを11.2.0に統一 (メインスレッドはESMでOK)
+// Firebase SDKのバージョンを11.2.0に統一し、モジュール版を使用
 import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-messaging.js';
-import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js'; // Authモジュールを追加
+import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js'; // 11.2.0のモジュール版に統一
+import { getAuth } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js'; // 11.2.0のモジュール版に統一
 import { initNotify, notifyNewMessage } from '../notifysound.js';
 import { showError } from '../utils.js';
 
@@ -80,8 +80,6 @@ export async function initNotifications(appInstance, databaseInstance, swRegistr
             messaging = getMessaging(firebaseAppInstance);
             console.log('[fcmpush.js] FCMサービスインスタンス取得成功。');
 
-            // --- 新しい変更点 ---
-            // getMessaging() が成功したら、すぐに getToken() を試して接続を確立する
             if (Notification.permission === 'granted') {
                 console.log('[fcmpush.js] 通知許可済みのため、FCMトークンの先行取得を試みます。');
                 const tempToken = await getToken(messaging, {
@@ -90,19 +88,15 @@ export async function initNotifications(appInstance, databaseInstance, swRegistr
                 });
                 if (tempToken) {
                     console.log('[fcmpush.js] FCMトークンの先行取得に成功:', tempToken.substring(0, 10) + '...');
-                    // このトークンは認証済みユーザー用ではないので、保存はしない
                 } else {
                     console.warn('[fcmpush.js] FCMトークンの先行取得はできませんでした。');
                 }
             } else {
                 console.log('[fcmpush.js] 通知が許可されていないため、FCMトークンの先行取得はスキップします。');
             }
-            // --- ここまで新しい変更点 ---
-
 
             isFCMInitialized = true; // FCM初期化成功フラグをここでセット
 
-            // フォアグラウンドでメッセージを受信した際の処理
             onMessage(messaging, (payload) => {
                 console.log('[fcmpush.js] フォアグラウンドメッセージを受信しました:', payload);
                 if (payload.notification) {
@@ -126,14 +120,13 @@ export async function initNotifications(appInstance, databaseInstance, swRegistr
         showError('通知サービスの初期化に失敗しました: ' + error.message);
     }
 
-    // 認証状態の監視は、通知トークン取得のトリガーとして使用
     if (auth) {
         auth.onAuthStateChanged(async (user) => {
             console.log('[fcmpush.js] 認証状態変更:', user ? user.uid : '未ログイン');
             if (user) {
                 if (messaging && serviceWorkerRegistrationInstance) {
                     console.log('[fcmpush.js] 認証済みユーザー、Service Worker登録済み。FCMトークン取得を試みます。');
-                    const token = await requestNotificationPermission(); // getTokenはrequestNotificationPermission内で呼び出す
+                    const token = await requestNotificationPermission();
                     if (token) {
                         await saveFCMToken(user.uid, token);
                     } else {
@@ -158,7 +151,6 @@ export async function initNotifications(appInstance, databaseInstance, swRegistr
  */
 export async function requestNotificationPermission() {
     console.log('[fcmpush.js] requestNotificationPermission 開始。Messagingインスタンス:', messaging, 'swRegistration:', serviceWorkerRegistrationInstance);
-    // messagingインスタンスが確実に利用可能であることを前提とする
     if (!messaging) {
         console.error('[fcmpush.js] Messagingインスタンスが初期化されていません。initNotificationsが呼び出されていることを確認してください。');
         showError('通知サービスが利用できません。');
