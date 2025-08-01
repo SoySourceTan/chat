@@ -277,6 +277,12 @@ export function cleanPhotoURL(photoURL) {
         if (cleanedUrl === 'images/icon.png') {
             cleanedUrl = 'icon.png';
         }
+        
+        // 修正: cleanPhotoURLに渡されるURLがスラッシュで始まっている場合に、
+        // URLコンストラクタが二重スラッシュを生成するのを防ぐ
+        if (cleanedUrl.startsWith('/')) {
+            cleanedUrl = cleanedUrl.substring(1);
+        }
 
         // URLコンストラクタを使用して、絶対URLか相対URLかを自動的に判断し、適切なURLを生成
         const finalUrl = new URL(cleanedUrl, basePath).href;
@@ -308,13 +314,13 @@ export function cleanUsername(username) {
     cleaned = cleaned.replace(/<[^>]+>/g, '');
 
     // 2. 改行コード、タブ、連続する空白をすべて除去（単一のスペースにもしない）
-    //    これにより「み みちこ」が「みちこ」になる
+    //    これにより「み みちこ」が「みちこ」になる
     cleaned = cleaned.replace(/[\n\t\s]+/g, '');
 
     // 3. 特定の「ゴミ」文字を除去
-    //    例えば「?」や括弧など、ユーザー名に含めたくない文字をここに追加
-    //    今回はログで確認された「?」と、一般的な不要文字をいくつか追加します。
-    //    必要に応じてこの正規表現を調整してください。
+    //    例えば「?」や括弧など、ユーザー名に含めたくない文字をここに追加
+    //    今回はログで確認された「?」と、一般的な不要文字をいくつか追加します。
+    //    必要に応じてこの正規表現を調整してください。
     cleaned = cleaned.replace(/[?!()[\]{}@#$%^&*+=|\\<>,./~`!]/g, '');
 
     // 4. 前後の空白をトリム
