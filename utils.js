@@ -9,20 +9,28 @@
  */
 export function getBasePath() {
     try {
-        // 現在のページの完全なURLを取得します。
-        const fullUrl = window.location.href;
+        const hostname = window.location.hostname;
+        let basePath = '';
 
-        // URLパスの中で最後の '/' の位置を見つけます。
-        // これにより、通常、ディレクトリのパスが得られます。
-        const lastSlashIndex = fullUrl.lastIndexOf('/');
-
-        // 最後の '/' まで（'/'も含む）のURL部分を抽出します。
-        // これにより、現在のスクリプト/ページが存在するディレクトリのURLが得られます。
-        let basePath = fullUrl.substring(0, lastSlashIndex + 1);
-
-        // basePathが必ず '/' で終わるように確認します（一貫した連結のため）。
-        if (!basePath.endsWith('/')) {
-            basePath += '/';
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            // Localhost 環境の場合
+            // 正しいパスは 'https://localhost/learning/english-words/chat/'
+            basePath = window.location.origin + '/learning/english-words/chat/';
+        } else if (hostname === 'soysourcetan.github.io') {
+            // GitHub Pages 環境の場合
+            // 正しいパスは 'https://soysourcetan.github.io/chat/'
+            basePath = window.location.origin + '/chat/';
+        } else {
+            // その他の環境や予期せぬホスト名の場合のフォールバック
+            // 最も汎用的な「現在のページのディレクトリ」を返すか、
+            // またはドメインのルートを返す
+            const fullUrl = window.location.href;
+            const lastSlashIndex = fullUrl.lastIndexOf('/');
+            basePath = fullUrl.substring(0, lastSlashIndex + 1);
+            if (!basePath.endsWith('/')) {
+                basePath += '/';
+            }
+            console.warn(`[getBasePath] 未知のホスト名 '${hostname}'。汎用的なパス '${basePath}' を使用します。`);
         }
 
         return basePath;
