@@ -27,7 +27,11 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         const userId = user.uid;
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
         
-        let photoURL = cleanPhotoURL(user.photoURL);
+        let photoURL = user.photoURL;
+        // photoURLが取得できなかった場合のデフォルト画像を設定
+        if (!photoURL) {
+            photoURL = `${getBasePath()}/images/icon.png`;
+        }
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
@@ -170,6 +174,7 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
         console.log('[auth.js] 匿名ログイン成功:', user);
         const userId = user.uid;
         const cleanedUsername = cleanUsername(`ゲスト-${userId.substring(0, 4)}`);
+        
         let photoURL = cleanPhotoURL(user.photoURL);
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
@@ -252,7 +257,10 @@ export async function updateUsername(auth, database, newUsername) {
     console.log('[auth.js] Firebase Auth プロフィール更新成功');
 
     // photoURLは既存のものを維持するか、デフォルトに設定
-    let photoURL = cleanPhotoURL(user.photoURL);
+    let photoURL = user.photoURL;
+    if (!photoURL) {
+        photoURL = `${getBasePath()}/images/icon.png`;
+    }
     console.log('[auth.js] 使用するphotoURL:', photoURL);
 
     // Realtime Databaseのユーザー情報を更新
