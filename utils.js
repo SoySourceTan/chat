@@ -260,6 +260,14 @@ export function cleanPhotoURL(photoURL) {
 
     try {
         let cleanedUrl = photoURL;
+        
+        // --- 修正箇所：localhostのURLを現在のドメインに置き換える ---
+        if (cleanedUrl.includes('localhost')) {
+            const currentOrigin = window.location.origin;
+            // 正規表現を使用して、プロトコルとポート番号を含むlocalhostを現在のオリジンに置き換えます
+            cleanedUrl = cleanedUrl.replace(/^https?:\/\/localhost(:\d+)?/, currentOrigin);
+        }
+        
         // 過去のデータに '/images/icon.png' が含まれている場合を考慮し、それを除去する
         if (cleanedUrl.endsWith('/images/icon.png')) {
             cleanedUrl = cleanedUrl.replace('/images/icon.png', '/icon.png');
