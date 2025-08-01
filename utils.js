@@ -261,6 +261,10 @@ export function cleanPhotoURL(photoURL) {
 
     try {
         let cleanedUrl = photoURL;
+
+        // 修正: URL内の二重スラッシュ（プロトコル後の部分を除く）を単一スラッシュに正規化
+        // 例: "http://a//b/c" -> "http://a/b/c", "a//b/c" -> "a/b/c"
+        cleanedUrl = cleanedUrl.replace(/(?<!:)\/\/\/*/g, '/');
         
         // localhostのURLを現在のドメインに置き換える
         if (cleanedUrl.includes('localhost')) {
@@ -278,12 +282,6 @@ export function cleanPhotoURL(photoURL) {
             cleanedUrl = 'icon.png';
         }
         
-        // 修正: cleanPhotoURLに渡されるURLがスラッシュで始まっている場合に、
-        // URLコンストラクタが二重スラッシュを生成するのを防ぐ
-        if (cleanedUrl.startsWith('/')) {
-            cleanedUrl = cleanedUrl.substring(1);
-        }
-
         // URLコンストラクタを使用して、絶対URLか相対URLかを自動的に判断し、適切なURLを生成
         const finalUrl = new URL(cleanedUrl, basePath).href;
         console.log('[utils.js] cleanPhotoURL: URLを解決後:', finalUrl);
