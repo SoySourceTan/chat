@@ -21,14 +21,26 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         console.log('[auth.js] Twitterログイン成功:', user);
+        console.log('[auth.js] Firebaseから受け取ったTwitter photoURL:', user.photoURL); // デバッグ用ログを追加
 
         // ユーザーデータをRealtime Databaseに保存または更新
         const userId = user.uid;
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
-        // cleanPhotoURL を使用して photoURL をクリーンアップ
-let photoURL = cleanPhotoURL(user.photoURL || ''); 
-console.log('[auth.js] 使用するphotoURL:', photoURL);
-
+        
+        // --- ★ 修正箇所ここから ★ ---
+        // Firebase Authから取得したphotoURLが存在する場合のみクリーンアップし、
+        // 存在しない場合は、デフォルトアイコンのパスを直接指定する。
+        let photoURL;
+        if (user.photoURL) {
+            photoURL = cleanPhotoURL(user.photoURL);
+        } else {
+            // photoURLが取得できなかった場合のデフォルト画像を設定
+            // 例: `https://soysourcetan.github.io/chat/images/icon.png` など
+            photoURL = `${getBasePath()}/images/icon.png`;
+        }
+        // --- ★ 修正箇所ここまで ★ ---
+        
+        console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
@@ -39,6 +51,7 @@ console.log('[auth.js] 使用するphotoURL:', photoURL);
             lastUpdate: Date.now(),
         });
         console.log('[auth.js] users DB更新成功');
+
 
         // actions ログ
         const actionData = {
@@ -253,11 +266,10 @@ export async function updateUsername(auth, database, newUsername) {
         if (!user) {
             throw new Error('ユーザーがログインしていません。');
         }
-        const userId = user.uid; // ★修正: ここで user.uid を取得
+        const userId = user.uid;
         const cleanedUsername = cleanUsername(newUsername);
         console.log('[auth.js] クリーンアップされたユーザー名:', cleanedUsername);
 
-        // Firebase Authenticationのプロフィールを更新
         await updateProfile(user, {
             displayName: cleanedUsername,
         });
@@ -265,10 +277,16 @@ export async function updateUsername(auth, database, newUsername) {
 
         // photoURLは既存のものを維持するか、デフォルトに設定
         // user.photoURL が null の場合でもデフォルト画像を使用するように修正
-        let photoURL = cleanPhotoURL(user.photoURL || '');
+        let photoURL;
+        if (user.photoURL) {
+            photoURL = cleanPhotoURL(user.photoURL);
+        } else {
+            // photoURLが取得できなかった場合のデフォルト画像を設定
+            // 例: `https://soysourcetan.github.io/chat/images/icon.png` など
+            photoURL = `${getBasePath()}/images/icon.png`;
+        }
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
-        // Realtime Databaseのユーザー情報を更新
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
             photoURL: photoURL,
