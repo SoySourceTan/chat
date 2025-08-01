@@ -1,6 +1,11 @@
-// Helper to get base path dynamically.
-// This function determines the base URL for the application,
-// which is crucial for resolving relative paths (e.g., for images).
+// utils.js
+
+/**
+ * Helper to get base path dynamically.
+ * This function determines the base URL for the application,
+ * which is crucial for resolving relative paths (e.g., for images).
+ * @returns {string} The calculated base path.
+ */
 export function getBasePath() {
     try {
         const pathParts = window.location.pathname.split('/');
@@ -38,9 +43,9 @@ export function getBasePath() {
 
 
 /**
- * エラーメッセージを画面に表示します。指定されたDOM要素（デフォルトは`error-alert`）にメッセージをセットし、6秒後に非表示にします。
- * @param {string} message - 表示するエラーメッセージ。
- * @param {HTMLElement} [errorAlertElement=document.getElementById('error-alert')] - エラーメッセージを表示するDOM要素。
+ * Displays an error message on the screen. It sets the message to the specified DOM element (default is `error-alert`) and hides it after 6 seconds.
+ * @param {string} message - The error message to display.
+ * @param {HTMLElement} [errorAlertElement=document.getElementById('error-alert')] - The DOM element to display the error message in.
  * @returns {void}
  * @example
  * showError('ログインに失敗しました', document.getElementById('error-alert'));
@@ -70,9 +75,9 @@ export function showError(message, errorAlertElement = document.getElementById('
 }
 
 /**
- * 成功メッセージを画面に表示します。指定されたDOM要素（デフォルトは`success-alert`）にメッセージをセットし、3秒後に非表示にします。
- * @param {string} message - 表示する成功メッセージ。
- * @param {HTMLElement} [successAlertElement=document.getElementById('success-alert')] - 成功メッセージを表示するDOM要素。
+ * Displays a success message on the screen. It sets the message to the specified DOM element (default is `success-alert`) and hides it after 3 seconds.
+ * @param {string} message - The success message to display.
+ * @param {HTMLElement} [successAlertElement=document.getElementById('success-alert')] - The DOM element to display the success message in.
  * @returns {void}
  */
 export function showSuccess(message, successAlertElement = document.getElementById('success-alert')) {
@@ -92,8 +97,8 @@ export function showSuccess(message, successAlertElement = document.getElementBy
 }
 
 /**
- * 短いトーストメッセージを画面に表示します。
- * @param {string} message - 表示するメッセージ。
+ * Displays a short toast message on the screen.
+ * @param {string} message - The message to display.
  * @remarks この関数はBootstrap 5のToastコンポーネントに依存します。BootstrapのJavaScriptが事前にロードされている必要があります。
  */
 export function showToast(message) {
@@ -245,7 +250,7 @@ export function escapeHTMLAttribute(str) {
  */
 export function cleanPhotoURL(photoURL) {
     const basePath = getBasePath();
-    const defaultIconRelativePath = 'icon.png';
+    const defaultIconRelativePath = 'images/icon.png';
 
     // 無効なURLや空のURLを処理し、デフォルト画像URLを返します。
     if (typeof photoURL !== 'string' || photoURL.trim() === '') {
@@ -302,7 +307,7 @@ export function cleanUsername(username) {
     //    例: `?`, `(`, `)`, `[`, `]`, `{`, `}`, `@`, `#`, `$`, `%`, `^`, `&`, `*`, `+`, `=`, `|`, `\`, `<`, `>`, `,`, `.`, `/`, `~`, `!`
     //    今回はログで確認された「?」と、一般的な不要文字をいくつか追加します。
     //    必要に応じてこの正規表現を調整してください。
-    cleaned = cleaned.replace(/[?!()\[\]{}@#$%^&*+=|\\<>,./~`!]/g, '');
+    cleaned = cleaned.replace(/[?!()[\]{}@#$%^&*+=|\\<>,./~`!]/g, '');
 
     // 4. 前後の空白をトリム
     cleaned = cleaned.trim();

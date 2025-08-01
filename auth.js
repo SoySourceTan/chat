@@ -27,19 +27,7 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         const userId = user.uid;
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
         
-        // --- ★ 修正箇所ここから ★ ---
-        // Firebase Authから取得したphotoURLが存在する場合のみクリーンアップし、
-        // 存在しない場合は、デフォルトアイコンのパスを直接指定する。
-        let photoURL;
-        if (user.photoURL) {
-            photoURL = cleanPhotoURL(user.photoURL);
-        } else {
-            // photoURLが取得できなかった場合のデフォルト画像を設定
-            // 例: `https://soysourcetan.github.io/chat/images/icon.png` など
-            photoURL = `${getBasePath()}/images/icon.png`;
-        }
-        // --- ★ 修正箇所ここまで ★ ---
-        
+        let photoURL = cleanPhotoURL(user.photoURL);
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
@@ -51,7 +39,6 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
             lastUpdate: Date.now(),
         });
         console.log('[auth.js] users DB更新成功');
-
 
         // actions ログ
         const actionData = {
@@ -113,7 +100,7 @@ export async function signInWithGoogle(auth, database, onLoginSuccess) {
 
         const userId = user.uid;
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
-        let photoURL = cleanPhotoURL(user.photoURL || '');
+        let photoURL = cleanPhotoURL(user.photoURL);
         console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
@@ -154,7 +141,7 @@ export async function signInWithGoogle(auth, database, onLoginSuccess) {
             showError('GoogleログインがFirebaseで有効になっていません。');
         } else if (error.code === 'auth/network-request-failed') {
             showError('ネットワークエラーです。インターネット接続を確認してください。');
-        } else if (error.code === 'permission_denied') { // Realtime DatabaseのPERMISSION_DENIEDエラーをキャッチ
+        } else if (error.code === 'permission_denied') {
             showError('データベースへのアクセス権限がありません。Firebaseセキュリティルールを確認してください。');
         } else {
             showError(`Googleログインエラー: ${error.message}`);
@@ -181,10 +168,10 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
         const result = await signInAnonymously(auth);
         const user = result.user;
         console.log('[auth.js] 匿名ログイン成功:', user);
-
         const userId = user.uid;
         const cleanedUsername = cleanUsername(`ゲスト-${userId.substring(0, 4)}`);
-        let photoURL = cleanPhotoURL(''); // 匿名ユーザーは空文字列を渡し、cleanPhotoURLがデフォルトアイコンを決定
+        let photoURL = cleanPhotoURL(user.photoURL);
+        console.log('[auth.js] 使用するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
@@ -196,25 +183,21 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
         });
         console.log('[auth.js] users DB更新成功');
 
-        // 匿名ユーザーの場合、actionsへの書き込みはスキップ
-        console.log('[auth.js] 匿名ユーザーのためactionsへの書き込みをスキップしました。');
-        // const actionData = {
-        //     type: 'login',
-        //     userId: userId,
-        //     username: cleanedUsername,
-        //     provider: 'anonymous',
-        //     timestamp: Date.now(),
-        // };
-        // await push(ref(database, `actions`), actionData);
-        // console.log('[auth.js] actions DBに匿名ログインを記録しました。');
-
-        showSuccess('匿名でログインしました！');
+        showSuccess('ゲストとしてログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
     } catch (error) {
         console.error('[auth.js] 匿名ログインエラー:', error);
-        showError(`匿名ログインエラー: ${error.message}`);
+        if (error.code === 'auth/operation-not-allowed') {
+            showError('匿名ログインがFirebaseで有効になっていません。');
+        } else if (error.code === 'auth/network-request-failed') {
+            showError('ネットワークエラーです。インターネット接続を確認してください。');
+        } else if (error.code === 'permission_denied') {
+            showError('データベースへのアクセス権限がありません。Firebaseセキュリティルールを確認してください。');
+        } else {
+            showError(`匿名ログインエラー: ${error.message}`);
+        }
         throw error;
     } finally {
         isLoggingIn = false;
@@ -222,33 +205,20 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
 }
 
 /**
- * ログアウトします。
+ * サインアウトします。
  * @param {object} auth - Firebase Authインスタンス
- * @param {object} database - Firebase Realtime Databaseインスタンス
- * @param {string} userId - ログアウトするユーザーのID
+ * @param {function} onLogoutSuccess - サインアウト成功時に呼び出されるコールバック
  */
-export async function signOutUser(auth, database, userId) {
+export async function signOutUser(auth, onLogoutSuccess) {
     try {
-        if (userId) {
-            // onlineUsersから自分自身を削除
-            await remove(ref(database, `onlineUsers/${userId}`));
-            console.log('[auth.js] onlineUsers から自分を削除しました。');
-
-            // actions ログ
-            const actionData = {
-                type: 'logout',
-                userId: userId,
-                timestamp: Date.now(),
-            };
-            await push(ref(database, `actions`), actionData);
-            console.log('[auth.js] actions DBにログアウトを記録しました。');
-        }
-
         await signOut(auth);
-        console.log('[auth.js] ログアウト成功');
+        console.log('[auth.js] サインアウト成功');
         showSuccess('ログアウトしました。');
+        if (onLogoutSuccess) {
+            onLogoutSuccess();
+        }
     } catch (error) {
-        console.error('[auth.js] ログアウトエラー:', error);
+        console.error('[auth.js] サインアウトエラー:', error);
         showError(`ログアウトエラー: ${error.message}`);
     }
 }
@@ -258,44 +228,102 @@ export async function signOutUser(auth, database, userId) {
  * @param {object} auth - Firebase Authインスタンス
  * @param {object} database - Firebase Realtime Databaseインスタンス
  * @param {string} newUsername - 新しいユーザー名
- * @param {string} userId - 更新するユーザーのID
+ * @returns {Promise<{updatedUsername: string, updatedPhotoURL: string}|null>} 更新されたユーザー名とphotoURL、またはエラーの場合はnull
  */
 export async function updateUsername(auth, database, newUsername) {
-    try {
-        const user = auth.currentUser;
-        if (!user) {
-            throw new Error('ユーザーがログインしていません。');
-        }
-        const userId = user.uid;
-        const cleanedUsername = cleanUsername(newUsername);
-        console.log('[auth.js] クリーンアップされたユーザー名:', cleanedUsername);
+    const user = auth.currentUser;
+    if (!user) {
+        showError('ユーザーがログインしていません。');
+        return null;
+    }
 
+    const userId = user.uid;
+    const cleanedUsername = cleanUsername(newUsername);
+
+    if (cleanedUsername.length === 0) {
+        showError('ユーザー名が空です。');
+        return null;
+    }
+
+    // updateProfileを使用してFirebase Authの表示名を更新
+    await updateProfile(user, {
+        displayName: cleanedUsername,
+    });
+    console.log('[auth.js] Firebase Auth プロフィール更新成功');
+
+    // photoURLは既存のものを維持するか、デフォルトに設定
+    let photoURL = cleanPhotoURL(user.photoURL);
+    console.log('[auth.js] 使用するphotoURL:', photoURL);
+
+    // Realtime Databaseのユーザー情報を更新
+    await update(ref(database, `users/${userId}`), {
+        username: cleanedUsername,
+        photoURL: photoURL,
+        lastUpdate: Date.now(),
+    });
+    console.log('[auth.js] users 更新成功');
+
+    // actions ログ
+    if (user.isAnonymous) {
+        console.log('[auth.js] 匿名ユーザーのためactionsへの書き込みをスキップしました。');
+    } else {
+        const actionData = {
+            type: 'setUsername',
+            userId: userId,
+            oldUsername: user.displayName,
+            newUsername: cleanedUsername,
+            timestamp: Date.now(),
+        };
+        await push(ref(database, `actions`), actionData);
+        console.log('[auth.js] actions 更新成功');
+    }
+
+    showSuccess('ユーザー名が更新されました！');
+    return { updatedUsername: cleanedUsername, updatedPhotoURL: photoURL };
+}
+
+/**
+ * ユーザー名とプロフィール画像を更新します。
+ * @param {object} auth - Firebase Authインスタンス
+ * @param {object} database - Firebase Realtime Databaseインスタンス
+ * @param {string} newUsername - 新しいユーザー名
+ * @param {string} newPhotoURL - 新しいプロフィール画像URL
+ * @returns {Promise<{updatedUsername: string, updatedPhotoURL: string}>} - 更新されたユーザー名とphotoURL
+ */
+export async function updateUsernameAndPhoto(auth, database, newUsername, newPhotoURL) {
+    const user = auth.currentUser;
+    if (!user) {
+        showError('ユーザーがログインしていません。');
+        return;
+    }
+
+    const userId = user.uid;
+    const cleanedUsername = cleanUsername(newUsername);
+    const cleanedPhotoURL = cleanPhotoURL(newPhotoURL);
+
+    // Firebase Authのプロフィールを更新
+    try {
         await updateProfile(user, {
             displayName: cleanedUsername,
+            photoURL: cleanedPhotoURL,
         });
         console.log('[auth.js] Firebase Auth プロフィール更新成功');
+    } catch (error) {
+        console.error('[auth.js] Firebase Auth プロフィール更新エラー:', error);
+        showError('ユーザープロフィールの更新に失敗しました。');
+        throw error;
+    }
 
-        // photoURLは既存のものを維持するか、デフォルトに設定
-        // user.photoURL が null の場合でもデフォルト画像を使用するように修正
-        let photoURL;
-        if (user.photoURL) {
-            photoURL = cleanPhotoURL(user.photoURL);
-        } else {
-            // photoURLが取得できなかった場合のデフォルト画像を設定
-            // 例: `https://soysourcetan.github.io/chat/images/icon.png` など
-            photoURL = `${getBasePath()}/images/icon.png`;
-        }
-        console.log('[auth.js] 使用するphotoURL:', photoURL);
-
+    // Realtime Databaseのユーザー情報を更新
+    try {
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
-            photoURL: photoURL,
+            photoURL: cleanedPhotoURL,
             lastUpdate: Date.now(),
         });
         console.log('[auth.js] users 更新成功');
 
         // actions ログ
-        // 匿名ユーザーの場合はactionsへの書き込みをスキップ
         if (user.isAnonymous) {
             console.log('[auth.js] 匿名ユーザーのためactionsへの書き込みをスキップしました。');
         } else {
@@ -310,12 +338,11 @@ export async function updateUsername(auth, database, newUsername) {
             console.log('[auth.js] actions 更新成功');
         }
 
-        showSuccess('ユーザー名が更新されました！');
-        // ユーザー名とphotoURLを返却し、呼び出し元でUIを更新できるようにする
-        return { updatedUsername: cleanedUsername, updatedPhotoURL: photoURL };
+        showSuccess('ユーザー名とプロフィール画像が更新されました！');
+        return { updatedUsername: cleanedUsername, updatedPhotoURL: cleanedPhotoURL };
     } catch (error) {
-        console.error('[auth.js] ユーザー名更新エラー:', error);
-        showError('ユーザー名の更新に失敗しました。' + error.message);
-        throw error; // エラーを再スローして、呼び出し元でキャッチできるようにする
+        console.error('[auth.js] Realtime Database更新エラー:', error);
+        showError('データベースの更新に失敗しました。');
+        throw error;
     }
 }
