@@ -2,42 +2,38 @@
 // This function determines the base URL for the application,
 // which is crucial for resolving relative paths (e.g., for images).
 export function getBasePath() {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const pathParts = window.location.pathname.split('/');
-    const chatIndex = pathParts.indexOf('chat');
+    try {
+        const pathParts = window.location.pathname.split('/');
+        const chatIndex = pathParts.indexOf('chat');
 
-    let calculatedPath;
+        let calculatedPath;
 
-    if (isLocalhost) {
+        // 'chat' がパスに含まれる場合は、そのセグメントをベースパスとします。
+        // 例: http://localhost/learning/english-words/chat/ -> http://localhost/learning/english-words/chat/
+        // 例: https://soysourcetan.github.io/chat/ -> https://soysourcetan.github.io/chat/
         if (chatIndex > -1) {
-            // 例: http://localhost/learning/english-words/chat/ -> http://localhost/learning/english-words/chat/
-            calculatedPath = pathParts.slice(0, chatIndex + 1).join('/') + '/';
+            calculatedPath = pathParts.slice(0, chatIndex + 1).join('/');
         } else {
-            // ローカル開発環境で 'chat' がパスに含まれない場合のフォールバック
-            // (例: http://localhost/ や http://localhost/index.html)。
-            // この場合、現在のディレクトリをベースとします。
-            calculatedPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+            // 'chat' がパスに含まれない場合のフォールバック。
+            // 現在のディレクトリをベースとします。
+            calculatedPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
         }
-    } else {
-        // デプロイ版 (例: GitHub Pages, trextacy.com)
-        if (chatIndex > -1) {
-            // 例: https://soysourcetan.github.io/chat/ -> https://soysourcetan.github.io/chat/
-            calculatedPath = pathParts.slice(0, chatIndex + 1).join('/') + '/';
-        } else {
-            // デプロイ版で 'chat' がパスに含まれない場合、ルートまたは現在のディレクトリを想定
-            // 専用のチャットアプリでは稀なケースかもしれませんが、柔軟性のため。
-            calculatedPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-        }
-    }
-    // パスがスラッシュで始まり、スラッシュで終わることを保証
-    if (!calculatedPath.startsWith('/')) {
-        calculatedPath = '/' + calculatedPath;
-    }
-    if (!calculatedPath.endsWith('/') && calculatedPath !== '/') {
-        calculatedPath = calculatedPath + '/';
-    }
 
-    return window.location.origin + calculatedPath;
+        // パスがスラッシュで始まることを保証
+        if (!calculatedPath.startsWith('/')) {
+            calculatedPath = '/' + calculatedPath;
+        }
+        // パスがスラッシュで終わることを保証
+        if (!calculatedPath.endsWith('/')) {
+            calculatedPath = calculatedPath + '/';
+        }
+
+        return window.location.origin + calculatedPath;
+    } catch (error) {
+        console.error('[utils.js] getBasePath関数内でエラー:', error);
+        // エラー発生時は、より安全な代替パスを返します
+        return window.location.origin + '/';
+    }
 }
 
 
@@ -128,6 +124,7 @@ export function showToast(message) {
         toastContainer.appendChild(toastEl);
 
         // BootstrapのToastインスタンスを作成し表示
+        // @ts-ignore
         const bsToast = new bootstrap.Toast(toastEl, {
             delay: 3000
         });
@@ -140,7 +137,7 @@ export function showToast(message) {
     } catch (error) {
         console.error('[utils.js] showToast関数内でエラー:', error);
         // Bootstrapがロードされていない、またはエラーが発生した場合のフォールバック
-        alert(message);
+        console.error('[utils.js] showToast: Bootstrapが見つからないため、メッセージをalertで表示します。', message);
     }
 }
 
@@ -228,9 +225,11 @@ export function escapeHTMLAttribute(str) {
             console.warn('[utils.js] escapeHTMLAttribute: 文字列以外の値が渡されました:', str);
             return ''; // 文字列以外は空文字列を返すか、適切なデフォルト値を返す
         }
+        // HTMLの特殊文字をエスケープするために、DOM APIを利用します。
         const div = document.createElement('div');
         div.appendChild(document.createTextNode(str));
-        // replaceAll を使用して、複数回の置換をより効率的に行う
+        // textNodeは`&`, `<`, `>`などを自動的にエスケープします。
+        // ここでは追加で、HTML属性値として危険な`"`と`'`をエスケープします。
         return div.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;');
     } catch (error) {
         console.error('[utils.js] escapeHTMLAttribute関数内でエラー:', error);
@@ -245,57 +244,21 @@ export function escapeHTMLAttribute(str) {
  * @returns {string} クリーンアップされた絶対URL、またはデフォルトのアイコンURL。
  */
 export function cleanPhotoURL(photoURL) {
-    const basePath = getBasePath(); // 例: https://localhost/learning/english-words/chat/
-    const defaultIconRelativePath = 'images/icon.png'; // Relative to basePath
+    const basePath = getBasePath();
+    // ここを修正: デフォルトアイコンの相対パスを 'images/icon.png' から 'icon.png' に変更
+    const defaultIconRelativePath = 'icon.png';
 
-    // Handle invalid or empty photoURL by returning a default image URL relative to basePath
+    // 無効なURLや空のURLを処理し、デフォルト画像URLを返します。
     if (typeof photoURL !== 'string' || photoURL.trim() === '') {
         console.warn('[utils.js] cleanPhotoURL: URLが無効または空です。デフォルト画像を使用します:', photoURL);
         return new URL(defaultIconRelativePath, basePath).href;
     }
 
     try {
-        // If photoURL is already an absolute URL (starts with http:// or https://), return it as is.
-        if (photoURL.startsWith('http://') || photoURL.startsWith('https://')) {
-            console.log('[utils.js] cleanPhotoURL: 絶対URLをそのまま使用:', photoURL);
-            return photoURL;
-        }
-
-        // For relative photoURLs, we need to correctly combine it with the basePath,
-        // preventing duplication of path segments like 'chat/'.
-
-        // Get the pathname part of the basePath (e.g., "/learning/english-words/chat/")
-        const basePathname = new URL(basePath).pathname;
-
-        let processedPhotoURL = photoURL;
-
-        // If photoURL starts with the full basePathname (e.g., "/learning/english-words/chat/images/icon.png")
-        // and basePathname is not just "/", remove the redundant prefix to avoid duplication.
-        if (basePathname !== '/' && processedPhotoURL.startsWith(basePathname)) {
-            processedPhotoURL = processedPhotoURL.substring(basePathname.length);
-        }
-        // If photoURL is root-relative (starts with '/') but doesn't contain basePathname,
-        // and it starts with the last segment of the basePathname (e.g., "/chat/images/icon.png" when basePath ends in "/chat/")
-        // remove that leading segment to make it truly relative to the basePath.
-        const pathSegments = basePathname.split('/').filter(s => s !== '');
-        const lastBasePathSegment = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : '';
-
-        if (lastBasePathSegment && processedPhotoURL.startsWith(`/${lastBasePathSegment}/`)) {
-            processedPhotoURL = processedPhotoURL.substring(`/${lastBasePathSegment}/`.length);
-        } else if (lastBasePathSegment && processedPhotoURL.startsWith(`${lastBasePathSegment}/`)) {
-            // Also handle 'chat/images/icon.png' without leading slash
-            processedPhotoURL = processedPhotoURL.substring(`${lastBasePathSegment}/`.length);
-        }
-        
-        // Ensure processedPhotoURL does not start with '/' if it's meant to be relative to basePath
-        if (processedPhotoURL.startsWith('/') && processedPhotoURL.length > 1) {
-             processedPhotoURL = processedPhotoURL.length > 0 ? processedPhotoURL.substring(1) : '';
-        }
-
-        // Construct the final URL using the URL constructor, which handles normalization.
-        // The second argument to URL constructor acts as the base URL.
-        const finalUrl = new URL(processedPhotoURL, basePath).href;
-        console.log('[utils.js] cleanPhotoURL: 相対URLを変換後:', finalUrl);
+        // ネイティブのURLコンストラクタを使用して、URLを安全かつ確実に結合・解決します。
+        // photoURLが絶対パス(http/https)であればそのまま使用され、相対パスであればbasePathと結合されます。
+        const finalUrl = new URL(photoURL, basePath).href;
+        console.log('[utils.js] cleanPhotoURL: URLを解決後:', finalUrl);
         return finalUrl;
 
     } catch (error) {
@@ -417,6 +380,7 @@ export function formatDate(dateInput, options) {
 export function debounce(func, delay) {
     let timeout;
     return function(...args) {
+        // @ts-ignore
         const context = this;
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(context, args), delay);
