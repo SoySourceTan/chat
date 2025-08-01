@@ -1,4 +1,4 @@
-// utils.js
+// 修正後の utils.js
 // このファイルは、アプリケーションで共通して使用されるユーティリティ関数群を提供します。
 
 /**
@@ -12,26 +12,11 @@ export function getBasePath() {
         const pathParts = window.location.pathname.split('/');
         const chatIndex = pathParts.indexOf('chat');
 
-        let calculatedPath;
+        let calculatedPath = '/';
 
-        // 'chat' がパスに含まれる場合は、そのセグメントをベースパスとします。
-        // 例: http://localhost/learning/english-words/chat/ -> http://localhost/learning/english-words/chat/
-        // 例: https://soysourcetan.github.io/chat/ -> https://soysourcetan.github.io/chat/
+        // パスに'chat'が含まれる場合、それをベースパスとする
         if (chatIndex > -1) {
-            calculatedPath = pathParts.slice(0, chatIndex + 1).join('/');
-        } else {
-            // 'chat' がパスに含まれない場合のフォールバック。
-            // 現在のディレクトリをベースとします。
-            calculatedPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-        }
-
-        // パスがスラッシュで始まることを保証
-        if (!calculatedPath.startsWith('/')) {
-            calculatedPath = '/' + calculatedPath;
-        }
-        // パスがスラッシュで終わることを保証
-        if (!calculatedPath.endsWith('/')) {
-            calculatedPath = calculatedPath + '/';
+            calculatedPath = '/' + pathParts[chatIndex] + '/';
         }
 
         return window.location.origin + calculatedPath;
@@ -261,10 +246,6 @@ export function cleanPhotoURL(photoURL) {
 
     try {
         let cleanedUrl = photoURL;
-
-        // 修正: URL内の二重スラッシュ（プロトコル後の部分を除く）を単一スラッシュに正規化
-        // 例: "http://a//b/c" -> "http://a/b/c", "a//b/c" -> "a/b/c"
-        cleanedUrl = cleanedUrl.replace(/(?<!:)\/\/\/*/g, '/');
         
         // localhostのURLを現在のドメインに置き換える
         if (cleanedUrl.includes('localhost')) {
