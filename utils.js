@@ -9,17 +9,23 @@
  */
 export function getBasePath() {
     try {
-        const pathParts = window.location.pathname.split('/');
-        const chatIndex = pathParts.indexOf('chat');
+        // 現在のページの完全なURLを取得します。
+        const fullUrl = window.location.href;
 
-        let calculatedPath = '/';
+        // URLパスの中で最後の '/' の位置を見つけます。
+        // これにより、通常、ディレクトリのパスが得られます。
+        const lastSlashIndex = fullUrl.lastIndexOf('/');
 
-        // パスに'chat'が含まれる場合、それをベースパスとする
-        if (chatIndex > -1) {
-            calculatedPath = '/' + pathParts[chatIndex] + '/';
+        // 最後の '/' まで（'/'も含む）のURL部分を抽出します。
+        // これにより、現在のスクリプト/ページが存在するディレクトリのURLが得られます。
+        let basePath = fullUrl.substring(0, lastSlashIndex + 1);
+
+        // basePathが必ず '/' で終わるように確認します（一貫した連結のため）。
+        if (!basePath.endsWith('/')) {
+            basePath += '/';
         }
 
-        return window.location.origin + calculatedPath;
+        return basePath;
     } catch (error) {
         console.error('getBasePath でエラーが発生しました:', error);
         // エラー時のフォールバックとして、ドメインのルートを返します
