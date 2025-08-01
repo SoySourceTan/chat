@@ -1,4 +1,5 @@
 // utils.js
+// このファイルは、アプリケーションで共通して使用されるユーティリティ関数群を提供します。
 
 /**
  * Helper to get base path dynamically.
@@ -35,8 +36,8 @@ export function getBasePath() {
 
         return window.location.origin + calculatedPath;
     } catch (error) {
-        console.error('[utils.js] getBasePath関数内でエラー:', error);
-        // エラー発生時は、より安全な代替パスを返します
+        console.error('getBasePath でエラーが発生しました:', error);
+        // エラー時のフォールバックとして、ドメインのルートを返します
         return window.location.origin + '/';
     }
 }
@@ -261,7 +262,7 @@ export function cleanPhotoURL(photoURL) {
     try {
         let cleanedUrl = photoURL;
         
-        // --- 修正箇所：localhostのURLを現在のドメインに置き換える ---
+        // localhostのURLを現在のドメインに置き換える
         if (cleanedUrl.includes('localhost')) {
             const currentOrigin = window.location.origin;
             // 正規表現を使用して、プロトコルとポート番号を含むlocalhostを現在のオリジンに置き換えます
@@ -312,7 +313,6 @@ export function cleanUsername(username) {
 
     // 3. 特定の「ゴミ」文字を除去
     //    例えば「?」や括弧など、ユーザー名に含めたくない文字をここに追加
-    //    例: `?`, `(`, `)`, `[`, `]`, `{`, `}`, `@`, `#`, `$`, `%`, `^`, `&`, `*`, `+`, `=`, `|`, `\`, `<`, `>`, `,`, `.`, `/`, `~`, `!`
     //    今回はログで確認された「?」と、一般的な不要文字をいくつか追加します。
     //    必要に応じてこの正規表現を調整してください。
     cleaned = cleaned.replace(/[?!()[\]{}@#$%^&*+=|\\<>,./~`!]/g, '');
