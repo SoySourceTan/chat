@@ -5,7 +5,7 @@ import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymo
 import { ref, set, get, push, update, remove } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
 // cleanPhotoURL はauth.js内でphotoURLをDBに保存する際には不要になったため、インポートリストから削除します。
 // UI側でDBから取得したphotoURLを処理する際にcleanPhotoURLを使用します。
-import { showError, showSuccess, getClientIp, cleanUsername, getBasePath } from './utils.js'; 
+import { showError, showSuccess, getClientIp, cleanUsername } from './utils.js'; // getBasePathはここで使用しないため削除
 
 let isLoggingIn = false;
 
@@ -33,10 +33,9 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         // Firebase AuthのdisplayNameを優先し、存在しない場合はメール、それでもない場合はゲスト名とする
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
         
-        let photoURL = null; // デフォルトはnullとする（プロフィール画像がない場合）
+        let photoURL = null; // デフォルトはnullとする
         const twitterProvider = user.providerData.find(p => p.providerId === 'twitter.com');
         
-        // TwitterからのphotoURLが存在する場合、それを採用する
         if (twitterProvider && twitterProvider.photoURL) {
             // Twitterのプロフィール画像URLの末尾にある "_normal" を "_400x400" に置き換える
             photoURL = twitterProvider.photoURL.replace('_normal', '_400x400');
@@ -46,14 +45,13 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
             photoURL = user.photoURL;
             console.log('[auth.js] user.photoURLを使用します:', photoURL);
         }
-        // ここでphotoURLがnullのままであれば、UI側で頭文字表示のフォールバックが適用されるため、
-        // 意図的にgetBasePath() + '/images/icon.png'のようなデフォルトパスは設定しません。
+        // photoURLがnullのままであれば、UI側で頭文字表示のフォールバックが適用されます。
 
-        console.log('[auth.js] データベースに保存するphotoURL:', photoURL); // nullまたは取得したURLが表示される
+        console.log('[auth.js] データベースに保存するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
-            photoURL: photoURL, // ここでnullまたはTwitterからのURLが保存される
+            photoURL: photoURL, // nullまたはTwitterからのURLが保存される
             lastLogin: Date.now(),
             provider: 'twitter',
             ipAddress: await getClientIp(),
@@ -106,14 +104,13 @@ export async function signInWithGoogle(auth, database, onLoginSuccess) {
         // Firebase AuthのdisplayNameを優先し、存在しない場合はメール、それでもない場合はゲスト名とする
         const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
         
-        // GoogleのphotoURLは通常、直接利用できる形式のため、そのまま使用します。
-        // 存在しない場合はnullを保存し、UI側で頭文字表示のフォールバックに任せます。
+        // GoogleのphotoURLは通常、そのまま利用します。存在しない場合はnullを保存し、UI側でフォールバックに任せます。
         const photoURL = user.photoURL || null; 
-        console.log('[auth.js] データベースに保存するphotoURL:', photoURL); // nullまたは取得したURLが表示される
+        console.log('[auth.js] データベースに保存するphotoURL:', photoURL);
 
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
-            photoURL: photoURL, // ここでnullまたはGoogleからのURLが保存される
+            photoURL: photoURL, // nullまたはGoogleからのURLが保存される
             lastLogin: Date.now(),
             provider: 'google',
             ipAddress: await getClientIp(),
@@ -164,14 +161,14 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
         const userId = user.uid;
         const cleanedUsername = cleanUsername(`ゲスト-${userId.substring(0, 4)}`);
         // 匿名ユーザーの場合、photoURLは明示的にnullまたはundefinedとします。
-        // UI側で頭文字表示のフォールバックが適用されるため、デフォルト画像へのパスは保存しません。
-        const photoURL = null; // 匿名ユーザーはphotoURLを持たない
+        // UI側で頭文字表示のフォールバックが適用されるため、デフォルト画像へのパスはデータベースに保存しません。
+        const photoURL = null;
 
         console.log('[auth.js] データベースに保存するphotoURL (匿名):', photoURL);
 
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
-            photoURL: photoURL, // ここでnullが保存される
+            photoURL: photoURL, // nullが保存される
             lastLogin: Date.now(),
             provider: 'anonymous',
             ipAddress: await getClientIp(),
@@ -179,7 +176,9 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
         });
         console.log('[auth.js] users DB更新成功');
 
-        console.log('[auth.js] 匿名ユーザーのためactionsへの書き込みをスキップしました。');
+        // 匿名ユーザーのログインはactionsログには記録しません。
+        // これは、匿名ユーザーの出入りが頻繁である可能性があり、ログが膨大になるのを避けるためです。
+        console.log('[auth.js] 匿名ユーザーのためactionsへのログイン記録をスキップしました。');
 
         showSuccess('匿名でログインしました！');
         if (onLoginSuccess) {
@@ -203,6 +202,7 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
 export async function signOutUser(auth, database, userId) {
     try {
         if (userId) {
+            // onlineUsersから自分自身のエントリを削除
             await remove(ref(database, `onlineUsers/${userId}`));
             console.log('[auth.js] onlineUsers から自分を削除しました。');
 
@@ -248,7 +248,7 @@ export async function updateUsername(auth, database, newUsername) {
         });
         console.log('[auth.js] Firebase Auth プロフィール更新成功');
 
-        // Do not update photoURL here to prevent overwriting existing valid URLs.
+        // photoURLはここで更新しません。これは既存の有効なURLを上書きしないようにするためです。
         await update(ref(database, `users/${userId}`), {
             username: cleanedUsername,
             lastUpdate: Date.now(),

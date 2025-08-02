@@ -1,11 +1,10 @@
 // script.js
-console.log("cleanUsername の型:", typeof cleanUsername);
 import { initNotifications as initFCM, sendNotification, requestNotificationPermission, saveFCMToken } from './chat/fcmpush.js';
 import { initializeFirebase } from './firebase-config.js'; // firebase-config.jsから初期化関数をインポート
 import { initNotify, notifyNewMessage } from './notifysound.js';
 import { getDatabase, ref, push, onChildAdded, set, get, child, query, orderByChild, limitToLast, endAt, onValue, onDisconnect, remove, update, onChildRemoved, startAfter } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
-// ★修正点: cleanPhotoURL を utils.js からインポート
-import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js'; // cleanUsernameを追加
+// cleanPhotoURL と cleanUsername を utils.js からインポート
+import { showError, showSuccess, showToast, getClientIp, setCookie, getCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js';
 import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
@@ -32,6 +31,7 @@ let latestInitialTimestamp = null;
 let isCompactMode = false;
 let lastActivity = Date.now();
 let currentUserPhotoURL;
+let currentLoggedInUsername = 'ゲスト'; // 初期値
 const userCache = new Map();
 
 // FCM初期化が完了したことを示すPromise
@@ -248,7 +248,6 @@ function renderOnlineUsers(users) {
                 const displayUsername = username && typeof username === 'string' ? cleanUsername(username) : '匿名';
                 const escapedDisplayUsername = escapeHTMLAttribute(displayUsername);
                 
-                // ★ここが修正点: userIdをエスケープしてescapedUserIdを定義
                 const escapedUserId = escapeHTMLAttribute(userId); 
 
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
@@ -319,8 +318,16 @@ async function updateUserUI(user) {
             console.log('updateUserUIで取得されたuserData (DBから):', userData);
 
             let username = userData.username || user.displayName || 'ゲスト';
-            username = cleanUsername(username);
-            username = username.length > 7 ? username.substring(0, 7) + "..." : username;
+            console.log('--- ユーザー名デバッグ開始 ---');
+            console.log('1. cleanUsername適用前のユーザー名:', `"${username}"`, '長さ:', username.length);
+
+            username = cleanUsername(username); 
+
+            console.log('2. cleanUsername適用後のユーザー名:', `"${username}"`, '長さ:', username.length);
+            console.log('--- ユーザー名デバッグ終了 ---');
+
+            // ★ ここでグローバル変数 currentLoggedInUsername を更新します
+            currentLoggedInUsername = username; 
 
             let photoUrlToUse = user.photoURL;
             const isAuthPhotoGeneric = !photoUrlToUse || photoUrlToUse === '' || photoUrlToUse.includes('s96-c/photo.jpg');
@@ -334,11 +341,10 @@ async function updateUserUI(user) {
                 console.log(`[updateUserUI] ユーザー ${user.uid} のphotoURLをAuthからDBに保存/更新しました: ${user.photoURL}`);
             }
 
-            // photoURLが無効な場合のフォールバック
-            const cleanedPhotoURL = cleanPhotoURL(photoUrlToUse);
-            // getBasePath() は utils.js に移動済みなので、utils.js からインポートするか、直接パスを指定
-photoUrlToUse = cleanedPhotoURL || './images/icon.png';
-console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
+            const cleanedPhotoURL = cleanPhotoURL(photoUrlToUse); 
+            photoUrlToUse = cleanedPhotoURL; 
+
+            console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
 
             if (profileImgInUserInfo) {
                 if (photoUrlToUse && photoUrlToUse !== '') {
@@ -374,8 +380,7 @@ console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
                 console.warn('[updateUserUI] #current-username-display 要素が見つかりません。');
             }
 
-            // 以下は変更なし
-        } else {
+        } else { // ユーザーがログアウトした場合
             if (profileImgInUserInfo) {
                 profileImgInUserInfo.src = './images/default-avatar.png';
                 profileImgInUserInfo.alt = 'ゲスト';
@@ -388,14 +393,14 @@ console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
             if (usernameTextSpan) {
                 usernameTextSpan.textContent = 'ゲスト';
             }
-            // 以下は変更なし
+            // ログアウト時も currentLoggedInUsername をリセット
+            currentLoggedInUsername = 'ゲスト';
         }
     } catch (error) {
         console.error('ユーザーUI更新エラー:', error);
         showError('ユーザー情報の更新に失敗しました。');
     }
 }
-
 // ユーザーアクティビティ監視
 ['click', 'keydown', 'mousemove'].forEach(event => {
     document.addEventListener(event, () => {
@@ -959,145 +964,150 @@ function stopTabBlinking() {
 
 // メッセージ送信（修正済み）
 if (formEl) {
-formEl._submitHandler = async (e) => {
-    try {
-        e.preventDefault(); // フォームのデフォルト送信を防ぐ
-
-        if (!formEl.checkValidity()) {
-            e.stopPropagation();
-            formEl.classList.add('was-validated');
-            console.log('[script.js] フォームバリデーション失敗');
-            return;
-        }
-
-        if (!auth.currentUser) {
-            showError('ログインしてください。');
-            return;
-        }
-
-        const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
-        if (banned) {
-            showError('あなたはBANされています。メッセージを送信できません。');
-            return;
-        }
-
-        const message = inputEl.value.trim(); // メッセージのテキストを取得し、前後の空白を除去
-        if (message.length === 0) {
-            showError('メッセージを入力してください。');
-            return;
-        }
-
-        if (isSending) {
-            console.warn('[script.js] メッセージ送信連打防止');
-            return;
-        }
-
-        isSending = true;
-        console.log('[script.js] Enterキー: 送信モードでフォーム送信');
-
-        // ★★★ ここから修正箇所: UIの即時更新 ★★★
-        // 入力フィールドを即座にクリアし、仮想キーボードを非表示にする
-        // これにより、ユーザーはメッセージ送信後すぐにUIの応答性を感じられる
-        inputEl.value = ''; // 入力フィールドの値をクリア
-        inputEl.textContent = ''; // textareaの場合、textContentもクリア
-        formEl.classList.remove('was-validated'); // バリデーション状態をリセット
-
-        // 仮想キーボードを非表示にする
-        if ('virtualKeyboard' in navigator) {
-            navigator.virtualKeyboard.hide();
-            console.log('[script.js] 仮想キーボードを非表示');
-        }
-        // ★★★ ここまで修正箇所 ★★★
-
-        const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-        // 修正: cleanUsername を適用
-        const cleanedUsername = cleanUsername(userInfo.textContent.replace(/<[^>]+>/g, '').trim());
-        const timestamp = Date.now();
-
-        // Firebase にメッセージを送信
-        await push(messagesRef, {
-            username: cleanedUsername,
-            message, // クリーンアップ済みのメッセージ内容を使用
-            timestamp,
-            userId: auth.currentUser.uid,
-            ipAddress: userData.ipAddress || 'unknown'
-        });
-
-        // アクションを記録（ユーザー名もクリーンアップ済みのものを使用）
-        await push(actionsRef, {
-            type: 'sendMessage',
-            userId: auth.currentUser.uid,
-            username: cleanedUsername,
-            timestamp
-        });
-
-        // 通知送信処理（ユーザー名をクリーンアップ済みのものに変更）
+    formEl._submitHandler = async (e) => {
         try {
-            const notificationTitle = `新しいメッセージ from ${cleanedUsername}`;
-            const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
-            const onlineUsers = await fetchOnlineUsers();
-            console.log('[script.js] オンラインユーザー:', onlineUsers);
+            e.preventDefault(); // フォームのデフォルト送信を防ぐ
 
-            const defaultIconPath = './chat/images/icon.png';
-            for (const onlineUser of onlineUsers) {
-                // 自分のメッセージには通知を送らない
-                if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
-                    console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
-                    await sendNotification(
-                        onlineUser.userId,
-                        notificationTitle,
-                        notificationBody,
-                        {
-                            url: 'https://soysourcetan.github.io/chat', // 通知クリック時のURL
-                            icon: defaultIconPath // 通知アイコンのパス
-                        },
-                        auth.currentUser.uid, // 送信者のユーザーID
-                        cleanedUsername // 送信者のクリーンアップ済みユーザー名
-                    );
-                }
+            if (!formEl.checkValidity()) {
+                e.stopPropagation();
+                formEl.classList.add('was-validated');
+                console.log('[script.js] フォームバリデーション失敗');
+                return;
             }
-        } catch (notificationError) {
-            console.error('[script.js] 通知送信エラー:', notificationError);
-            // showError('通知の送信に失敗しました。'); // 頻繁なエラー表示はUXを損なうため、コンソールログに留める
-        }
 
-        // メッセージ送信成功のトースト表示
-        showSuccess('メッセージを送信しました！');
+            if (!auth.currentUser) {
+                showError('ログインしてください。');
+                return;
+            }
 
-    } catch (error) {
-        console.error('[script.js] メッセージ送信エラー:', error);
-        showError(`メッセージの送信に失敗しました: ${error.message}`);
-    } finally {
-        // 非同期処理完了後の最終的なUI更新と状態リセット
-        isUserScrolledUp = false;
-        newMessageBtn.classList.add('d-none');
+            const banned = (await get(ref(database, `bannedUsers/${auth.currentUser.uid}`))).val();
+            if (banned) {
+                showError('あなたはBANされています。メッセージを送信できません。');
+                return;
+            }
 
-        // 最新メッセージへのスクロール（メッセージがDOMに追加された後に実行されるのが理想的）
-        requestAnimationFrame(() => {
-            messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-            console.log('[script.js] メッセージ送信後: トップにスクロール');
-        });
+            const message = inputEl.value.trim(); // メッセージのテキストを取得し、前後の空白を除去
+            if (message.length === 0) {
+                showError('メッセージを入力してください。');
+                return;
+            }
 
-        if ('virtualKeyboard' in navigator) {
-            // 仮想キーボードの非表示は上で行われたので、ここでは関連するスタイル調整のみ
-            formEl.style.bottom = '10px';
-            messagesEl.style.maxHeight = '';
-            setTimeout(() => {
+            if (isSending) {
+                console.warn('[script.js] メッセージ送信連打防止');
+                return;
+            }
+
+            isSending = true;
+            console.log('[script.js] Enterキー: 送信モードでフォーム送信');
+
+            // ★★★ ここから修正箇所: UIの即時更新 ★★★
+            // 入力フィールドを即座にクリアし、仮想キーボードを非表示にする
+            // これにより、ユーザーはメッセージ送信後すぐにUIの応答性を感じられる
+            inputEl.value = ''; // 入力フィールドの値をクリア
+            inputEl.textContent = ''; // textareaの場合、textContentもクリア
+            formEl.classList.remove('was-validated'); // バリデーション状態をリセット
+
+            // 仮想キーボードを非表示にする
+            if ('virtualKeyboard' in navigator) {
+                navigator.virtualKeyboard.hide();
+                console.log('[script.js] 仮想キーボードを非表示');
+            }
+            // ★★★ ここまで修正箇所 ★★★
+
+            const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+            
+            // ★★★ ここを修正します！userInfo.textContent からではなく、currentLoggedInUsername を使用します。 ★★★
+            const cleanedUsername = currentLoggedInUsername; 
+            // すでに cleanUsername は updateUserUI で適用されているため、ここでは不要ですが、
+            // もし何らかの理由でここで再適用したい場合は cleanUsername(currentLoggedInUsername) としてください。
+            // しかし、ログを見る限り、updateUserUI で既にクリーンアップされているので、
+            // ここでは直接 currentLoggedInUsername を使うのがベストです。
+            
+            const timestamp = Date.now();
+
+            // Firebase にメッセージを送信
+            await push(messagesRef, {
+                username: cleanedUsername, // クリーンアップ済みのユーザー名を使用
+                message, // クリーンアップ済みのメッセージ内容を使用
+                timestamp,
+                userId: auth.currentUser.uid,
+                ipAddress: userData.ipAddress || 'unknown'
+            });
+
+            // アクションを記録（ユーザー名もクリーンアップ済みのものを使用）
+            await push(actionsRef, {
+                type: 'sendMessage',
+                userId: auth.currentUser.uid,
+                username: cleanedUsername, // クリーンアップ済みのユーザー名を使用
+                timestamp
+            });
+
+            // 通知送信処理（ユーザー名をクリーンアップ済みのものに変更）
+            try {
+                const notificationTitle = `新しいメッセージ from ${cleanedUsername}`;
+                const notificationBody = message.length > 50 ? message.substring(0, 47) + '...' : message;
+                const onlineUsers = await fetchOnlineUsers();
+                console.log('[script.js] オンラインユーザー:', onlineUsers);
+
+                const defaultIconPath = './chat/images/icon.png';
+                for (const onlineUser of onlineUsers) {
+                    // 自分のメッセージには通知を送らない
+                    if (onlineUser.userId && onlineUser.userId !== auth.currentUser.uid) {
+                        console.log(`[script.js] 通知送信対象: ${onlineUser.userId} (${onlineUser.username})`);
+                        await sendNotification(
+                            onlineUser.userId,
+                            notificationTitle,
+                            notificationBody,
+                            {
+                                url: 'https://soysourcetan.github.io/chat', // 通知クリック時のURL
+                                icon: defaultIconPath // 通知アイコンのパス
+                            },
+                            auth.currentUser.uid, // 送信者のユーザーID
+                            cleanedUsername // 送信者のクリーンアップ済みユーザー名
+                        );
+                    }
+                }
+            } catch (notificationError) {
+                console.error('[script.js] 通知送信エラー:', notificationError);
+                // showError('通知の送信に失敗しました。'); // 頻繁なエラー表示はUXを損なうため、コンソールログに留める
+            }
+
+            // メッセージ送信成功のトースト表示
+            showSuccess('メッセージを送信しました！');
+
+        } catch (error) {
+            console.error('[script.js] メッセージ送信エラー:', error);
+            showError(`メッセージの送信に失敗しました: ${error.message}`);
+        } finally {
+            // 非同期処理完了後の最終的なUI更新と状態リセット
+            isUserScrolledUp = false;
+            newMessageBtn.classList.add('d-none');
+
+            // 最新メッセージへのスクロール（メッセージがDOMに追加された後に実行されるのが理想的）
+            requestAnimationFrame(() => {
+                messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
+                console.log('[script.js] メッセージ送信後: トップにスクロール');
+            });
+
+            if ('virtualKeyboard' in navigator) {
+                // 仮想キーボードの非表示は上で行われたので、ここでは関連するスタイル調整のみ
+                formEl.style.bottom = '10px';
+                messagesEl.style.maxHeight = '';
+                setTimeout(() => {
+                    inputEl.focus(); // 入力フィールドにフォーカスを戻す
+                    inputEl.select(); // テキストを選択状態にする
+                }, 300);
+            } else {
                 inputEl.focus(); // 入力フィールドにフォーカスを戻す
                 inputEl.select(); // テキストを選択状態にする
-            }, 300);
-        } else {
-            inputEl.focus(); // 入力フィールドにフォーカスを戻す
-            inputEl.select(); // テキストを選択状態にする
-        }
+            }
 
-        isSending = false; // 送信状態フラグをリセット
-    }
-};
+            isSending = false; // 送信状態フラグをリセット
+        }
+    };
 
     formEl.addEventListener('submit', formEl._submitHandler);
 }
-
 // テキストエリアの自動リサイズ
 if (inputEl) {
     inputEl.addEventListener('focus', (e) => {
