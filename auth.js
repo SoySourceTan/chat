@@ -3,9 +3,7 @@
 
 import { GoogleAuthProvider, TwitterAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 import { ref, set, get, push, update, remove } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js';
-// cleanPhotoURL はauth.js内でphotoURLをDBに保存する際には不要になったため、インポートリストから削除します。
-// UI側でDBから取得したphotoURLを処理する際にcleanPhotoURLを使用します。
-import { showError, showSuccess, getClientIp, cleanUsername } from './utils.js'; // getBasePathはここで使用しないため削除
+import { showError, showSuccess, getClientIp, cleanUsername, cleanPhotoURL } from './utils.js';
 
 let isLoggingIn = false;
 
@@ -23,60 +21,60 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
         return;
     }
     isLoggingIn = true;
-    const provider = new TwitterAuthProvider();
     try {
+        const provider = new TwitterAuthProvider();
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
-        console.log('[auth.js] Twitterログイン成功:', user);
+        const displayName = user.displayName;
+        let photoURL = user.photoURL;
+
+        // TwitterのphotoURLを_normalから_400x400に置換して高解像度化
+        // ただし、_normalが含まれている場合のみ置換
+        if (photoURL && photoURL.includes('_normal')) {
+            photoURL = photoURL.replace('_normal.jpg', '_400x400.jpg');
+        }
+
+        // ここが修正点：photoURLが取得できなかった場合はnullを保存
+        // nullを保存することで、UI側で頭文字表示のロジックが正しく動くようになります。
+        const cleanedPhotoURL = photoURL ? photoURL : null;
 
         const userId = user.uid;
-        // Firebase AuthのdisplayNameを優先し、存在しない場合はメール、それでもない場合はゲスト名とする
-        const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
-        
-        let photoURL = null; // デフォルトはnullとする
-        const twitterProvider = user.providerData.find(p => p.providerId === 'twitter.com');
-        
-        if (twitterProvider && twitterProvider.photoURL) {
-            // Twitterのプロフィール画像URLの末尾にある "_normal" を "_400x400" に置き換える
-            photoURL = twitterProvider.photoURL.replace('_normal', '_400x400');
-            console.log('[auth.js] Twitter photoURLを整形しました:', photoURL);
-        } else if (user.photoURL) {
-            // providerDataから取得できなかったが、userオブジェクト自体にphotoURLがある場合
-            photoURL = user.photoURL;
-            console.log('[auth.js] user.photoURLを使用します:', photoURL);
+        const ipAddress = await getClientIp();
+        const now = Date.now();
+        const username = cleanUsername(displayName || '匿名');
+
+        const userRef = ref(database, `users/${userId}`);
+        const userSnapshot = await get(userRef);
+
+        if (userSnapshot.exists()) {
+            await update(userRef, {
+                username: username,
+                photoURL: cleanedPhotoURL, // 修正されたphotoURLを保存
+                lastLogin: now,
+                lastUpdate: now,
+                ipAddress: ipAddress,
+            });
+            console.log('[auth.js] Twitterログイン成功、既存ユーザーを更新');
+        } else {
+            await set(userRef, {
+                username: username,
+                photoURL: cleanedPhotoURL, // 修正されたphotoURLを保存
+                provider: 'twitter',
+                createdAt: now,
+                lastLogin: now,
+                lastUpdate: now,
+                ipAddress: ipAddress,
+            });
+            console.log('[auth.js] Twitterログイン成功、新規ユーザーを作成');
         }
-        // photoURLがnullのままであれば、UI側で頭文字表示のフォールバックが適用されます。
 
-        console.log('[auth.js] データベースに保存するphotoURL:', photoURL);
-
-        await update(ref(database, `users/${userId}`), {
-            username: cleanedUsername,
-            photoURL: photoURL, // nullまたはTwitterからのURLが保存される
-            lastLogin: Date.now(),
-            provider: 'twitter',
-            ipAddress: await getClientIp(),
-            lastUpdate: Date.now(),
-        });
-        console.log('[auth.js] users DB更新成功');
-
-        const actionData = {
-            type: 'login',
-            userId: userId,
-            username: cleanedUsername,
-            provider: 'twitter',
-            timestamp: Date.now(),
-        };
-        await push(ref(database, `actions`), actionData);
-        console.log('[auth.js] actions DBにログインを記録しました。');
-
-        showSuccess('Twitterでログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
+
     } catch (error) {
         console.error('[auth.js] Twitterログインエラー:', error);
-        showError(`Twitterログインエラー: ${error.message}`);
-        throw error;
+        showError('Twitterログインに失敗しました。', document.getElementById('login-error-alert'));
     } finally {
         isLoggingIn = false;
     }
@@ -84,6 +82,7 @@ export async function signInWithTwitter(auth, database, onLoginSuccess) {
 
 /**
  * Signs a user in with their Google account.
+ * On successful login, it saves or updates the user information in the Realtime Database.
  * @param {object} auth - The Firebase Auth instance.
  * @param {object} database - The Firebase Realtime Database instance.
  * @param {function} onLoginSuccess - A callback function to execute on successful login.
@@ -94,55 +93,61 @@ export async function signInWithGoogle(auth, database, onLoginSuccess) {
         return;
     }
     isLoggingIn = true;
-    const provider = new GoogleAuthProvider();
     try {
+        const provider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
-        console.log('[auth.js] Googleログイン成功:', user);
+        const displayName = user.displayName;
+
+        // ここが修正点：photoURLが取得できなかった場合はnullを保存
+        // nullを保存することで、UI側で頭文字表示のロジックが正しく動くようになります。
+        const cleanedPhotoURL = user.photoURL ? user.photoURL : null;
 
         const userId = user.uid;
-        // Firebase AuthのdisplayNameを優先し、存在しない場合はメール、それでもない場合はゲスト名とする
-        const cleanedUsername = cleanUsername(user.displayName || user.email || `ゲスト-${userId.substring(0, 4)}`);
-        
-        // GoogleのphotoURLは通常、そのまま利用します。存在しない場合はnullを保存し、UI側でフォールバックに任せます。
-        const photoURL = user.photoURL || null; 
-        console.log('[auth.js] データベースに保存するphotoURL:', photoURL);
+        const ipAddress = await getClientIp();
+        const now = Date.now();
+        const username = cleanUsername(displayName || '匿名');
 
-        await update(ref(database, `users/${userId}`), {
-            username: cleanedUsername,
-            photoURL: photoURL, // nullまたはGoogleからのURLが保存される
-            lastLogin: Date.now(),
-            provider: 'google',
-            ipAddress: await getClientIp(),
-            lastUpdate: Date.now(),
-        });
-        console.log('[auth.js] users DB更新成功');
+        const userRef = ref(database, `users/${userId}`);
+        const userSnapshot = await get(userRef);
 
-        const actionData = {
-            type: 'login',
-            userId: userId,
-            username: cleanedUsername,
-            provider: 'google',
-            timestamp: Date.now(),
-        };
-        await push(ref(database, `actions`), actionData);
-        console.log('[auth.js] actions DBにログインを記録しました。');
+        if (userSnapshot.exists()) {
+            await update(userRef, {
+                username: username,
+                photoURL: cleanedPhotoURL, // 修正されたphotoURLを保存
+                lastLogin: now,
+                lastUpdate: now,
+                ipAddress: ipAddress,
+            });
+            console.log('[auth.js] Googleログイン成功、既存ユーザーを更新');
+        } else {
+            await set(userRef, {
+                username: username,
+                photoURL: cleanedPhotoURL, // 修正されたphotoURLを保存
+                provider: 'google.com',
+                createdAt: now,
+                lastLogin: now,
+                lastUpdate: now,
+                ipAddress: ipAddress,
+            });
+            console.log('[auth.js] Googleログイン成功、新規ユーザーを作成');
+        }
 
-        showSuccess('Googleでログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
+
     } catch (error) {
         console.error('[auth.js] Googleログインエラー:', error);
-        showError(`Googleログインエラー: ${error.message}`);
-        throw error;
+        showError('Googleログインに失敗しました。', document.getElementById('login-error-alert'));
     } finally {
         isLoggingIn = false;
     }
 }
 
 /**
- * Signs a user in anonymously.
+ * Signs in a user anonymously.
+ * On successful login, it saves the user information in the Realtime Database.
  * @param {object} auth - The Firebase Auth instance.
  * @param {object} database - The Firebase Realtime Database instance.
  * @param {function} onLoginSuccess - A callback function to execute on successful login.
@@ -156,78 +161,62 @@ export async function signInAnonymouslyUser(auth, database, onLoginSuccess) {
     try {
         const result = await signInAnonymously(auth);
         const user = result.user;
-        console.log('[auth.js] 匿名ログイン成功:', user);
-
         const userId = user.uid;
-        const cleanedUsername = cleanUsername(`ゲスト-${userId.substring(0, 4)}`);
-        // 匿名ユーザーの場合、photoURLは明示的にnullまたはundefinedとします。
-        // UI側で頭文字表示のフォールバックが適用されるため、デフォルト画像へのパスはデータベースに保存しません。
-        const photoURL = null;
+        const ipAddress = await getClientIp();
+        const now = Date.now();
+        const defaultUsername = `ゲスト${userId.substring(0, 4)}`;
 
-        console.log('[auth.js] データベースに保存するphotoURL (匿名):', photoURL);
+        const userRef = ref(database, `users/${userId}`);
+        const userSnapshot = await get(userRef);
 
-        await update(ref(database, `users/${userId}`), {
-            username: cleanedUsername,
-            photoURL: photoURL, // nullが保存される
-            lastLogin: Date.now(),
-            provider: 'anonymous',
-            ipAddress: await getClientIp(),
-            lastUpdate: Date.now(),
-        });
-        console.log('[auth.js] users DB更新成功');
+        if (!userSnapshot.exists()) {
+            await set(userRef, {
+                username: defaultUsername,
+                provider: 'anonymous',
+                createdAt: now,
+                lastLogin: now,
+                lastUpdate: now,
+                ipAddress: ipAddress,
+            });
+            console.log('[auth.js] 匿名ログイン成功、新規ユーザーを作成');
+        } else {
+            await update(userRef, {
+                lastLogin: now,
+                lastUpdate: now,
+                ipAddress: ipAddress,
+            });
+            console.log('[auth.js] 匿名ログイン成功、既存ユーザーを更新');
+        }
 
-        // 匿名ユーザーのログインはactionsログには記録しません。
-        // これは、匿名ユーザーの出入りが頻繁である可能性があり、ログが膨大になるのを避けるためです。
-        console.log('[auth.js] 匿名ユーザーのためactionsへのログイン記録をスキップしました。');
-
-        showSuccess('匿名でログインしました！');
         if (onLoginSuccess) {
             onLoginSuccess(user);
         }
     } catch (error) {
         console.error('[auth.js] 匿名ログインエラー:', error);
-        showError(`匿名ログインエラー: ${error.message}`);
-        throw error;
+        showError('匿名ログインに失敗しました。', document.getElementById('login-error-alert'));
     } finally {
         isLoggingIn = false;
     }
 }
 
 /**
- * Signs the current user out.
+ * Signs out the current user.
  * @param {object} auth - The Firebase Auth instance.
- * @param {object} database - The Firebase Realtime Database instance.
- * @param {string} userId - The ID of the user to sign out.
+ * @returns {Promise<void>}
  */
-export async function signOutUser(auth, database, userId) {
+export async function signOutUser(auth) {
     try {
-        if (userId) {
-            // onlineUsersから自分自身のエントリを削除
-            await remove(ref(database, `onlineUsers/${userId}`));
-            console.log('[auth.js] onlineUsers から自分を削除しました。');
-
-            const actionData = {
-                type: 'logout',
-                userId: userId,
-                timestamp: Date.now(),
-            };
-            await push(ref(database, `actions`), actionData);
-            console.log('[auth.js] actions DBにログアウトを記録しました。');
-        }
-
         await signOut(auth);
         console.log('[auth.js] ログアウト成功');
         showSuccess('ログアウトしました。');
     } catch (error) {
         console.error('[auth.js] ログアウトエラー:', error);
-        showError(`ログアウトエラー: ${error.message}`);
+        showError('ログアウトに失敗しました。');
     }
 }
 
 /**
- * Updates the user's display name.
- * This function is corrected to only update the username and not the photoURL
- * to prevent accidental overwrites.
+ * Updates the user's display name and saves it to the database.
  * @param {object} auth - The Firebase Auth instance.
  * @param {object} database - The Firebase Realtime Database instance.
  * @param {string} newUsername - The new username.
@@ -271,7 +260,8 @@ export async function updateUsername(auth, database, newUsername) {
         return { updatedUsername: cleanedUsername };
     } catch (error) {
         console.error('[auth.js] ユーザー名更新エラー:', error);
-        showError('ユーザー名の更新に失敗しました。' + error.message);
+        showError('ユーザー名の更新に失敗しました。');
         throw error;
     }
 }
+
