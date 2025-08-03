@@ -1,7 +1,7 @@
 // ui-manager.js
 
 // 必要なユーティリティ関数をインポート
-import { showError, showSuccess, showToast, getCookie, setCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL } from './utils.js'; // cleanPhotoURLを追加
+import { showError, showSuccess, showToast, getCookie, setCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js'; // cleanUsernameを追加
 
 // DOM要素の取得
 // これらの変数はDOM要素を保持します。
@@ -402,19 +402,22 @@ export function handleImageError(displayUsername) {
         return;
     }
 
-    const initial = displayUsername && typeof displayUsername === 'string' && displayUsername.length > 0
-        ? displayUsername.charAt(0).toUpperCase()
-        : '?'; // デフォルト値を 'A' から '?' に変更。
+    // cleanUsername を適用して頭文字を取得
+    const cleanedUsername = cleanUsername(displayUsername);
+    const initial = (cleanedUsername && cleanedUsername.length > 0)
+        ? cleanedUsername.charAt(0).toUpperCase()
+        : '?'; // デフォルト値を '?' に設定
 
     avatarInitialsEl.textContent = initial; // 頭文字をセット
+    avatarImgEl.src = ''; // 念のため画像のsrcをクリア
     avatarImgEl.style.display = 'none'; // 画像を非表示
     avatarInitialsEl.style.display = 'flex'; // 頭文字を表示
-    console.log(`[ui-manager.js] 画像読み込みエラーまたはphotoURLなし: 頭文字 "${initial}" を表示。`);
+    console.log(`[ui-manager.js] アバター画像読み込みエラーまたはphotoURLなし: 頭文字 \"${initial}\" を表示。`);
 }
 
 /**
  * ユーザーのアバター表示（画像または頭文字）を更新します。
- * @param {string|null} photoURL - ユーザーのプロフィール画像のURL。
+ * @param {string|null|undefined} photoURL - ユーザーのプロフィール画像のURL。
  * @param {string} displayUsername - ユーザーの表示名。
  */
 export function updateUserAvatarDisplay(photoURL, displayUsername) {
@@ -423,17 +426,71 @@ export function updateUserAvatarDisplay(photoURL, displayUsername) {
         return;
     }
 
-    if (photoURL && photoURL !== 'null') { // 'null'文字列のphotoURLも考慮
+    const cleanedUsername = cleanUsername(displayUsername);
+    let shouldDisplayImage = false;
+
+    // photoURLが存在し、かつそれが有効な文字列であるかを確認
+    if (typeof photoURL === 'string' && photoURL.trim() !== '' && photoURL.trim() !== 'null') {
+        const lowerCasePhotoURL = photoURL.toLowerCase();
+        // 汎用的なFirebase/Googleのプロフィール画像や、ローカルのicon.pngではないことを確認
+        // (例: 's96-c/photo.jpg' はGoogleアカウントのデフォルト画像)
+        // (例: 'default-avatar.png' や 'icon.png' はプロジェクト内の汎用画像)
+        if (!lowerCasePhotoURL.includes('s96-c/photo.jpg') &&
+            !lowerCasePhotoURL.includes('default-avatar.png') &&
+            !lowerCasePhotoURL.includes('icon.png')) { // 'images/icon.png' なども含むよう'icon.png'でチェック
+            shouldDisplayImage = true;
+        }
+    }
+
+    if (shouldDisplayImage) {
         const cleanedURL = cleanPhotoURL(photoURL);
         avatarImgEl.src = cleanedURL;
-        avatarImgEl.onerror = () => handleImageError(displayUsername); // エラーハンドラを設定
+        // 画像の読み込みエラー時にhandleImageErrorを呼び出す
+        // usernameのみを渡し、ui-manager.js内のエクスポートされたDOM要素を操作させる
+        avatarImgEl.onerror = () => handleImageError(cleanedUsername);
         avatarImgEl.style.display = 'block'; // 画像を表示
         avatarInitialsEl.style.display = 'none'; // 頭文字を非表示
         console.log(`[ui-manager.js] アバター画像を更新: ${cleanedURL}`);
     } else {
-        handleImageError(displayUsername); // photoURLがない場合は頭文字を表示
+        // 画像を表示しない場合は、頭文字を表示する
+        handleImageError(cleanedUsername);
     }
 }
+
+/**
+ * 任意のimg要素に対して、画像読み込みエラー時に頭文字アバターへ置き換えます。
+ * @param {HTMLImageElement} imgElement - 対象のimg要素
+ */
+export function handleImageElementError(imgElement) {
+    const altText = imgElement.getAttribute('alt') || '？';
+    const initials = altText.charAt(0).toUpperCase();
+    const fallback = document.createElement('div');
+    fallback.className = imgElement.classList.contains('profile-img-small') ? 'avatar-small' : 'avatar';
+    fallback.textContent = initials;
+    imgElement.replaceWith(fallback);
+}
+
+/**
+ * アバターのHTMLを生成します。画像があれば画像、なければ頭文字を返します。
+ * @param {string|null} photoURL - プロフィール画像のURL
+ * @param {string} displayUsername - 表示するユーザー名
+ * @param {string} userId - ユーザーID
+ * @param {string} [size='normal'] - 'small' | 'normal'
+ * @returns {string} HTML文字列
+ */
+export function renderUserAvatar(photoURL, displayUsername, userId, size = 'normal') {
+    const initials = (displayUsername || '？').charAt(0).toUpperCase();
+    const escapedUsername = escapeHTMLAttribute(displayUsername || '匿名');
+    const escapedUserId = escapeHTMLAttribute(userId || '');
+    const cleanedURL = escapeHTMLAttribute(photoURL || '');
+
+    if (cleanedURL) {
+        return `<img src="${cleanedURL}" alt="${escapedUsername}のプロフィール画像" class="profile-img${size === 'small' ? '-small' : ''}" data-user-id="${escapedUserId}" onerror="handleImageElementError(this)">`;
+    } else {
+        return `<div class="avatar${size === 'small' ? '-small' : ''}">${initials}</div>`;
+    }
+}
+
 
 
 /**

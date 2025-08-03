@@ -9,7 +9,7 @@ import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 // ui-manager.js から handleImageError をインポート
-import { handleImageError } from './ui-manager.js';
+import { handleImageError, renderUserAvatar } from './ui-manager.js';
 
 // handleImageError をグローバルスコープに公開
 window.handleImageError = handleImageError;
@@ -37,6 +37,23 @@ const userCache = new Map();
 // FCM初期化が完了したことを示すPromise
 let fcmInitPromise = null;
 
+// 新しい共通関数：メッセージのアバターHTMLを生成
+// photoURLの有無に応じてimgタグまたは文字アバターを返す
+function createAvatarHtml(photoURL, displayUserName, userId) {
+    // ユーザー名から頭文字を取得し、大文字に変換
+    const initials = displayUserName ? displayUserName.charAt(0).toUpperCase() : '?';
+
+    if (photoURL && photoURL !== '') {
+        // 画像がある場合はimgタグを生成
+        const cleanedURL = cleanPhotoURL(photoURL);
+        return `<img src="${escapeHTMLAttribute(cleanedURL)}" alt="${escapeHTMLAttribute(displayUserName)}" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(displayUserName)}', '${escapeHTMLAttribute(cleanedURL)}')">`;
+    } else {
+        // 画像がない場合は文字アバターを生成
+        return `<div class="avatar">${initials}</div>`;
+    }
+}
+
+
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -50,7 +67,7 @@ const backgroundColors = [
     'bg-user-2', // 薄紫
     'bg-user-3', // ライトラベンダー
     'bg-user-4', // 水色
-    'bg-user-5'  // 薄い水色
+    'bg-user-5'  // 薄い水色
 ];
 // 背景色割り当てモード
 let colorAssignmentMode = getCookie('colorAssignmentMode') || 'user-selected';
@@ -186,7 +203,7 @@ async function fetchOnlineUsers() {
                           return {
                               userId: uid,
                               username: user.username && typeof user.username === 'string' ? user.username : '匿名',
-                              photoURL: userData.photoURL && typeof userData.photoURL === 'string' ? `${userData.photoURL}?t=${Date.now()}` : null // icon.pngを削除し、nullを返す
+                              photoURL: userData.photoURL && typeof userData.photoURL === 'string' ? userData.photoURL : null
                           };
                       })
               )
@@ -205,23 +222,30 @@ async function getUserData(userId) {
             console.warn('[script.js] 無効なuserId:', userId);
             return { userId, username: '匿名', photoURL: null };
         }
+        // キャッシュにデータがあり、有効なユーザー名を持つ場合はそれを返す
         if (userCache.has(userId)) {
             const cachedData = userCache.get(userId);
             if (cachedData && cachedData.userId === userId && typeof cachedData.username === 'string') {
                 console.log('[script.js] キャッシュから取得したユーザーデータ:', cachedData);
                 return cachedData;
             }
+            // キャッシュが不正な場合は削除
             userCache.delete(userId);
         }
+        // Firebaseからユーザーデータを取得
         const snapshot = await get(ref(database, `users/${userId}`));
         const data = snapshot.val() || { username: '匿名', photoURL: null };
+        // 取得したデータをデフォルト値とマージ
         const userData = { userId, username: '匿名', photoURL: null, ...data };
+        // ユーザー名が有効な文字列であることを確認
         if (typeof userData.username !== 'string') {
             console.warn('[script.js] 無効なusername検出:', userData.username);
             userData.username = '匿名';
         }
         console.log('[script.js] Firebaseから取得したユーザーデータ:', userData);
+        // キャッシュを更新
         userCache.set(userId, userData);
+        // キャッシュサイズが大きくなりすぎないようにクリア
         if (userCache.size > 100) userCache.clear();
         return userData;
     } catch (error) {
@@ -234,12 +258,11 @@ async function getUserData(userId) {
 function renderOnlineUsers(users) {
     try {
         if (!users || users.length === 0) {
-            // online-users-list が存在する場合にのみinnerHTMLを更新
             const onlineUsersList = document.getElementById('online-users-list');
             if (onlineUsersList) {
                 onlineUsersList.innerHTML = '<span class="text-muted">オンラインのユーザーはいません</span>';
             }
-            return ''; // HTML文字列を返すので空文字列
+            return '';
         }
         
         const htmlContent = users
@@ -247,32 +270,30 @@ function renderOnlineUsers(users) {
             .map(({ userId, username, photoURL }) => {
                 const displayUsername = username && typeof username === 'string' ? cleanUsername(username) : '匿名';
                 const escapedDisplayUsername = escapeHTMLAttribute(displayUsername);
-                
                 const escapedUserId = escapeHTMLAttribute(userId); 
+                const cleanedPhotoURL = photoURL ? escapeHTMLAttribute(cleanPhotoURL(photoURL)) : null;
 
+                // アバター画像または頭文字のHTMLを生成
+const avatarHtml = renderUserAvatar(photoURL, username, userId);
+                
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
-                    ${photoURL && typeof photoURL === 'string' && photoURL !== '' ?
-                        `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapedDisplayUsername}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapedUserId}', '${escapedDisplayUsername}', '${escapeHTMLAttribute(cleanPhotoURL(photoURL))}')">` :
-                        `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
+                    ${avatarHtml}
                 </span>`;
             })
             .join('');
 
-        // online-users-list が存在する場合にのみinnerHTMLを更新
         const onlineUsersList = document.getElementById('online-users-list');
         if (onlineUsersList) {
             onlineUsersList.innerHTML = htmlContent;
         }
-        return htmlContent; // HTML文字列を返す
-
+        return htmlContent;
     } catch (error) {
         console.error('オンラインユーザー描画エラー:', error);
-        // エラー時もオンラインユーザーリスト要素が存在する場合にのみエラーメッセージを設定
         const onlineUsersList = document.getElementById('online-users-list');
         if (onlineUsersList) {
             onlineUsersList.innerHTML = '<span class="text-muted">オンラインユーザーの表示に失敗しました</span>';
         }
-        return '<span class="text-muted">オンラインユーザーの表示に失敗しました</span>'; // HTML文字列を返す
+        return '<span class="text-muted">オンラインユーザーの表示に失敗しました</span>';
     }
 }
 
@@ -288,7 +309,8 @@ async function updateOnlineUsers() {
         const users = await fetchOnlineUsers();
         const limitedUsers = users.slice(0, 50);
         if (onlineUsersEl) {
-            onlineUsersEl.innerHTML = renderOnlineUsers(limitedUsers); // getUserDataをスキップ
+            // fetchOnlineUsersですでにユーザーデータが取得されているため、getUserDataを再度呼び出す必要はない
+            onlineUsersEl.innerHTML = renderOnlineUsers(limitedUsers);
         }
     } catch (error) {
         console.error('オンラインユーザー更新エラー:', error);
@@ -313,42 +335,42 @@ async function updateUserUI(user) {
         const usernameTextSpan = userInfo.querySelector('#current-username-display');
 
         if (user) {
+            // ユーザーログイン時、キャッシュをクリアして最新データを取得
             userCache.delete(user.uid);
             const userData = (await get(ref(database, `users/${user.uid}`))).val() || {};
             console.log('updateUserUIで取得されたuserData (DBから):', userData);
 
             let username = userData.username || user.displayName || 'ゲスト';
-            console.log('--- ユーザー名デバッグ開始 ---');
-            console.log('1. cleanUsername適用前のユーザー名:', `"${username}"`, '長さ:', username.length);
-
             username = cleanUsername(username); 
+            console.log('[updateUserUI] クリーンアップ後のユーザー名:', username);
 
-            console.log('2. cleanUsername適用後のユーザー名:', `"${username}"`, '長さ:', username.length);
-            console.log('--- ユーザー名デバッグ終了 ---');
-
-            // ★ ここでグローバル変数 currentLoggedInUsername を更新します
+            // グローバル変数 currentLoggedInUsername を更新
             currentLoggedInUsername = username; 
 
             let photoUrlToUse = user.photoURL;
             const isAuthPhotoGeneric = !photoUrlToUse || photoUrlToUse === '' || photoUrlToUse.includes('s96-c/photo.jpg');
+            
+            // Authの画像が汎用的なもので、かつDBに有効な画像URLがある場合はそちらを優先
             if (isAuthPhotoGeneric && userData.photoURL && userData.photoURL !== '') {
                 photoUrlToUse = userData.photoURL;
             }
 
+            // AuthのphotoURLがDBのものと異なる場合、DBを更新
             if (user.photoURL && user.photoURL !== '' && !isAuthPhotoGeneric && cleanPhotoURL(user.photoURL) !== cleanPhotoURL(userData.photoURL || '')) {
                 await update(ref(database, `users/${user.uid}`), { photoURL: user.photoURL });
                 photoUrlToUse = user.photoURL;
                 console.log(`[updateUserUI] ユーザー ${user.uid} のphotoURLをAuthからDBに保存/更新しました: ${user.photoURL}`);
             }
 
+            // photoURLをクリーンアップ
             const cleanedPhotoURL = cleanPhotoURL(photoUrlToUse); 
-            photoUrlToUse = cleanedPhotoURL; 
-
-            console.log('[updateUserUI] 使用するphotoURL:', photoUrlToUse);
+            
+            console.log('[updateUserUI] 使用するphotoURL:', cleanedPhotoURL);
 
             if (profileImgInUserInfo) {
-                if (photoUrlToUse && photoUrlToUse !== '') {
-                    profileImgInUserInfo.src = photoUrlToUse + '?t=' + Date.now();
+                if (cleanedPhotoURL && cleanedPhotoURL !== '') {
+                    // 有効な画像URLがある場合
+                    profileImgInUserInfo.src = cleanedPhotoURL + '?t=' + Date.now();
                     profileImgInUserInfo.alt = escapeHTMLAttribute(username);
                     profileImgInUserInfo.dataset.uid = user.uid;
                     profileImgInUserInfo.classList.remove('d-none');
@@ -356,17 +378,24 @@ async function updateUserUI(user) {
                         profileAvatarDivInUserInfo.classList.add('d-none');
                     }
                 } else {
+                    // 画像URLがない場合、頭文字を表示
                     profileImgInUserInfo.classList.add('d-none');
                     if (!profileAvatarDivInUserInfo) {
                         profileAvatarDivInUserInfo = document.createElement('div');
                         profileAvatarDivInUserInfo.className = 'avatar-small me-1';
-                        const statusDot = userInfo.querySelector('.status-dot');
-                        if (statusDot) {
-                            userInfo.insertBefore(profileAvatarDivInUserInfo, statusDot.nextSibling);
-                        } else if (usernameTextSpan) {
-                            userInfo.insertBefore(profileAvatarDivInUserInfo, usernameTextSpan);
+                        // DOM要素がすでに存在するかをチェックし、存在しない場合のみ追加
+                        const existingAvatar = userInfo.querySelector('.avatar-small');
+                        if (!existingAvatar) {
+                             const statusDot = userInfo.querySelector('.status-dot');
+                             if (statusDot) {
+                                 userInfo.insertBefore(profileAvatarDivInUserInfo, statusDot.nextSibling);
+                             } else if (usernameTextSpan) {
+                                 userInfo.insertBefore(profileAvatarDivInUserInfo, usernameTextSpan);
+                             } else {
+                                 userInfo.prepend(profileAvatarDivInUserInfo);
+                             }
                         } else {
-                            userInfo.prepend(profileAvatarDivInUserInfo);
+                             profileAvatarDivInUserInfo = existingAvatar;
                         }
                     }
                     profileAvatarDivInUserInfo.textContent = username.charAt(0).toUpperCase();
@@ -409,6 +438,7 @@ async function updateUserUI(user) {
     });
 });
 setInterval(updateStatusIndicator, 60000);
+
 
 // ツールチップ管理
 function disposeTooltip(element) {
@@ -564,8 +594,6 @@ if (userColorSelect) {
     });
 }
 
-
-
 // inputEl のイベントリスナー（フォーカス、ブラー、キー入力）
 if (inputEl) {
     inputEl.addEventListener('focus', (e) => {
@@ -685,13 +713,11 @@ if (messagesEl) {
                                 li.setAttribute('data-timestamp', timestamp);
                                 const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
                                 const formattedMessage = formatMessage(message);
-li.innerHTML = `
-    <div class="message bg-transparent p-2 row">
-        <div class="col-auto profile-icon">
-            ${photoURL && photoURL !== '' ?
-                `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapeHTMLAttribute(cleanUsername(username))}" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(cleanUsername(username))}', '${escapeHTMLAttribute(cleanPhotoURL(photoURL))}')">` :
-                `<div class="avatar">${cleanUsername(username).charAt(0).toUpperCase()}</div>`}
-        </div>
+                                li.innerHTML = `
+                                    <div class="message bg-transparent p-2 row">
+                                        <div class="col-auto profile-icon">
+                                            ${renderUserAvatar(photoURL, username, userId)}
+                                        </div>
                                         <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                                             <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
                                             <small class="text-muted ms-2">${date}</small>
@@ -773,8 +799,7 @@ async function reloadMessages() {
 if (twitterLogin) {
     twitterLogin.addEventListener('click', async () => {
         // auth.js に処理を委譲
-        // 引数を auth.js の定義に合わせる (actionsRef と usersRef は auth.js 内部で取得すべき)
-        await signInWithTwitter(auth, database, async (user) => { // ★ ここを修正
+        await signInWithTwitter(auth, database, async (user) => {
             // ログイン成功時の追加処理
             await updateUserUI(user);
         });
@@ -784,7 +809,7 @@ if (twitterLogin) {
 // Googleログイン
 if (googleLogin) {
     googleLogin.addEventListener('click', async () => {
-        await signInWithGoogle(auth, database, async (user) => { // ★ ここを修正
+        await signInWithGoogle(auth, database, async (user) => {
             await updateUserUI(user);
         });
     });
@@ -793,22 +818,23 @@ if (googleLogin) {
 // 匿名ログイン
 if (anonymousLogin) {
     anonymousLogin.addEventListener('click', async () => {
-        await signInAnonymouslyUser(auth, database, async (user) => { // ★ ここを修正
+        await signInAnonymouslyUser(auth, database, async (user) => {
             await updateUserUI(user);
         });
     });
 }
 
-// ログアウト
+// ログイン/ログアウトボタン
 if (loginBtn) {
     loginBtn.addEventListener('click', async () => {
         if (auth.currentUser) {
-            // ★修正: signOutUser に渡す引数を auth.currentUser.uid のみに変更
+            // ログアウト処理
             await signOutUser(auth, database, auth.currentUser.uid);
-            // ログアウト成功時の追加処理は auth.onAuthStateChanged でUIが更新されるため、ここでは特別不要。
-            // ただし、モーダルを閉じるなどのUI操作は、必要であればここに追加する。
-            // loginModal.hide(); // 例: ログインモーダルが開いている場合に閉じる
+            // ログアウト成功時のUI操作
+            // onAuthStateChangedリスナーでUIが更新されるため、ここでは特別不要。
+            showSuccess('ログアウトしました。');
         } else {
+            // ログインモーダル表示
             loginModalEl.removeAttribute('inert');
             loginModal.show();
             setTimeout(() => document.getElementById('twitterLogin')?.focus(), 100);
@@ -818,21 +844,23 @@ if (loginBtn) {
 
 if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
-        // ★修正: signOutUser に渡す引数を auth.currentUser.uid のみに変更
+        // ログアウト処理
         await signOutUser(auth, database, auth.currentUser.uid);
         // ログアウト成功時のUI操作
         unameModal.hide();
         unameModalEl.setAttribute('inert', '');
         document.getElementById('login-btn').focus();
+        showSuccess('ログアウトしました。');
     });
 }
 
-// ユーザー名変更
+// ユーザー情報変更ボタン
 if (userInfo) {
     userInfo.addEventListener('click', async () => {
         if (auth.currentUser) {
             try {
                 const userData = await get(ref(database, `users/${auth.currentUser.uid}`));
+                // モーダル内のユーザー名入力欄に現在のユーザー名を設定
                 unameInput.value = userData.val()?.username || '';
                 unameModalEl.removeAttribute('inert');
                 unameModal.show();
@@ -847,6 +875,7 @@ if (userInfo) {
     });
 }
 
+// ユーザー名変更確定
 if (confirmName) {
     confirmName.addEventListener('click', async () => {
         const rawInput = unameInput.value;
@@ -858,62 +887,29 @@ if (confirmName) {
             return;
         }
         try {
-            // auth.js の updateUsername は更新されたユーザー名と PhotoURL をオブジェクトで返す
-            const { updatedUsername, updatedPhotoURL } = await updateUsername(auth, database, username);
+            // auth.js の updateUsername を呼び出す
+            const { updatedUsername } = await updateUsername(auth, database, username);
 
-            console.log('[script.js] ユーザー名更新成功:', updatedUsername, 'photoURL:', updatedPhotoURL);
+            console.log('[script.js] ユーザー名更新成功:', updatedUsername);
 
-            // ユーザーデータ取得とUI更新のロジックをここに移動または呼び出す
+            // ユーザーデータを取得して、最新のphotoURLを反映
             const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
+
+            // ui-manager.js の関数を呼び出してアバターとユーザー名表示を更新
+            // この関数が、photoURLの有無に応じてimgまたは文字アバターを自動で切り替える
+            updateUserAvatarDisplay(userData.photoURL, updatedUsername);
             
-            // user-info 内の画像と文字アバター要素を取得
-            const profileImgInUserInfo = userInfo.querySelector('.profile-img-small');
-            let profileAvatarDivInUserInfo = userInfo.querySelector('.avatar-small');
-            // user-info 内のユーザー名表示用のテキスト要素を取得
-            const usernameTextSpan = userInfo.querySelector('#current-username-display');
-
-            if (userData.photoURL && userData.photoURL !== '') {
-                // photoURLがある場合、画像を表示
-                if (profileImgInUserInfo) {
-                    const photoURL = cleanPhotoURL(userData.photoURL) + '?t=' + Date.now();
-                    console.log('[script.js] 画像パス:', photoURL);
-                    profileImgInUserInfo.src = photoURL;
-                    profileImgInUserInfo.alt = escapeHTMLAttribute(updatedUsername);
-                    profileImgInUserInfo.dataset.uid = auth.currentUser.uid;
-                    profileImgInUserInfo.classList.remove('d-none'); // 画像を表示
-                    profileImgInUserInfo.classList.add('profile-img-small'); // 必要であればクラスを追加
-                }
-                if (profileAvatarDivInUserInfo) {
-                    profileAvatarDivInUserInfo.classList.add('d-none'); // 文字アバターを非表示
-                }
-            } else {
-                // photoURLがない場合、文字アバターを表示
-                if (profileImgInUserInfo) {
-                    profileImgInUserInfo.classList.add('d-none');
-                }
-                if (!profileAvatarDivInUserInfo) { // avatar divがまだ存在しない場合のみ作成
-                    profileAvatarDivInUserInfo = document.createElement('div');
-                    profileAvatarDivInUserInfo.className = 'avatar-small me-1';
-                    // usernameTextSpanの直前に挿入
-                    if (usernameTextSpan) {
-                        userInfo.insertBefore(profileAvatarDivInUserInfo, usernameTextSpan);
-                    } else {
-                        userInfo.appendChild(profileAvatarDivInUserInfo); // fallback
-                    }
-                }
-                profileAvatarDivInUserInfo.textContent = updatedUsername.charAt(0).toUpperCase();
-                profileAvatarDivInUserInfo.classList.remove('d-none');
-            }
-
             // ユーザー名テキストの更新
+            const usernameTextSpan = userInfo.querySelector('#current-username-display');
             if (usernameTextSpan) {
                 usernameTextSpan.textContent = updatedUsername;
             }
 
-            currentUserPhotoURL = userData.photoURL || null; // ログインユーザーのphotoURLを更新
+            // ログインユーザーのphotoURLを更新
+            currentUserPhotoURL = userData.photoURL || null;
 
             console.log('[script.js] ユーザー名更新成功。モーダルを閉じます。');
-            unameModal.hide(); // ★ここでモーダルを閉じる
+            unameModal.hide();
             unameInput.classList.remove('is-invalid');
             await updateOnlineUsers(); // オンラインユーザーリストも更新
             showSuccess('ユーザー名を更新しました。');
@@ -925,6 +921,7 @@ if (confirmName) {
         }
     });
 }
+
 
 // タブ点滅機能関連の変数と関数
 let originalTitle = document.title;
@@ -1191,9 +1188,7 @@ async function loadInitialMessages() {
             li.innerHTML = `
                 <div class="message bg-transparent p-2 row">
                     <div class="col-auto profile-icon">
-                        ${photoURL && photoURL !== '' ?
-                            `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapeHTMLAttribute(displayUserName)}" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(displayUserName)}', '${escapeHTMLAttribute(cleanPhotoURL(photoURL))}')">` :
-                            `<div class="avatar">${displayUserName.charAt(0).toUpperCase()}</div>`}
+                        ${renderUserAvatar(photoURL, username, userId)}
                     </div>
                     <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                         <strong>${escapeHTMLAttribute(displayUserName || '匿名')}</strong>
@@ -1299,11 +1294,9 @@ function setupMessageListener() {
                 const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
 li.innerHTML = `
     <div class="message bg-transparent p-2 row">
-        <div class="col-auto profile-icon">
-            ${photoURL && photoURL !== '' ?
-                `<img src="${escapeHTMLAttribute(cleanPhotoURL(photoURL))}" alt="${escapeHTMLAttribute(displayUsername)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(displayUsername)}', '${escapeHTMLAttribute(cleanPhotoURL(photoURL))}')">` :
-                `<div class="avatar">${displayUsername.charAt(0).toUpperCase()}</div>`}
-        </div>
+    <div class="col-auto profile-icon">
+        ${renderUserAvatar(photoURL, username, userId)}
+    </div>
 <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
     <strong>${escapeHTMLAttribute(displayUsername)}</strong> <small class="text-muted ms-2">${date}</small>
     ${auth.currentUser && auth.currentUser.uid === userId ?
@@ -1525,9 +1518,6 @@ if (messagesEl) {
                                 console.log(`[メッセージレンダリング後] key: ${key}, cleanUsername適用後: "${tempDisplayUsername}"`);
                                 // ★ここまで追加
 
-
-
-
                                 const photoURL = userDataMap[userId]?.photoURL;
                                 const li = document.createElement('li');
                                 li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
@@ -1539,9 +1529,7 @@ if (messagesEl) {
                                 li.innerHTML = `
                                     <div class="message bg-transparent p-2 row">
                                         <div class="col-auto profile-icon">
-                                            ${photoURL ?
-                                                `<img src="${escapeHTMLAttribute(photoURL)}" alt="${escapeHTMLAttribute(username)}のプロフィール画像" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(username)}', '${escapeHTMLAttribute(photoURL)}')">` :
-                                                `<div class="avatar">${username.charAt(0).toUpperCase()}</div>`}
+                                            ${renderUserAvatar(photoURL, username, userId)}
                                         </div>
                                         <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
                                             <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
