@@ -9,7 +9,7 @@ import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 // ui-manager.js から handleImageError をインポート
-import { handleImageError, renderUserAvatar, updateUserAvatarDisplay, hideLoginModal } from './ui-manager.js';
+import { handleImageError, renderUserAvatar, updateUserAvatarDisplay, setupUI, hideLoginModal } from './ui-manager.js';
 
 // handleImageError をグローバルスコープに公開
 window.handleImageError = handleImageError;
@@ -732,7 +732,7 @@ const li = renderSingleMessage({
   userId,
   photoURL: userDataMap[userId]?.photoURL
 });
-messagesEl.appendChild(li); // ※ここは appendChild でOK（古い順で表示）
+messagesEl.prepend(li);
                                 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
@@ -777,25 +777,6 @@ function formatMessage(message) {
     }
 }
 
-// メッセージ再描画関数
-async function reloadMessages() {
-    try {
-        console.log('メッセージ再描画開始, モード:', colorAssignmentMode);
-        messagesEl.innerHTML = '';
-        await loadInitialMessages();
-        setupMessageListener();
-        console.log('メッセージ再描画完了, userColorMap:', userColorMap);
-    } catch (error) {
-        console.error('メッセージ再描画エラー:', error);
-        showError('メッセージの再読み込みに失敗しました。');
-    }
-    if (auth.currentUser) {
-      const userId = auth.currentUser.uid;
-      // if (userId !== auth.currentUser.uid) { // この条件は常に false になるため、不要
-        notifyNewMessage();
-      // }
-    }
-}
 
 // Twitterログイン認証
 if (twitterLogin) {
@@ -890,19 +871,18 @@ if (confirmName) {
         try {
             const { updatedUsername } = await updateUsername(auth, database, username);
             console.log('[script.js] ユーザー名更新成功:', updatedUsername);
+            
+            // ★★★ この部分を修正してください ★★★
+            // unameModalEl.hide() はエラーになる
+            // 正しい方法: BootstrapのModalインスタンスを取得してhide()を呼び出す
+            if (unameModalEl) {
+                const unameModal = bootstrap.Modal.getInstance(unameModalEl) || new bootstrap.Modal(unameModalEl);
+                unameModal.hide();
+                console.log('[script.js] ユーザー名変更モーダルを閉じました。');
+            }
+
             const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-            console.log('[script.js] userData after update:', userData);
-            console.log('[script.js] auth.currentUser.photoURL:', auth.currentUser?.photoURL);
-            console.log('[script.js] userData.photoURL:', userData.photoURL);
-            const newDisplayName = cleanUsername(unameInput.value.trim());
-            console.log('[script.js] cleanUsername input:', unameInput.value.trim(), 'output:', newDisplayName);
-            console.log('[script.js] updateUserAvatarDisplay call:', { photoURL: auth.currentUser?.photoURL || '', displayUsername: newDisplayName, userId: auth.currentUser?.uid || 'anonymous' });
-            updateUserAvatarDisplay({
-                photoURL: auth.currentUser?.photoURL || '',
-                displayUsername: newDisplayName,
-                userId: auth.currentUser?.uid || 'anonymous'
-            });
-            // 以下省略
+            // ... (後続の処理)
         } catch (error) {
             console.error('[script.js] ユーザー名更新エラー:', error);
             unameInput.classList.add('is-invalid');
@@ -910,7 +890,6 @@ if (confirmName) {
         }
     });
 }
-
 
 // タブ点滅機能関連の変数と関数
 let originalTitle = document.title;
@@ -1069,12 +1048,6 @@ if (formEl) {
             isUserScrolledUp = false;
             newMessageBtn.classList.add('d-none');
 
-            // 最新メッセージへのスクロール（メッセージがDOMに追加された後に実行されるのが理想的）
-            requestAnimationFrame(() => {
-                messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
-                console.log('[script.js] メッセージ送信後: トップにスクロール');
-            });
-
             if ('virtualKeyboard' in navigator) {
                 // 仮想キーボードの非表示は上で行われたので、ここでは関連するスタイル調整のみ
                 formEl.style.bottom = '10px';
@@ -1166,24 +1139,47 @@ async function loadInitialMessages() {
             console.log(`[script.js] メッセージをレンダリング中: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`);
             const isLatest = key === messages[messages.length - 1]?.[0];
             const photoURL = userCache.get(userId)?.photoURL;
-            const displayUsername = cleanUsername(username || '匿名');
             const li = renderSingleMessage({
                 key,
-                username: displayUsername,
+                username: cleanUsername(username || '匿名'),
                 message,
                 timestamp,
                 userId,
                 photoURL
             });
+            messagesEl.prepend(li);
+            setTimeout(() => li.classList.add('show'), 10);
+
             li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in ${assignUserBackgroundColor(userId)}`;
             li.setAttribute('data-message-id', key);
             li.setAttribute('role', 'listitem');
             li.setAttribute('data-timestamp', timestamp);
+            const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+            const formattedMessage = formatMessage(message);
+            const displayUserName = cleanUsername(username);
+
+            li.innerHTML = `
+                <div class="message bg-transparent p-2 row">
+                    <div class="col-auto profile-icon">
+                        ${renderUserAvatar(photoURL, username, userId)}
+                    </div>
+                    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                        <strong>${escapeHTMLAttribute(displayUserName || '匿名')}</strong>
+                        <small class="text-muted ms-2">${date}</small>
+                        ${auth.currentUser && auth.currentUser.uid === userId ?
+                            `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
+                                <i class="fa fa-trash"></i>
+                            </button>` : ''}
+                    </div>
+                    <div class="col-12 message-body mt-2">
+                        ${formattedMessage}
+                    </div>
+                </div>`;
             messagesEl.prepend(li);
 
             const img = li.querySelector('.profile-img');
             if (img) {
-                img.onerror = () => handleImageError(img, userId, displayUsername, cleanPhotoURL(photoURL));
+                img.onerror = () => handleImageError(img, userId, displayUserName, cleanPhotoURL(photoURL));
             }
             setTimeout(() => li.classList.add('show'), 10);
         }
@@ -1264,11 +1260,6 @@ function setupMessageListener() {
                     userId,
                     photoURL
                 });
-                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse ${assignUserBackgroundColor(userId)}`;
-                li.setAttribute('data-message-id', key);
-                li.setAttribute('data-user-id', userId);
-                li.setAttribute('role', 'listitem');
-                li.setAttribute('data-timestamp', timestamp);
                 messagesEl.prepend(li);
 
                 const img = li.querySelector('.profile-img');
@@ -1276,7 +1267,6 @@ function setupMessageListener() {
                     img.onerror = () => handleImageError(img, userId, displayUsername, cleanPhotoURL(photoURL));
                 }
                 setTimeout(() => li.classList.add('show'), 10);
-
                 if (!isUserScrolledUp) {
                     requestAnimationFrame(() => {
                         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1486,7 +1476,7 @@ const li = renderSingleMessage({
   userId,
   photoURL: userDataMap[userId]?.photoURL
 });
-messagesEl.appendChild(li); // 末尾に追加
+messagesEl.prepend(li); // appendChildをprependに修正
 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
@@ -1654,6 +1644,18 @@ async function setupFirebase() {
         auth.onAuthStateChanged(async (user) => {
             try {
                 if (user) {
+
+
+            // ★★★ この部分にモーダルを閉じるコードを追加します ★★★
+            const loginModalEl = document.getElementById('loginModal');
+            if (loginModalEl) {
+                // BootstrapのModalインスタンスを取得してhide()を呼び出す
+                const loginModal = bootstrap.Modal.getInstance(loginModalEl) || new bootstrap.Modal(loginModalEl);
+                loginModal.hide();
+                console.log('[script.js] ログインモーダルを閉じました。');
+            }
+
+
                     await updateUserUI(user);
                     
                     await loadInitialMessages();
@@ -1729,3 +1731,4 @@ navigator.serviceWorker.addEventListener('message', (event) => {
         showError(`FCM初期化エラー: ${event.data.message}`);
     }
 });
+
