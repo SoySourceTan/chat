@@ -732,7 +732,7 @@ const li = renderSingleMessage({
   userId,
   photoURL: userDataMap[userId]?.photoURL
 });
-messagesEl.prepend(li);
+messagesEl.appendChild(li);
                                 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
@@ -1476,7 +1476,7 @@ const li = renderSingleMessage({
   userId,
   photoURL: userDataMap[userId]?.photoURL
 });
-messagesEl.prepend(li); // appendChildをprependに修正
+messagesEl.appendChild(li); // appendChildをprependに修正
 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
