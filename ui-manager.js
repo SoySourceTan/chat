@@ -134,7 +134,7 @@ export function setupUI(
         } else {
             console.warn('[ui-manager.js] user-info 要素が見つかりませんでした。');
         }
-
+        
 if (saveNameBtn) {
     saveNameBtn.removeEventListener('click', handleNameUpdate); // 既存リスナーを削除
     saveNameBtn.addEventListener('click', async () => {
@@ -541,7 +541,7 @@ export function renderUserAvatar(photoURL, displayUsername, userId, size = 'norm
     }
 
     // 有効なURLがない場合は頭文字アバターを返す
-    return `<div class="${avatarClass} rounded-circle d-flex align-items-center justify-content-center text-white bg-secondary">
+    return `<div class="${avatarClass} rounded-circle d-flex align-items-center justify-content-center text-white">
                 ${initials}
             </div>`;
 }
