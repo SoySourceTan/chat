@@ -1038,7 +1038,7 @@ if (formEl) {
             }
 
             // メッセージ送信成功のトースト表示
-            showSuccess('メッセージを送信しました！');
+            // showSuccess('メッセージを送信しました！');
 
         } catch (error) {
             console.error('[script.js] メッセージ送信エラー:', error);
