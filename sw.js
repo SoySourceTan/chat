@@ -56,31 +56,41 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Firebase SDKからのリクエスト、またはPHP設定ファイルへのリクエストはネットワーク優先で処理（FCMに必要）
-  // trextacy.com のPHPファイルへのリクエストは常にネットワークから取得します。
-  if (event.request.url.includes('firebasejs') || 
-      event.request.url.includes('firebaseremoteconfig.googleapis.com') || 
-      event.request.url.includes('fcm.googleapis.com') ||
-      event.request.url.includes('trextacy.com/chat/firebase-config.php')) {
+    // Firebase SDKからのリクエスト、またはPHP設定ファイルへのリクエストはネットワーク優先で処理
+    if (event.request.url.includes('firebasejs') ||
+        event.request.url.includes('firebaseremoteconfig.googleapis.com') ||
+        event.request.url.includes('fcm.googleapis.com') ||
+        event.request.url.includes('trextacy.com/chat/firebase-config.php')) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    // ★★★ 修正点: Twitterのプロフィール画像（pbs.twimg.comを含む）は常にネットワークから取得 ★★★
+    if (event.request.url.includes('pbs.twimg.com')) {
+        // キャッシュを使わずにネットワークから直接フェッチ
+        event.respondWith(fetch(event.request));
+        return;
+    }
+if (event.request.url.includes('icon.png')) {
+    // ローカルフォールバック画像はキャッシュに入れないようにする
     event.respondWith(fetch(event.request));
     return;
-  }
-  
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return networkResponse;
-      });
-    })
-  );
+}
+    event.respondWith(
+        caches.match(event.request).then((response) => {
+            if (response) {
+                return response;
+            }
+            return fetch(event.request).then((networkResponse) => {
+                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+                    return networkResponse;
+                }
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
+                });
+                return networkResponse;
+            });
+        })
+    );
 });

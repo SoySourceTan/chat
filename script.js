@@ -9,7 +9,7 @@ import { initFirebaseServices } from './firebase-service.js';
 // auth.js からログイン関連関数をインポート
 import { signInWithTwitter, signInWithGoogle, signInAnonymouslyUser, signOutUser, updateUsername } from './auth.js';
 // ui-manager.js から handleImageError をインポート
-import { handleImageError, renderUserAvatar } from './ui-manager.js';
+import { handleImageError, renderUserAvatar, updateUserAvatarDisplay, hideLoginModal } from './ui-manager.js';
 
 // handleImageError をグローバルスコープに公開
 window.handleImageError = handleImageError;
@@ -36,24 +36,6 @@ const userCache = new Map();
 
 // FCM初期化が完了したことを示すPromise
 let fcmInitPromise = null;
-
-// 新しい共通関数：メッセージのアバターHTMLを生成
-// photoURLの有無に応じてimgタグまたは文字アバターを返す
-function createAvatarHtml(photoURL, displayUserName, userId) {
-    // ユーザー名から頭文字を取得し、大文字に変換
-    const initials = displayUserName ? displayUserName.charAt(0).toUpperCase() : '?';
-
-    if (photoURL && photoURL !== '') {
-        // 画像がある場合はimgタグを生成
-        const cleanedURL = cleanPhotoURL(photoURL);
-        return `<img src="${escapeHTMLAttribute(cleanedURL)}" alt="${escapeHTMLAttribute(displayUserName)}" class="profile-img" onerror="handleImageError(this, '${escapeHTMLAttribute(userId)}', '${escapeHTMLAttribute(displayUserName)}', '${escapeHTMLAttribute(cleanedURL)}')">`;
-    } else {
-        // 画像がない場合は文字アバターを生成
-        return `<div class="avatar">${initials}</div>`;
-    }
-}
-
-
 
 // GSAP をグローバルスコープで使用
 const { gsap } = window;
@@ -120,6 +102,45 @@ function assignUserBackgroundColor(userId) {
         return backgroundColors[0];
     }
 }
+
+function renderSingleMessage({ key, username, message, timestamp, userId, photoURL }) {
+    const li = document.createElement('li');
+    li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
+    li.setAttribute('data-message-id', key);
+    li.setAttribute('role', 'listitem');
+    li.setAttribute('data-timestamp', timestamp);
+
+    const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
+    const formattedMessage = formatMessage(message);
+    const escapedUsername = escapeHTMLAttribute(username || '匿名');
+
+    li.innerHTML = `
+        <div class="message bg-transparent p-2 row">
+            <div class="col-auto profile-icon">
+                ${renderUserAvatar(photoURL, username, userId)}
+            </div>
+            <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
+                <strong>${escapedUsername}</strong>
+                <small class="text-muted ms-2">${date}</small>
+                ${auth.currentUser && auth.currentUser.uid === userId ? `
+                    <button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
+                        <i class="fa fa-trash"></i>
+                    </button>` : ''}
+            </div>
+            <div class="col-12 message-body mt-2">
+                ${formattedMessage}
+            </div>
+        </div>`;
+
+    // ⭐ ここで画像のエラー処理も完結させる
+    const img = li.querySelector('.profile-img');
+    if (img) {
+        img.onerror = () => handleImageError(img, userId, username, cleanPhotoURL(photoURL));
+    }
+
+    return li;
+}
+
 
 // 背景色モードのドロップダウンイベントリスナー
 const colorModeDropdown = document.getElementById('colorModeDropdown');
@@ -274,7 +295,7 @@ function renderOnlineUsers(users) {
                 const cleanedPhotoURL = photoURL ? escapeHTMLAttribute(cleanPhotoURL(photoURL)) : null;
 
                 // アバター画像または頭文字のHTMLを生成
-const avatarHtml = renderUserAvatar(photoURL, username, userId);
+                const avatarHtml = renderUserAvatar(photoURL, username, userId, 'normal');
                 
                 return `<span class="online-user" title="${escapedDisplayUsername}" data-user-id="${escapedUserId}">
                     ${avatarHtml}
@@ -364,13 +385,13 @@ async function updateUserUI(user) {
 
             // photoURLをクリーンアップ
             const cleanedPhotoURL = cleanPhotoURL(photoUrlToUse); 
-            
             console.log('[updateUserUI] 使用するphotoURL:', cleanedPhotoURL);
-
             if (profileImgInUserInfo) {
                 if (cleanedPhotoURL && cleanedPhotoURL !== '') {
+                    console.log('[updateUserUI] Setting profileImgInUserInfo.src:', userData.photoURL);
                     // 有効な画像URLがある場合
-                    profileImgInUserInfo.src = cleanedPhotoURL + '?t=' + Date.now();
+                    
+                    profileImgInUserInfo.src = userData.photoURL;
                     profileImgInUserInfo.alt = escapeHTMLAttribute(username);
                     profileImgInUserInfo.dataset.uid = user.uid;
                     profileImgInUserInfo.classList.remove('d-none');
@@ -702,35 +723,16 @@ if (messagesEl) {
                                 console.log(`[メッセージレンダリング後] key: ${key}, cleanUsername適用後: "${tempDisplayUsername}"`);
                                 // ★ここまで追加
 
-
-
-
                                 const photoURL = userDataMap[userId]?.photoURL;
-                                const li = document.createElement('li');
-                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
-                                li.setAttribute('data-message-id', key);
-                                li.setAttribute('role', 'listitem');
-                                li.setAttribute('data-timestamp', timestamp);
-                                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-                                const formattedMessage = formatMessage(message);
-                                li.innerHTML = `
-                                    <div class="message bg-transparent p-2 row">
-                                        <div class="col-auto profile-icon">
-                                            ${renderUserAvatar(photoURL, username, userId)}
-                                        </div>
-                                        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                                            <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
-                                            <small class="text-muted ms-2">${date}</small>
-                                            ${auth.currentUser && auth.currentUser.uid === userId ?
-                                                `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-                                                    <i class="fa fa-trash"></i>
-                                                </button>` : ''}
-                                        </div>
-                                        <div class="col-12 message-body mt-2">
-                                            ${formattedMessage}
-                                        </div>
-                                    </div>`;
-                                messagesEl.appendChild(li);
+const li = renderSingleMessage({
+  key,
+  username: cleanUsername(username || '匿名'),
+  message,
+  timestamp,
+  userId,
+  photoURL: userDataMap[userId]?.photoURL
+});
+messagesEl.appendChild(li); // ※ここは appendChild でOK（古い順で表示）
                                 setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
@@ -831,7 +833,6 @@ if (loginBtn) {
             // ログアウト処理
             await signOutUser(auth, database, auth.currentUser.uid);
             // ログアウト成功時のUI操作
-            // onAuthStateChangedリスナーでUIが更新されるため、ここでは特別不要。
             showSuccess('ログアウトしました。');
         } else {
             // ログインモーダル表示
@@ -887,33 +888,21 @@ if (confirmName) {
             return;
         }
         try {
-            // auth.js の updateUsername を呼び出す
             const { updatedUsername } = await updateUsername(auth, database, username);
-
             console.log('[script.js] ユーザー名更新成功:', updatedUsername);
-
-            // ユーザーデータを取得して、最新のphotoURLを反映
             const userData = (await get(ref(database, `users/${auth.currentUser.uid}`))).val() || {};
-
-            // ui-manager.js の関数を呼び出してアバターとユーザー名表示を更新
-            // この関数が、photoURLの有無に応じてimgまたは文字アバターを自動で切り替える
-            updateUserAvatarDisplay(userData.photoURL, updatedUsername);
-            
-            // ユーザー名テキストの更新
-            const usernameTextSpan = userInfo.querySelector('#current-username-display');
-            if (usernameTextSpan) {
-                usernameTextSpan.textContent = updatedUsername;
-            }
-
-            // ログインユーザーのphotoURLを更新
-            currentUserPhotoURL = userData.photoURL || null;
-
-            console.log('[script.js] ユーザー名更新成功。モーダルを閉じます。');
-            unameModal.hide();
-            unameInput.classList.remove('is-invalid');
-            await updateOnlineUsers(); // オンラインユーザーリストも更新
-            showSuccess('ユーザー名を更新しました。');
-
+            console.log('[script.js] userData after update:', userData);
+            console.log('[script.js] auth.currentUser.photoURL:', auth.currentUser?.photoURL);
+            console.log('[script.js] userData.photoURL:', userData.photoURL);
+            const newDisplayName = cleanUsername(unameInput.value.trim());
+            console.log('[script.js] cleanUsername input:', unameInput.value.trim(), 'output:', newDisplayName);
+            console.log('[script.js] updateUserAvatarDisplay call:', { photoURL: auth.currentUser?.photoURL || '', displayUsername: newDisplayName, userId: auth.currentUser?.uid || 'anonymous' });
+            updateUserAvatarDisplay({
+                photoURL: auth.currentUser?.photoURL || '',
+                displayUsername: newDisplayName,
+                userId: auth.currentUser?.uid || 'anonymous'
+            });
+            // 以下省略
         } catch (error) {
             console.error('[script.js] ユーザー名更新エラー:', error);
             unameInput.classList.add('is-invalid');
@@ -1117,6 +1106,10 @@ if (inputEl) {
     });
 }
 
+if (typeof userCache === 'undefined') {
+    window.userCache = new Map();
+}
+
 // 初期メッセージ読み込み
 async function loadInitialMessages() {
     console.log('[script.js] loadInitialMessages関数が呼び出されました。');
@@ -1162,9 +1155,8 @@ async function loadInitialMessages() {
             userCache.set(userId, data);
             return { userId, data };
         });
-        const userDataArray = await Promise.all(userDataPromises);
-        const userDataMap = Object.fromEntries(userDataArray.map(({ userId, data }) => [userId, data]));
-        console.log('[script.js] ユーザーデータマップ:', userDataMap);
+        await Promise.all(userDataPromises);
+        console.log('[script.js] ユーザーデータキャッシュ:', Object.fromEntries(userCache));
 
         messagesEl.innerHTML = '';
         latestInitialTimestamp = messages.length ? Math.max(...messages.map(([_, msg]) => msg.timestamp)) : null;
@@ -1172,46 +1164,27 @@ async function loadInitialMessages() {
 
         for (const [key, { username, message, timestamp, userId = 'anonymous', ipAddress }] of messages) {
             console.log(`[script.js] メッセージをレンダリング中: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`);
-            const isLatest = key === messages[messages.length - 1]?.[0]; // 最新メッセージを判定
-            const photoURL = userDataMap[userId]?.photoURL;
-            const li = document.createElement('li');
+            const isLatest = key === messages[messages.length - 1]?.[0];
+            const photoURL = userCache.get(userId)?.photoURL;
+            const displayUsername = cleanUsername(username || '匿名');
+            const li = renderSingleMessage({
+                key,
+                username: displayUsername,
+                message,
+                timestamp,
+                userId,
+                photoURL
+            });
             li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 ${isLatest ? 'latest-message pulse' : ''} fade-in ${assignUserBackgroundColor(userId)}`;
             li.setAttribute('data-message-id', key);
             li.setAttribute('role', 'listitem');
             li.setAttribute('data-timestamp', timestamp);
-            const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-            const formattedMessage = formatMessage(message); // これはメッセージ本文用
-
-            // ここで username をクリーンアップして表示用に準備
-            const displayUserName = cleanUsername(username); // cleanUsernameはutils.jsからインポート済み
-
-            li.innerHTML = `
-                <div class="message bg-transparent p-2 row">
-                    <div class="col-auto profile-icon">
-                        ${renderUserAvatar(photoURL, username, userId)}
-                    </div>
-                    <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                        <strong>${escapeHTMLAttribute(displayUserName || '匿名')}</strong>
-                        <small class="text-muted ms-2">${date}</small>
-                        ${auth.currentUser && auth.currentUser.uid === userId ?
-                            `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-                                <i class="fa fa-trash"></i>
-                            </button>` : ''}
-                    </div>
-                    <div class="col-12 message-body mt-2">
-                        ${formattedMessage}
-                    </div>
-                </div>`;
             messagesEl.prepend(li);
 
-            // ★修正箇所: img.onerror イベントハンドラの呼び出し
             const img = li.querySelector('.profile-img');
             if (img) {
-                // handleImageErrorに渡す引数を調整
-                // 3番目の引数として、クリーンアップされたユーザー名を渡す
-                img.onerror = () => handleImageError(img, userId, displayUserName, cleanPhotoURL(photoURL));
+                img.onerror = () => handleImageError(img, userId, displayUsername, cleanPhotoURL(photoURL));
             }
-            // ★ここまで
             setTimeout(() => li.classList.add('show'), 10);
         }
         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1235,86 +1208,75 @@ function setupMessageListener() {
     try {
         if (messageListener) {
             console.log('[script.js] 既存のmessageListenerを解除します。');
-            messageListener(); // 既存のリスナーを解除
+            messageListener();
         }
         if (messageRemoveListener) {
             console.log('[script.js] 既存のmessageRemoveListenerを解除します。');
-            messageRemoveListener(); // 既存のリスナーを解除
+            messageRemoveListener();
         }
 
-        // 最新の初期メッセージタイムスタンプが存在する場合、それ以降のメッセージのみを監視するクエリを作成
         let listenerQuery = messagesRef;
         if (latestInitialTimestamp) {
             console.log(`[script.js] setupMessageListener: 最新の初期タイムスタンプ (${latestInitialTimestamp}) 以降のメッセージを監視します。`);
             listenerQuery = query(messagesRef, orderByChild('timestamp'), startAfter(latestInitialTimestamp));
         } else {
             console.log('[script.js] setupMessageListener: latestInitialTimestampが設定されていないため、全ての新しいメッセージを監視します。');
-            // 初期メッセージがない場合は、以降に投稿されるメッセージをすべて監視
             listenerQuery = query(messagesRef, orderByChild('timestamp'));
         }
 
-        messageListener = onChildAdded(listenerQuery, async (snapshot) => { // ★ ここを修正
-            console.log('[script.js] onChildAddedイベントが発生しました。');
-            try {
-                const { username, message, timestamp, userId = 'anonymous', ipAddress, fcmMessageId } = snapshot.val();
-                const key = snapshot.key;
-                console.log(`[script.js] 新しいメッセージ: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`);
+        messageListener = onChildAdded(listenerQuery, async (snapshot) => {
+            console.log('[script.js] onChildAddedイベントが発生しました。');
+            try {
+                const { username, message, timestamp, userId = 'anonymous', ipAddress, fcmMessageId } = snapshot.val();
+                const key = snapshot.key;
+                console.log(`[script.js] 新しいメッセージ: ID=${key}, ユーザー=${username}, タイムスタンプ=${timestamp}`);
 
-                // ここでのtimestamp <= latestInitialTimestampのチェックは不要になるはずですが、
-                // 念のため残しておくとより堅牢になります。
-                if (timestamp <= latestInitialTimestamp) {
-                    console.log('[script.js] メッセージは初期読み込み済みのためスキップします。（リスナー側でフィルタリング済み）');
-                    return;
-                }
-                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
-                    console.log('[script.js] メッセージは既にDOMに存在するためスキップします。');
-                    return;
-                }
+                if (timestamp <= latestInitialTimestamp) {
+                    console.log('[script.js] メッセージは初期読み込み済みのためスキップします。');
+                    return;
+                }
+                if (messagesEl.querySelector(`[data-message-id="${key}"]`)) {
+                    console.log('[script.js] メッセージは既にDOMに存在するためスキップします。');
+                    return;
+                }
 
-                console.log(`[script.js] ユーザーデータ取得中 for userId: ${userId}`);
-                const userData = userCache.has(userId) ? userCache.get(userId) : (await get(ref(database, `users/${userId}`))).val() || {};
-                userCache.set(userId, userData);
-                if (userCache.size > 100) {
-                    console.log('[script.js] userCacheが大きくなったためクリアしました。');
-                    userCache.clear();
-                }
-                const photoURL = userData.photoURL;
-                const formattedMessage = formatMessage(message);
-
-                // ★ 修正点: cleanUsernameを適用して、きれいなユーザー名を取得する
+                console.log(`[script.js] ユーザーデータ取得中 for userId: ${userId}`);
+                let userData = userCache.get(userId);
+                if (!userData) {
+                    const userDataSnapshot = await get(ref(database, `users/${userId}`));
+                    userData = userDataSnapshot.val() || {};
+                    userCache.set(userId, userData);
+                    console.log('[script.js] 再取得したユーザーデータ:', userData);
+                }
+                if (userCache.size > 100) {
+                    console.log('[script.js] userCacheが大きくなったためクリアしました。');
+                    userCache.clear();
+                }
+                const photoURL = userData.photoURL;
+                const formattedMessage = formatMessage(message);
                 const displayUsername = cleanUsername(username || '匿名');
-                // ★ここまで修正
 
-                const li = document.createElement('li');
-                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse mb-3 ${assignUserBackgroundColor(userId)}`;
-                li.setAttribute('data-message-id', key); 
-                li.setAttribute('data-user-id', userId);
-                li.setAttribute('role', 'listitem');
-                li.setAttribute('data-timestamp', timestamp);
-                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-li.innerHTML = `
-    <div class="message bg-transparent p-2 row">
-    <div class="col-auto profile-icon">
-        ${renderUserAvatar(photoURL, username, userId)}
-    </div>
-<div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-    <strong>${escapeHTMLAttribute(displayUsername)}</strong> <small class="text-muted ms-2">${date}</small>
-    ${auth.currentUser && auth.currentUser.uid === userId ?
-        `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-            <i class="fa fa-trash" aria-hidden="true"></i>
-        </button>` : ''}
-</div>        <div class="col-12 message-body mt-2">
-            ${formattedMessage}
-        </div>
-    </div>`;
-                messagesEl.prepend(li);
-                // ★ここからイベントリスナーを追加
-const img = li.querySelector('.profile-img');
-if (img) {
-    img.onerror = () => handleImageError(img, userId, displayUsername, cleanPhotoURL(photoURL));
-}
-                // ★ここまで
+                const li = renderSingleMessage({
+                    key,
+                    username: displayUsername,
+                    message,
+                    timestamp,
+                    userId,
+                    photoURL
+                });
+                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in latest-message pulse ${assignUserBackgroundColor(userId)}`;
+                li.setAttribute('data-message-id', key);
+                li.setAttribute('data-user-id', userId);
+                li.setAttribute('role', 'listitem');
+                li.setAttribute('data-timestamp', timestamp);
+                messagesEl.prepend(li);
+
+                const img = li.querySelector('.profile-img');
+                if (img) {
+                    img.onerror = () => handleImageError(img, userId, displayUsername, cleanPhotoURL(photoURL));
+                }
                 setTimeout(() => li.classList.add('show'), 10);
+
                 if (!isUserScrolledUp) {
                     requestAnimationFrame(() => {
                         messagesEl.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1323,10 +1285,6 @@ if (img) {
                 } else {
                     newMessageBtn.classList.remove('d-none');
                 }
-                // 現在のユーザー以外のメッセージで通知
-                console.log('[タブ点滅デバッグ] document.hidden:', document.hidden);
-                console.log('[タブ点滅デバッグ] auth.currentUser.uid:', auth.currentUser ? auth.currentUser.uid : '未ログイン');
-                console.log('[タブ点滅デバッグ] message.userId:', userId);
 
                 const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
                 if (document.hidden && userId !== currentUserId) {
@@ -1348,6 +1306,7 @@ if (img) {
                 showError('メッセージの取得に失敗しました。');
             }
         });
+
         messageRemoveListener = onChildRemoved(messagesRef, (snapshot) => {
             console.log('[script.js] onChildRemovedイベントが発生しました。');
             try {
@@ -1519,32 +1478,16 @@ if (messagesEl) {
                                 // ★ここまで追加
 
                                 const photoURL = userDataMap[userId]?.photoURL;
-                                const li = document.createElement('li');
-                                li.className = `list-group-item p-0 m-0 border shadow-sm mb-3 d-flex justify-content-start align-items-start border-0 fade-in ${assignUserBackgroundColor(userId)}`;
-                                li.setAttribute('data-message-id', key);
-                                li.setAttribute('role', 'listitem');
-                                li.setAttribute('data-timestamp', timestamp);
-                                const date = timestamp ? new Date(timestamp).toLocaleString('ja-JP') : '不明';
-                                const formattedMessage = formatMessage(message);
-                                li.innerHTML = `
-                                    <div class="message bg-transparent p-2 row">
-                                        <div class="col-auto profile-icon">
-                                            ${renderUserAvatar(photoURL, username, userId)}
-                                        </div>
-                                        <div class="col-auto message-header p-0 m-0 d-flex align-items-center">
-                                            <strong>${escapeHTMLAttribute(username || '匿名')}</strong>
-                                            <small class="text-muted ms-2">${date}</small>
-                                            ${auth.currentUser && auth.currentUser.uid === userId ?
-                                                `<button class="btn btn-sm btn-outline-success ms-2 delete-message" data-message-id="${key}">
-                                                    <i class="fa fa-trash"></i>
-                                                </button>` : ''}
-                                        </div>
-                                        <div class="col-12 message-body mt-2">
-                                            ${formattedMessage}
-                                        </div>
-                                    </div>`;
-                                messagesEl.appendChild(li); // 新しいものから古いものが上から下に並ぶよう、末尾に追加
-                                setTimeout(() => li.classList.add('show'), 10);
+const li = renderSingleMessage({
+  key,
+  username: cleanUsername(username || '匿名'),
+  message,
+  timestamp,
+  userId,
+  photoURL: userDataMap[userId]?.photoURL
+});
+messagesEl.appendChild(li); // 末尾に追加
+setTimeout(() => li.classList.add('show'), 10);
                             }
                         }
                     } catch (error) {
@@ -1567,7 +1510,6 @@ if (messagesEl) {
 
 
 // 認証状態変更リスナー
-// auth.onAuthStateChanged(async (user) => { ... }); のブロックは setupFirebase() 内に移動します。
 
 // モーダル非表示時のフォーカス管理 (変更なし)
 if (unameModalEl) {
@@ -1713,6 +1655,7 @@ async function setupFirebase() {
             try {
                 if (user) {
                     await updateUserUI(user);
+                    
                     await loadInitialMessages();
                     setupMessageListener();
 

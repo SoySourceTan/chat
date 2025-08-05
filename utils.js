@@ -232,48 +232,38 @@ export function escapeHTMLAttribute(str) {
 }
 
 /**
- * プロフィール画像のURLをクリーンアップし、絶対パスに変換します。
- * データベースに保存されたphotoURLが有効な場合、そのURLを返します。
- * 無効なURL（null, undefined, 空文字列）の場合、または有効なプロトコルを持たない場合はnullを返します。
+ * プロフィール画像のURLをクリーンアップします。
+ * GoogleまたはTwitterのプロフィール画像URLを検出し、有効な場合はそのまま返します。
+ * それ以外のURL、または無効なURLの場合はnullを返します。
  * @param {string | null | undefined} photoURL - クリーンアップするプロフィール画像のURL。
- * @returns {string | null} クリーンアップされた絶対URL、またはnull（フォールバック用）。
+ * @param {string} [baseURL=window.location.origin] - 相対URLを解決するためのベースURL。
+ * @returns {string | null} GoogleまたはTwitterの有効なURL、またはnull（フォールバック用）。
  */
-export function cleanPhotoURL(photoURL) {
-    // photoURLがnull, undefined, または空文字列の場合、そのままnullを返します。
-    if (typeof photoURL !== 'string' || photoURL.trim() === '') {
+export function cleanPhotoURL(photoURL, baseURL = window.location.origin) {
+    if (!photoURL || typeof photoURL !== 'string' || photoURL.trim() === '') {
         return null;
     }
 
-    try {
-        const cleanedUrl = photoURL.trim();
+    const lowerCaseURL = photoURL.toLowerCase();
 
-        // URLコンストラクタを使用して、絶対URLとして検証し、無効な場合はnullを返します。
-        // 過去のlocalhostパスや、誤ったフォーマットのURLはここで弾かれます。
+    // GoogleまたはTwitterのドメインを厳密にチェック
+    if (lowerCaseURL.includes('googleusercontent.com') || lowerCaseURL.includes('twimg.com')) {
         try {
-            const url = new URL(cleanedUrl);
-            // プロトコルが http または https であることを確認
-            if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-                console.warn('[utils.js] cleanPhotoURL: 不正なプロトコルのURLです。nullを返します:', cleanedUrl);
-                return null;
-            }
-            // URLが有効かつプロトコルが正しい場合はそのhrefを返します。
-            return url.href;
-        } catch (urlError) {
-            console.warn('[utils.js] cleanPhotoURL: URLコンストラクタで解決できないURLです。nullを返します:', cleanedUrl, urlError);
+            return new URL(photoURL, baseURL).href;
+        } catch (error) {
+            console.warn('[utils.js] cleanPhotoURL: 有効なURLとして解決できませんでした。', { photoURL, error });
             return null;
         }
-
-    } catch (error) {
-        console.error('[utils.js] cleanPhotoURL: URL処理中に予期せぬエラーが発生しました。nullを返します:', error);
-        return null;
     }
+
+    console.warn('[utils.js] cleanPhotoURL: 許可されていないドメインのURLが検出されました。nullを返します。', { photoURL });
+    return null;
 }
 
 /**
  * ユーザー名をクリーンアップします。
- * - 改行コード、タブ、連続する空白、および特定の特殊文字を除去し、単一の空白にまとめます。
- * - 前後の空白をトリムします。
- * - ユーザー名の中間にあるスペースも除去し、完全に連結された名前にします。
+ * - 改行コード、タブ、複数の空白を単一の空白にまとめ、前後の空白をトリムします。
+ * - HTMLタグや特定の特殊文字を除去します。
  * @param {string} username - クリーンアップするユーザー名。
  * @returns {string} クリーンアップされたユーザー名。
  */
@@ -284,11 +274,11 @@ export function cleanUsername(username) {
 
     let cleaned = username;
 
-    // 1. HTMLタグを除去（もし含まれている場合）
+    // 1. HTMLタグを除去
     cleaned = cleaned.replace(/<[^>]+>/g, '');
 
-    // 2. 改行コード、タブ、連続する空白をすべて除去（単一のスペースにもしない）
-    cleaned = cleaned.replace(/[\n\t\s]+/g, '');
+    // 2. 改行コード、タブ、連続する空白を単一の空白に置き換える
+    cleaned = cleaned.replace(/[\n\t\s]+/g, ' ');
 
     // 3. 特定の「ゴミ」文字を除去
     cleaned = cleaned.replace(/[?!()[\]{}@#$%^&*+=|\\<>,./~`!]/g, '');

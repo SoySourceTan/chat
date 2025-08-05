@@ -6,16 +6,15 @@
     <meta name="theme-color" content="#007bff">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Expires" content="0">
-
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://apis.google.com https://firebase.googleapis.com https://*.firebaseio.com;
-  connect-src 'self' https://www.gstatic.com https://trextacy.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://firebase.googleapis.com https://fonts.gstatic.com https://apis.google.com https://identitytoolkit.googleapis.com https://firebasemessaging.googleapis.com https://www.googleapis.com https://pbs.twimg.com https://api.ipify.org *.googleusercontent.com;
-  style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdnjs.cloudflare.com;
-  img-src 'self' data: https://firebasestorage.googleapis.com https://www.gravatar.com https://pbs.twimg.com https://soysourcetan.github.io *.googleusercontent.com;
-  font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
-  frame-src 'self' https://securetoken.googleapis.com https://*.firebaseapp.com https://*.firebaseio.com;
-">
+   <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://apis.google.com https://firebase.googleapis.com https://*.firebaseio.com;
+      connect-src 'self' https://www.gstatic.com https://trextacy.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://firebase.googleapis.com https://fonts.gstatic.com https://apis.google.com https://identitytoolkit.googleapis.com https://firebasemessaging.googleapis.com https://www.googleapis.com https://pbs.twimg.com https://api.ipify.org *.googleusercontent.com;
+      style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdnjs.cloudflare.com;
+      img-src 'self' data: https://firebasestorage.googleapis.com https://www.gravatar.com https://pbs.twimg.com https://soysourcetan.github.io *.googleusercontent.com;
+      font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
+      frame-src 'self' https://securetoken.googleapis.com https://*.firebaseapp.com https://*.firebaseio.com;
+  ">
 
 <title>Forrest Aura</title>
     <link rel="icon" href="./favicon.ico" type="image/x-icon">
@@ -28,10 +27,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.1/purify.min.js"></script>
     <script src="https://unpkg.com/scrollreveal@4.0.9/dist/scrollreveal.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <!-- 以下のFirebase compat SDKのロードを削除します -->
-    <script type="module" src="./chclear.js"></script>
 
-</head>
+  </head>
+
 <body class="d-flex flex-column vh-100">
   <div id="initial-loading-overlay" class="initial-loading-overlay">
     <div class="progress">
@@ -39,51 +37,50 @@
     </div>
   </div>
 
-  <nav id="nav" class="navbar navbar-light navbar-slide border shadow-sm">
-    <div class="container-fluid">
-      <div class="navbar-row navbar-row-1 d-flex align-items-center justify-content-between w-100">
-        <a class="navbar-brand d-none d-md-block" href="#">
-          <i class="fa-solid fa-feather-pointed"></i>AURA
-        </a>
-        <div class="d-flex align-items-center">
-
-                        <div id="colorPicker" class="ms-0">
-        <select class="form-select form-select-sm" id="userColorSelect">
-          <option>色</option>
-          <option value="bg-user-0">薄ピンク</option>
-          <option value="bg-user-1">黄緑</option>
-          <option value="bg-user-2">薄紫</option>
-          <option value="bg-user-3">ライトラベンダー</option>
-          <option value="bg-user-4">水色</option>
-          <option value="bg-user-5">薄い水色</option>
-        </select>
-      </div>
-          <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
-            <i class="fas fa-compress"></i>
-          </button>
-<div class="btn-group me-2" role="group" aria-label="フォントサイズと通知設定">
-    <button id="fontSizeS" class="btn btn-outline-secondary btn-sm">S</button>
-    <button id="fontSizeM" class="btn btn-outline-secondary btn-sm active">M</button>
-    <button id="fontSizeL" class="btn btn-outline-secondary btn-sm">L</button>
-</div>
-          <button id="login-btn" class="btn btn-outline-primary btn-sm"><i class="fa fa-sign-in" aria-hidden="true"></i></button>
-          <button id="clearCacheButton" class="btn btn-warning" aria-label="キャッシュをクリアして最新バージョンに更新"><i class="fas fa-redo"></i></button>
-
+<nav id="nav" class="navbar navbar-light navbar-slide border shadow-sm">
+  <div class="container-fluid">
+    <div class="navbar-row navbar-row-1 d-flex align-items-center justify-content-between w-100">
+      <a class="navbar-brand d-none d-md-block" href="#">
+      </a>
+      <div class="d-flex align-items-center">
+        <div id="colorPicker" class="ms-0">
+          <select class="form-select form-select-sm" id="userColorSelect">
+            <option>色</option>
+            <option value="bg-user-0">薄ピンク</option>
+            <option value="bg-user-1">黄緑</option>
+            <option value="bg-user-2">薄紫</option>
+            <option value="bg-user-3">ライトラベンダー</option>
+            <option value="bg-user-4">水色</option>
+            <option value="bg-user-5">薄い水色</option>
+          </select>
         </div>
-      </div>
-      <div id="navsec" class="navbar-row bg-white mx-auto col-10 col-md-8 navbar-row-2 d-flex align-items-center shadow-sm border my-2 p-2 rounded-5">
-        <div id="online-users" class="me-2"></div>
-<span id="user-info" class="cursor-pointer ms-auto" tabindex="0" aria-label="ユーザー名編集">
-    <span class="status-dot status-away"></span>
-    <img id="avatar-img" src="./images/default-avatar.png" alt="プロフィール画像" class="profile-img-small rounded-circle me-1" data-uid="" style="width: 38px; height: 38px; object-fit: cover; display: none;">
-    <div id="avatar-initials" class="avatar-small avatar rounded-circle d-flex align-items-center justify-content-center text-white bg-primary me-1" style="width: 38px; height: 38px; font-size: 1.2rem; display: flex;">?</div>
-    <span id="current-username-display">ゲスト</span> <i class="fas fa-pencil-alt ms-1"></i>
-</span>
+        <button id="compactModeBtn" class="btn btn-outline-secondary btn-sm me-2" title="コンパクトモード" aria-label="コンパクトモードに切り替え">
+          <i class="fas fa-compress"></i>
+        </button>
+        <div class="btn-group me-2" role="group" aria-label="フォントサイズと通知設定">
+          <button id="fontSizeS" class="btn btn-outline-secondary btn-sm">S</button>
+          <button id="fontSizeM" class="btn btn-outline-secondary btn-sm active">M</button>
+          <button id="fontSizeL" class="btn btn-outline-secondary btn-sm">L</button>
         </div>
-<button id="notification-toggle-btn" class="btn btn-primary" aria-label="通知音の切り替え">
-    <i class="fas fa-bell"></i> </button>
-</div>
-  </nav>
+        <button id="login-btn" class="btn btn-outline-primary btn-sm"><i class="fa fa-sign-in" aria-hidden="true"></i></button>
+        <button id="clearCacheButton" class="btn btn-warning" aria-label="キャッシュをクリアして最新バージョンに更新"><i class="fas fa-redo"></i></button>
+      </div>
+    </div>
+    <div id="navsec" class="navbar-row bg-white mx-auto col-10 col-md-8 navbar-row-2 d-flex align-items-center shadow-sm border my-2 p-2 rounded-5">
+      <div id="online-users" class="me-2"></div>
+      <span id="user-info" class="cursor-pointer ms-auto" tabindex="0" aria-label="ユーザー名編集">
+        <span class="status-dot status-away"></span>
+        <img id="avatar-img" src="?" alt="プロフィール画像" class="profile-img-small rounded-circle me-1 d-none" data-uid="?">
+        <div id="avatar-initials" class="avatar-small avatar rounded-circle d-flex align-items-center justify-content-center text-white bg-primary me-1 d-none"></div>
+        <span id="current-username-display">ゲスト</span>
+        <span id="user-id-display" class="text-muted small d-none"></span> <i class="fas fa-pencil-alt ms-1"></i>
+      </span>
+    </div>
+      <button id="notification-toggle-btn" class="btn btn-primary" aria-label="通知音の切り替え">
+        <i class="fas fa-bell"></i>
+      </button>
+  </div>
+</nav>
 
   <main class="container main-content d-flex flex-column">
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
@@ -185,7 +182,7 @@
     <i class="fas fa-arrow-up"></i>
   </button>
 
-<script type="module">
+  <script type="module">
         // サービスワーカーのパスを動的に決定
         function getServiceWorkerPathAndScope() {
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -228,7 +225,7 @@
                 });
         }
     </script>
+    <script type="module" src="./chclear.js"></script>
     <script type="module" src="./script.js"></script>
 </body>
 </html>
-

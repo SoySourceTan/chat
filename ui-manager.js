@@ -1,17 +1,20 @@
 // ui-manager.js
 
 // 必要なユーティリティ関数をインポート
-import { showError, showSuccess, showToast, getCookie, setCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js'; // cleanUsernameを追加
+import { showError, showSuccess, showToast, getCookie, setCookie, isMobileDevice, escapeHTMLAttribute, cleanPhotoURL, cleanUsername } from './utils.js';
+import * as bootstrap from 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
+
+// グローバルで利用するために、初期化されるまで null で宣言
+let loginModalEl = null;
 
 // DOM要素の取得
-// これらの変数はDOM要素を保持します。
 export let formEl;
 export let inputEl;
 export let messagesEl;
 export let loginBtn;
 export let errorAlert;
-export let onlineUsersCountEl; // HTMLにはonline-users-countがないが、online-usersはある
-export let onlineUsersListEl; // HTMLには存在しない
+export let onlineUsersCountEl;
+export let onlineUsersListEl;
 export let compactModeBtn;
 export let fontSizeS;
 export let fontSizeM;
@@ -20,34 +23,30 @@ export let toggleEnterModeBtn;
 export let newNameInput;
 export let saveNameBtn;
 export let logoutBtn;
-export let avatarImgEl; // ★変更: avatarEl から avatarImgEl に変更 (img要素用)
-export let avatarInitialsEl; // ★追加: 頭文字表示用div要素
+export let avatarImgEl; // img要素用
+export let avatarInitialsEl; // 頭文字表示用div要素
 export let currentUsernameEl;
-export let userIdEl; // HTMLには存在しない
-export let toggleDebugModeBtn; // HTMLには存在しない
-export let debugInfoEl; // HTMLには存在しない
+export let userIdEl;
+export let toggleDebugModeBtn;
+export let debugInfoEl;
 export let versionInfoEl;
-export let loginModalEl; // ★修正: ここをコメントアウト解除し、正しくBootstrap Modalインスタンスを保持するようにします
 export let unameModalEl;
 export let notificationButton;
-
-export let messageDisplayLimitSelect; // HTMLには存在しない
-export let loginDropdown; // HTMLには存在しない
-export let messageLoadingSpinner; // HTMLには存在しない
-export let loadingMessageDiv; // HTMLには存在しない
+export let messageDisplayLimitSelect;
+export let loginDropdown;
+export let messageLoadingSpinner;
+export let loadingMessageDiv;
 export let newMessageBtn;
 export let userColorPreference;
 export let userColorPicker;
-export let resetUserColorBtn; // HTMLには存在しない
-export let userColorDisplay; // HTMLには存在しない
+export let resetUserColorBtn;
+export let userColorDisplay;
 
-
-// UIの初期化
 /**
  * UIのDOM要素を取得し、イベントリスナーを設定して初期化します。
  * @param {object} authInstance - Firebase Authインスタンス
  * @param {object} databaseInstance - Firebase Realtime Databaseインスタンス
- * @param {function} onLoginSuccessCallback - ログインボタンクリック時のコールバック (認証処理そのものではない点に注意)
+ * @param {function} onLoginSuccessCallback - ログインボタンクリック時のコールバック
  * @param {function} onLogoutSuccessCallback - ログアウト成功時のコールバック
  * @param {function} onNameUpdateSuccessCallback - ユーザー名更新成功時のコールバック
  * @param {function} onMessageSendCallback - メッセージ送信時のコールバック
@@ -70,196 +69,169 @@ export function setupUI(
     onUserColorChange,
     onResetUserColor
 ) {
-    // DOM要素の参照を取得
-    formEl = document.getElementById('messageForm');
-    inputEl = document.getElementById('m');
-    messagesEl = document.getElementById('messages');
-    loginBtn = document.getElementById('login-btn');
-    errorAlert = document.getElementById('error-alert');
-    onlineUsersCountEl = document.getElementById('online-users-count'); // HTMLにはonline-users-countがないが、online-usersはある
-    // onlineUsersListEl = document.getElementById('online-users-list'); // HTMLには存在しないためコメントアウト
-    compactModeBtn = document.getElementById('compactModeBtn');
-    fontSizeS = document.getElementById('fontSizeS');
-    fontSizeM = document.getElementById('fontSizeM');
-    fontSizeL = document.getElementById('fontSizeL');
-    toggleEnterModeBtn = document.getElementById('toggleModeBtn');
-    newNameInput = document.getElementById('uname');
-    saveNameBtn = document.getElementById('confirmName');
-    logoutBtn = document.getElementById('signOut');
-    avatarImgEl = document.getElementById('avatar-img'); // ★変更: idで取得
-    avatarInitialsEl = document.getElementById('avatar-initials'); // ★追加: idで取得
-    currentUsernameEl = document.getElementById('current-username-display');
-    // userIdEl = document.getElementById('user-id-display'); // HTMLには存在しないためコメントアウト
-    // toggleDebugModeBtn = document.getElementById('toggleDebugModeBtn'); // HTMLには存在しないためコメントアウト
-    // debugInfoEl = document.getElementById('debug-info'); // HTMLには存在しないためコメントアウト
-    notificationButton = document.getElementById('notification-toggle-btn');
-    // messageDisplayLimitSelect = document.getElementById('messageDisplayLimitSelect'); // HTMLには存在しないためコメントアウト
-    // loginDropdown = document.getElementById('loginDropdown'); // HTMLには存在しないためコメントアウト
-    // messageLoadingSpinner = document.querySelector('#loading-message-div .spinner-border'); // HTMLには存在しないためコメントアウト
-    // loadingMessageDiv = document.getElementById('loading-message-div'); // HTMLには存在しないためコメントアウト
-    newMessageBtn = document.getElementById('newMessageBtn');
+    try {
+        // モーダルの初期化
+        initLoginModal();
 
-    // colorPicker の select 要素を取得
-    userColorPicker = document.getElementById('userColorSelect');
-    // resetUserColorBtn = document.getElementById('resetUserColorBtn'); // HTMLには存在しないためコメントアウト
-    // userColorDisplay = document.getElementById('user-color-display'); // HTMLには存在しないためコメントアウト
+        // DOM要素の参照を取得
+        formEl = document.getElementById('messageForm');
+        inputEl = document.getElementById('m');
+        messagesEl = document.getElementById('messages');
+        loginBtn = document.getElementById('login-btn');
+        errorAlert = document.getElementById('error-alert');
+        onlineUsersCountEl = document.getElementById('online-users-count');
+        compactModeBtn = document.getElementById('compactModeBtn');
+        fontSizeS = document.getElementById('fontSizeS');
+        fontSizeM = document.getElementById('fontSizeM');
+        fontSizeL = document.getElementById('fontSizeL');
+        toggleEnterModeBtn = document.getElementById('toggleModeBtn');
+        newNameInput = document.getElementById('uname');
+        saveNameBtn = document.getElementById('confirmName');
+        logoutBtn = document.getElementById('signOut');
+        avatarImgEl = document.getElementById('avatar-img');
+        avatarInitialsEl = document.getElementById('avatar-initials');
+        currentUsernameEl = document.getElementById('current-username-display');
+        notificationButton = document.getElementById('notification-toggle-btn');
+        newMessageBtn = document.getElementById('newMessageBtn');
+        userColorPicker = document.getElementById('userColorSelect');
+        unameModalEl = new bootstrap.Modal(document.getElementById('unameModal'));
 
-    // モーダル要素の取得と初期化
-    const loginModalDomElement = document.getElementById('loginModal');
-    if (loginModalDomElement) {
-        loginModalEl = new bootstrap.Modal(loginModalDomElement);
-        console.log('[ui-manager.js] loginModalEl 初期化成功:', loginModalEl);
-    } else {
-        console.warn('[ui-manager.js] ID "loginModal" を持つ要素が見つかりません。');
-    }
-    unameModalEl = new bootstrap.Modal(document.getElementById('unameModal'));
+        // アバター要素の初期化確認
+        if (!avatarImgEl || !avatarInitialsEl) {
+            console.warn('[ui-manager.js] setupUI: avatarImgEl または avatarInitialsEl の初期化に失敗しました。', {
+                avatarImgEl,
+                avatarInitialsEl,
+            });
+        }
 
-    // イベントリスナーの設定
-    document.getElementById('googleLogin').addEventListener('click', () => onLoginSuccessCallback('google'));
-    document.getElementById('twitterLogin').addEventListener('click', () => onLoginSuccessCallback('twitter'));
-    document.getElementById('anonymousLogin').addEventListener('click', () => onLoginSuccessCallback('anonymous'));
-    
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', onLogoutSuccessCallback);
-    } else {
-        console.warn('[ui-manager.js] logoutBtn 要素が見つかりませんでした。');
-    }
+        // イベントリスナーの設定
+        document.getElementById('googleLogin').addEventListener('click', () => onLoginSuccessCallback('google'));
+        document.getElementById('twitterLogin').addEventListener('click', () => onLoginSuccessCallback('twitter'));
+        document.getElementById('anonymousLogin').addEventListener('click', () => onLoginSuccessCallback('anonymous'));
+        
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', onLogoutSuccessCallback);
+        } else {
+            console.warn('[ui-manager.js] logoutBtn 要素が見つかりませんでした。');
+        }
 
-    if (formEl) {
-        formEl.addEventListener('submit', onMessageSendCallback);
-    } else {
-        console.warn('[ui-manager.js] messageForm 要素が見つかりませんでした。');
-    }
+        if (formEl) {
+            formEl.addEventListener('submit', onMessageSendCallback);
+        } else {
+            console.warn('[ui-manager.js] messageForm 要素が見つかりませんでした。');
+        }
 
-    // ユーザー名変更
-    const userInfoDisplay = document.getElementById('user-info');
-    if (userInfoDisplay) {
-        userInfoDisplay.addEventListener('click', () => {
-            const currentName = currentUsernameEl.textContent;
-            if (newNameInput) {
-                newNameInput.value = currentName;
-            }
-            unameModalEl.show();
-        });
-    } else {
-        console.warn('[ui-manager.js] user-info 要素が見つかりませんでした。');
-    }
-
-    if (saveNameBtn) {
-        saveNameBtn.addEventListener('click', async () => {
-            const newUsername = newNameInput.value.trim();
-            if (newUsername === '') {
-                showError('ユーザー名を入力してください。');
-                return;
-            }
-
-            console.log('[ui-manager.js] ユーザー名更新処理開始。onNameUpdateSuccessCallbackを呼び出します。');
-            try {
-                await onNameUpdateSuccessCallback(newUsername);
-                console.log('[ui-manager.js] onNameUpdateSuccessCallbackが完了しました。モーダルを非表示にします。');
-                if (unameModalEl) {
-                    console.log('[ui-manager.js] unameModalElが存在します。hide()を呼び出します。', unameModalEl);
-                    unameModalEl.hide();
-                    console.log('[ui-manager.js] unameModalEl.hide()が呼び出されました。');
-                } else {
-                    console.warn('[ui-manager.js] unameModalEl が見つかりません。モーダルを閉じられません。');
+        // ユーザー名変更
+        const userInfoDisplay = document.getElementById('user-info');
+        if (userInfoDisplay) {
+            userInfoDisplay.addEventListener('click', () => {
+                const currentName = currentUsernameEl.textContent;
+                if (newNameInput) {
+                    newNameInput.value = currentName;
                 }
-                showSuccess('ユーザー名が正常に更新されました！');
-            } catch (error) {
-                console.error('[ui-manager.js] ユーザー名更新エラー:', error);
-                showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
-            }
-        });
-    } else {
-        console.warn('[ui-manager.js] confirmName (saveNameBtn) 要素が見つかりませんでした。');
+                unameModalEl.show();
+            });
+        } else {
+            console.warn('[ui-manager.js] user-info 要素が見つかりませんでした。');
+        }
+
+if (saveNameBtn) {
+    saveNameBtn.removeEventListener('click', handleNameUpdate); // 既存リスナーを削除
+    saveNameBtn.addEventListener('click', async () => {
+        console.log('[ui-manager.js] saveNameBtn clicked, newUsername:', newNameInput.value.trim());
+        const newUsername = newNameInput.value.trim();
+        if (newUsername === '') {
+            showError('ユーザー名を入力してください。');
+            return;
+        }
+        try {
+            await onNameUpdateSuccessCallback(newUsername);
+            console.log('[ui-manager.js] onNameUpdateSuccessCallback completed');
+            unameModalEl.hide();
+            console.log('[ui-manager.js] Modal hidden:', !unameModalEl._isShown);
+            showSuccess('ユーザー名が正常に更新されました！');
+        } catch (error) {
+            console.error('[ui-manager.js] ユーザー名更新エラー:', error);
+            showError(`ユーザー名の更新中にエラーが発生しました: ${error.message}`);
+        }
+    });
+} else {
+    console.warn('[ui-manager.js] confirmName (saveNameBtn) 要素が見つかりませんでした。');
+}        
+        // メッセージ削除確認モーダル
+        const deleteMessageModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        let messageToDeleteId = null;
+
+        if (messagesEl) {
+            messagesEl.addEventListener('click', (event) => {
+                const deleteButton = event.target.closest('.delete-message');
+                if (deleteButton) {
+                    messageToDeleteId = deleteButton.dataset.messageId;
+                    deleteMessageModal.show();
+                }
+            });
+        } else {
+            console.warn('[ui-manager.js] messages 要素が見つかりませんでした。');
+        }
+
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener('click', () => {
+                if (messageToDeleteId) {
+                    onDeleteMessageCallback(messageToDeleteId);
+                    messageToDeleteId = null;
+                    deleteMessageModal.hide();
+                }
+            });
+        } else {
+            console.warn('[ui-manager.js] confirmDeleteBtn 要素が見つかりませんでした。');
+        }
+
+        // 設定関連
+        if (compactModeBtn) {
+            compactModeBtn.addEventListener('click', () => {
+                document.body.classList.toggle('compact-mode');
+                const isCompact = document.body.classList.contains('compact-mode');
+                setCookie('compactMode', isCompact ? 'true' : 'false', 365);
+                showSuccess(`コンパクトモードを${isCompact ? '有効' : '無効'}にしました。`);
+            });
+        } else {
+            console.warn('[ui-manager.js] compactModeBtn 要素が見つかりませんでした。');
+        }
+
+        if (fontSizeS) fontSizeS.addEventListener('click', () => setFontSize('small')); else console.warn('[ui-manager.js] fontSizeS 要素が見つかりませんでした。');
+        if (fontSizeM) fontSizeM.addEventListener('click', () => setFontSize('medium')); else console.warn('[ui-manager.js] fontSizeM 要素が見つかりませんでした。');
+        if (fontSizeL) fontSizeL.addEventListener('click', () => setFontSize('large')); else console.warn('[ui-manager.js] fontSizeL 要素が見つかりませんでした。');
+
+        if (toggleEnterModeBtn) {
+            toggleEnterModeBtn.addEventListener('click', () => {
+                const currentMode = getCookie('enterSendMode') === 'true';
+                setCookie('enterSendMode', !currentMode ? 'true' : 'false', 365);
+                showSuccess(`Enterで送信モードを${!currentMode ? '有効' : '無効'}にしました。`);
+            });
+        } else {
+            console.warn('[ui-manager.js] toggleModeBtn (EnterMode) 要素が見つかりませんでした。');
+        }
+
+        const userColorSelect = document.getElementById('userColorSelect');
+        if (userColorSelect) {
+            userColorSelect.addEventListener('change', (event) => {
+                const selectedColorClass = event.target.value;
+                if (selectedColorClass === '色') {
+                    showToast('メッセージの色を選択してください。', 'info');
+                    return;
+                }
+                onUserColorChange(selectedColorClass);
+            });
+        } else {
+            console.warn('[ui-manager.js] userColorSelect 要素が見つかりませんでした。');
+        }
+        
+        // 初期状態の適用
+        applyInitialSettings();
+    } catch (error) {
+        console.error('[ui-manager.js] setupUIエラー:', error);
     }
-    
-    // メッセージ削除確認モーダル
-    const deleteMessageModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-    let messageToDeleteId = null; // 削除対象のメッセージIDを保持する変数
-
-    if (messagesEl) {
-        messagesEl.addEventListener('click', (event) => {
-            const deleteButton = event.target.closest('.delete-message');
-            if (deleteButton) {
-                messageToDeleteId = deleteButton.dataset.messageId;
-                deleteMessageModal.show();
-            }
-        });
-    } else {
-        console.warn('[ui-manager.js] messages 要素が見つかりませんでした。');
-    }
-
-    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-    if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', () => {
-            if (messageToDeleteId) {
-                onDeleteMessageCallback(messageToDeleteId);
-                messageToDeleteId = null; // リセット
-                deleteMessageModal.hide();
-            }
-        });
-    } else {
-        console.warn('[ui-manager.js] confirmDeleteBtn 要素が見つかりませんでした。');
-    }
-
-
-    // 設定関連
-    if (compactModeBtn) {
-        compactModeBtn.addEventListener('click', () => {
-            document.body.classList.toggle('compact-mode');
-            const isCompact = document.body.classList.contains('compact-mode');
-            setCookie('compactMode', isCompact ? 'true' : 'false', 365);
-            showSuccess(`コンパクトモードを${isCompact ? '有効' : '無効'}にしました。`);
-        });
-    } else {
-        console.warn('[ui-manager.js] compactModeBtn 要素が見つかりませんでした。');
-    }
-
-
-    if (fontSizeS) fontSizeS.addEventListener('click', () => setFontSize('small')); else console.warn('[ui-manager.js] fontSizeS 要素が見つかりませんでした。');
-    if (fontSizeM) fontSizeM.addEventListener('click', () => setFontSize('medium')); else console.warn('[ui-manager.js] fontSizeM 要素が見つかりませんでした。');
-    if (fontSizeL) fontSizeL.addEventListener('click', () => setFontSize('large')); else console.warn('[ui-manager.js] fontSizeL 要素が見つかりませんでした。');
-
-
-    if (toggleEnterModeBtn) {
-        toggleEnterModeBtn.addEventListener('click', () => {
-            const currentMode = getCookie('enterSendMode') === 'true';
-            setCookie('enterSendMode', !currentMode ? 'true' : 'false', 365);
-            showSuccess(`Enterで送信モードを${!currentMode ? '有効' : '無効'}にしました。`);
-        });
-    } else {
-        console.warn('[ui-manager.js] toggleModeBtn (EnterMode) 要素が見つかりませんでした。');
-    }
-
-    const userColorSelect = document.getElementById('userColorSelect');
-    if (userColorSelect) {
-        userColorSelect.addEventListener('change', (event) => {
-            const selectedColorClass = event.target.value;
-            if (selectedColorClass === '色') {
-                showToast('メッセージの色を選択してください。', 'info');
-                return;
-            }
-            onUserColorChange(selectedColorClass);
-        });
-    } else {
-        console.warn('[ui-manager.js] userColorSelect 要素が見つかりませんでした。');
-    }
-    
-    // デバッグモードトグルはHTMLに要素がないためコメントアウト
-    // if (toggleDebugModeBtn && debugInfoEl) {
-    //     toggleDebugModeBtn.addEventListener('click', () => {
-    //         debugInfoEl.classList.toggle('d-none');
-    //         const isDebugMode = !debugInfoEl.classList.contains('d-none');
-    //         setCookie('debugMode', isDebugMode ? 'true' : 'false', 365);
-    //         showSuccess(`デバッグモードを${isDebugMode ? '有効' : '無効'}にしました。`);
-    //     });
-    // } else {
-    //     console.warn('[ui-manager.js] toggleDebugModeBtn または debugInfoEl 要素が見つかりませんでした。');
-    // }
-
-    // 初期状態の適用
-    applyInitialSettings();
 }
 
 /**
@@ -290,32 +262,20 @@ function setFontSize(size) {
  * 初期設定（クッキーから読み込み）をUIに適用します。
  */
 function applyInitialSettings() {
-    // コンパクトモード
     if (getCookie('compactMode') === 'true') {
         document.body.classList.add('compact-mode');
     }
-    // フォントサイズ
     const savedFontSize = getCookie('fontSize');
     if (savedFontSize) {
         setFontSize(savedFontSize);
     } else {
-        setFontSize('medium'); // デフォルト
+        setFontSize('medium');
     }
-    // Enterで送信モード (UIはここでは更新しない)
     if (getCookie('enterSendMode') === 'true') {
         // script.jsでこの設定が使われる
     }
-    
-    // 通知音の初期状態をUIに適用
     const isSoundEnabled = getCookie('notificationSoundEnabled') === 'true';
     updateNotificationButtonUI(isSoundEnabled);
-
-    // デバッグモード (HTMLに要素がないためコメントアウト)
-    // if (getCookie('debugMode') === 'true') {
-    //     if (debugInfoEl) debugInfoEl.classList.remove('d-none');
-    // }
-
-    // 背景色モードとユーザーカラー (HTMLに該当する要素が少ないため調整)
     const savedColorMode = getCookie('colorAssignmentMode');
     if (savedColorMode) {
         userColorPreference = savedColorMode;
@@ -325,7 +285,6 @@ function applyInitialSettings() {
         userColorPicker.value = savedUserColor;
     }
 }
-
 
 /**
  * ステータスインジケーターの表示を更新します。
@@ -341,7 +300,9 @@ export function updateStatusIndicator(status) {
     }
 }
 
-// ツールチップを破棄する関数
+/**
+ * ツールチップを破棄する関数
+ */
 export function disposeTooltip(element) {
     const tooltipInstance = bootstrap.Tooltip.getInstance(element);
     if (tooltipInstance) {
@@ -349,7 +310,9 @@ export function disposeTooltip(element) {
     }
 }
 
-// ツールチップを表示する関数
+/**
+ * ツールチップを表示する関数
+ */
 export function showTooltip(element, message) {
     disposeTooltip(element);
     const tooltip = new bootstrap.Tooltip(element, {
@@ -392,82 +355,142 @@ export function updateNotificationButtonUI(isEnabled) {
 }
 
 /**
- * 画像読み込みエラー時、またはphotoURLがない場合に頭文字アバターを表示します。
- * @param {string} displayUsername - 表示するユーザー名。
+ * 画像読み込みエラー時の処理（アバター画像用）
+ * @param {HTMLImageElement} imgElement - 対象のimg要素
+ * @param {string} userId - ユーザーID
+ * @param {string} displayUsername - 表示するユーザー名
+ * @param {string} photoURL - 元のphotoURL
  */
-export function handleImageError(displayUsername) {
-    // avatarImgEl が存在しない場合はエラーをログに出力し、処理を中断
-    if (!avatarImgEl || !avatarInitialsEl) {
-        console.error('[ui-manager.js] handleImageError: avatarImgEl または avatarInitialsEl が見つかりません。');
-        return;
+export function handleImageError(imgElement, userId, displayUsername, photoURL) {
+    try {
+        if (!imgElement || !(imgElement instanceof HTMLImageElement)) {
+            console.error('[ui-manager.js] handleImageError: imgElementが無効です。', { imgElement, userId, displayUsername, photoURL });
+            return;
+        }
+
+        const cleanedUsername = cleanUsername(displayUsername || '匿名');
+        const initials = cleanedUsername.charAt(0).toUpperCase() || '？';
+        const isSmall = imgElement.classList.contains('profile-img-small');
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = `avatar${isSmall ? '-small' : ''} rounded-circle d-flex align-items-center justify-content-center text-white bg-secondary`;
+        avatarDiv.textContent = initials;
+
+        // imgElementを頭文字アバターに置き換え
+        imgElement.replaceWith(avatarDiv);
+        console.log(`[ui-manager.js] アバター画像読み込みエラー: userId=${userId}, username=${cleanedUsername}, 頭文字=${initials} を表示`);
+    } catch (error) {
+        console.error('[ui-manager.js] handleImageErrorエラー:', error, { imgElement, userId, displayUsername, photoURL });
     }
-
-    // cleanUsername を適用して頭文字を取得
-    const cleanedUsername = cleanUsername(displayUsername);
-    const initial = (cleanedUsername && cleanedUsername.length > 0)
-        ? cleanedUsername.charAt(0).toUpperCase()
-        : '?'; // デフォルト値を '?' に設定
-
-    avatarInitialsEl.textContent = initial; // 頭文字をセット
-    avatarImgEl.src = ''; // 念のため画像のsrcをクリア
-    avatarImgEl.style.display = 'none'; // 画像を非表示
-    avatarInitialsEl.style.display = 'flex'; // 頭文字を表示
-    console.log(`[ui-manager.js] アバター画像読み込みエラーまたはphotoURLなし: 頭文字 \"${initial}\" を表示。`);
 }
 
 /**
  * ユーザーのアバター表示（画像または頭文字）を更新します。
- * @param {string|null|undefined} photoURL - ユーザーのプロフィール画像のURL。
- * @param {string} displayUsername - ユーザーの表示名。
+ * @param {Object} options - 更新オプション
+ * @param {string} options.photoURL - ユーザーのプロフィール画像のURL
+ * @param {string} options.displayUsername - ユーザーの表示名
+ * @param {string} options.userId - ユーザーID
  */
-export function updateUserAvatarDisplay(photoURL, displayUsername) {
-    if (!avatarImgEl || !avatarInitialsEl) {
-        console.error('[ui-manager.js] updateUserAvatarDisplay: avatarImgEl または avatarInitialsEl が見つかりません。');
+export function updateUserAvatarDisplay({ photoURL, displayUsername, userId }) {
+    console.log('[ui-manager.js] updateUserAvatarDisplay called with:', { photoURL, displayUsername, userId });
+    
+    const avatarImgEl = document.getElementById('avatar-img');
+    const avatarInitialsEl = document.getElementById('avatar-initials');
+    const currentUsernameEl = document.getElementById('current-username-display');
+    const userInfo = document.getElementById('user-info');
+
+    if (!avatarImgEl || !avatarInitialsEl || !currentUsernameEl || !userInfo) {
+        console.error('[ui-manager.js] updateUserAvatarDisplay: 必要なDOM要素が見つかりません', {
+            avatarImgEl,
+            avatarInitialsEl,
+            currentUsernameEl,
+            userInfo
+        });
         return;
     }
 
-    const cleanedUsername = cleanUsername(displayUsername);
-    let shouldDisplayImage = false;
+    try {
+        const cleanedUsername = cleanUsername(displayUsername || '匿名');
+        currentUsernameEl.textContent = cleanedUsername;
 
-    // photoURLが存在し、かつそれが有効な文字列であるかを確認
-    if (typeof photoURL === 'string' && photoURL.trim() !== '' && photoURL.trim() !== 'null') {
-        const lowerCasePhotoURL = photoURL.toLowerCase();
-        // 汎用的なFirebase/Googleのプロフィール画像や、ローカルのicon.pngではないことを確認
-        // (例: 's96-c/photo.jpg' はGoogleアカウントのデフォルト画像)
-        // (例: 'default-avatar.png' や 'icon.png' はプロジェクト内の汎用画像)
-        if (!lowerCasePhotoURL.includes('s96-c/photo.jpg') &&
-            !lowerCasePhotoURL.includes('default-avatar.png') &&
-            !lowerCasePhotoURL.includes('icon.png')) { // 'images/icon.png' なども含むよう'icon.png'でチェック
-            shouldDisplayImage = true;
+        // photoURL の処理（オブジェクトの場合に対応）
+        let urlToUse = photoURL;
+        if (typeof photoURL === 'object' && photoURL !== null && photoURL.photoURL) {
+            console.warn('[ui-manager.js] updateUserAvatarDisplay: photoURLがオブジェクトです。photoURL.photoURLを使用:', photoURL.photoURL);
+            urlToUse = photoURL.photoURL;
         }
-    }
 
-    if (shouldDisplayImage) {
-        const cleanedURL = cleanPhotoURL(photoURL);
-        avatarImgEl.src = cleanedURL;
-        // 画像の読み込みエラー時にhandleImageErrorを呼び出す
-        // usernameのみを渡し、ui-manager.js内のエクスポートされたDOM要素を操作させる
-        avatarImgEl.onerror = () => handleImageError(cleanedUsername);
-        avatarImgEl.style.display = 'block'; // 画像を表示
-        avatarInitialsEl.style.display = 'none'; // 頭文字を非表示
-        console.log(`[ui-manager.js] アバター画像を更新: ${cleanedURL}`);
-    } else {
-        // 画像を表示しない場合は、頭文字を表示する
-        handleImageError(cleanedUsername);
+        const cleanedPhotoURL = cleanPhotoURL(urlToUse, window.location.origin);
+        console.log('[ui-manager.js] cleanPhotoURL input:', urlToUse, 'baseURL:', window.location.origin, 'output:', cleanedPhotoURL);
+
+        // 既存の <div class="avatar-small"> を削除
+        const existingAvatarDiv = userInfo.querySelector('div.avatar-small:not(#avatar-initials)');
+        if (existingAvatarDiv) {
+            existingAvatarDiv.remove();
+            console.log('[ui-manager.js] 既存の非公式アバターdivを削除');
+        }
+
+        if (cleanedPhotoURL && typeof cleanedPhotoURL === 'string' && cleanedPhotoURL.trim() !== '' &&
+            !cleanedPhotoURL.toLowerCase().includes('icon.png') && !cleanedPhotoURL.toLowerCase().includes('default-avatar.png')) {
+            avatarImgEl.src = cleanedPhotoURL;
+            avatarImgEl.alt = escapeHTMLAttribute(cleanedUsername);
+            avatarImgEl.dataset.uid = userId || 'anonymous';
+            avatarImgEl.classList.remove('d-none');
+            avatarInitialsEl.classList.add('d-none');
+            // エラーハンドラをリセットしてから設定
+            avatarImgEl.onerror = null;
+            avatarImgEl.onerror = () => {
+                console.error('[ui-manager.js] アバター画像読み込みエラー:', {
+                    userId,
+                    username: cleanedUsername,
+                    photoURL: cleanedPhotoURL,
+                    error: 'Image failed to load'
+                });
+                handleImageError(avatarImgEl, userId, cleanedUsername, cleanedPhotoURL);
+            };
+            console.log(`[ui-manager.js] アバター画像を更新: ${cleanedPhotoURL}`);
+        } else {
+            console.log('[ui-manager.js] photoURLが無効、頭文字アバターを表示: userId=', userId, ', username=', cleanedUsername);
+            avatarImgEl.classList.add('d-none');
+            avatarInitialsEl.textContent = cleanedUsername.charAt(0).toUpperCase() || '？';
+            avatarInitialsEl.classList.remove('d-none');
+        }
+    } catch (error) {
+        console.error('[ui-manager.js] updateUserAvatarDisplayエラー:', error, { photoURL, displayUsername, userId });
+        const cleanedUsername = cleanUsername(displayUsername || '匿名');
+        avatarImgEl.classList.add('d-none');
+        avatarInitialsEl.textContent = cleanedUsername.charAt(0).toUpperCase() || '？';
+        avatarInitialsEl.classList.remove('d-none');
     }
 }
 
 /**
- * 任意のimg要素に対して、画像読み込みエラー時に頭文字アバターへ置き換えます。
- * @param {HTMLImageElement} imgElement - 対象のimg要素
+ * ユーザーのUIを更新します（ユーザー名編集後に呼び出される）。
+ * @param {Object} user - Firebase Authのユーザーオブジェクト
+ * @param {Object} userData - データベースから取得したユーザーデータ
  */
-export function handleImageElementError(imgElement) {
-    const altText = imgElement.getAttribute('alt') || '？';
-    const initials = altText.charAt(0).toUpperCase();
-    const fallback = document.createElement('div');
-    fallback.className = imgElement.classList.contains('profile-img-small') ? 'avatar-small' : 'avatar';
-    fallback.textContent = initials;
-    imgElement.replaceWith(fallback);
+export function updateUserUI(user, userData) {
+    console.log('[ui-manager.js] updateUserUI called with:', { user, userData });
+    
+    if (!user || !userData) {
+        console.error('[ui-manager.js] updateUserUI: user または userData が無効です', { user, userData });
+        return;
+    }
+
+    try {
+        const cleanedUsername = cleanUsername(userData.username || '匿名');
+        const cleanedPhotoURL = cleanPhotoURL(userData.photoURL, window.location.origin);
+        
+        updateUserAvatarDisplay({
+            photoURL: cleanedPhotoURL || userData.photoURL,
+            displayUsername: cleanedUsername,
+            userId: user.uid
+        });
+        
+        console.log('[ui-manager.js] updateUserUI completed, username:', cleanedUsername);
+    } catch (error) {
+        console.error('[ui-manager.js] updateUserUIエラー:', error);
+        showError('ユーザー情報の更新に失敗しました。');
+    }
 }
 
 /**
@@ -479,19 +502,75 @@ export function handleImageElementError(imgElement) {
  * @returns {string} HTML文字列
  */
 export function renderUserAvatar(photoURL, displayUsername, userId, size = 'normal') {
-    const initials = (displayUsername || '？').charAt(0).toUpperCase();
-    const escapedUsername = escapeHTMLAttribute(displayUsername || '匿名');
+    const cleanedUsername = cleanUsername(displayUsername || '匿名');
+    const initials = cleanedUsername.charAt(0).toUpperCase() || '？';
+    const escapedUsername = escapeHTMLAttribute(cleanedUsername);
     const escapedUserId = escapeHTMLAttribute(userId || '');
-    const cleanedURL = escapeHTMLAttribute(photoURL || '');
+    const cleanedURL = cleanPhotoURL(photoURL);
 
-    if (cleanedURL) {
-        return `<img src="${cleanedURL}" alt="${escapedUsername}のプロフィール画像" class="profile-img${size === 'small' ? '-small' : ''}" data-user-id="${escapedUserId}" onerror="handleImageElementError(this)">`;
-    } else {
-        return `<div class="avatar${size === 'small' ? '-small' : ''}">${initials}</div>`;
+    const isSmall = size === 'small';
+    const imgClass = isSmall ? 'profile-img-small' : 'profile-img';
+    const avatarClass = isSmall ? 'avatar-small' : 'avatar';
+
+    let urlToUse = null;
+
+    // 有効なphotoURLを優先的に使用
+    if (photoURL && typeof photoURL === 'string' && photoURL.trim() !== '' &&
+        !photoURL.toLowerCase().includes('icon.png') &&
+        !photoURL.toLowerCase().includes('default-avatar.png')) {
+
+        urlToUse = cleanedURL;
+
+        // cleanedURLが無効なら元のURLを試す
+        if (!urlToUse) {
+            try {
+                new URL(photoURL, window.location.origin);
+                urlToUse = photoURL;
+            } catch (e) {
+                console.warn('[ui-manager.js] renderUserAvatar: 無効なphotoURLを検出。頭文字にフォールバックします。', { photoURL, error: e });
+            }
+        }
     }
+
+    if (urlToUse) {
+        return `<img src="${escapeHTMLAttribute(urlToUse)}"
+                     alt="${escapedUsername}"
+                     class="${imgClass} rounded-circle"
+                     data-uid="${escapedUserId}"
+                     onerror="handleImageError(this, '${escapedUserId}', '${escapedUsername}', '${escapeHTMLAttribute(urlToUse)}')">`;
+    }
+
+    // 有効なURLがない場合は頭文字アバターを返す
+    return `<div class="${avatarClass} rounded-circle d-flex align-items-center justify-content-center text-white bg-secondary">
+                ${initials}
+            </div>`;
 }
 
 
+/**
+ * ログインモーダルを初期化します。
+ */
+export function initLoginModal() {
+    const modalElement = document.getElementById('loginModal');
+    if (modalElement) {
+        loginModalEl = new bootstrap.Modal(modalElement);
+        console.log('[ui-manager.js] ログインモーダルを初期化しました。');
+    } else {
+        console.error('[ui-manager.js] ID "loginModal" を持つ要素が見つかりませんでした。モーダルを初期化できません。');
+    }
+}
+
+/**
+ * ログインモーダルを表示します。
+ */
+export function showLoginModal() {
+    if (loginModalEl) {
+        loginModalEl.show();
+        console.log('[ui-manager.js] ログインモーダルを表示しました。');
+    } else {
+        console.warn('[ui-manager.js] loginModal が初期化されていません。モーダルを表示できません。');
+    }
+}
 
 /**
  * ログインモーダルを閉じます。
@@ -501,6 +580,6 @@ export function hideLoginModal() {
         loginModalEl.hide();
         console.log('[ui-manager.js] ログインモーダルを閉じました。');
     } else {
-        console.warn('[ui-manager.js] loginModalEl が初期化されていません。モーダルを閉じられません。');
+        console.warn('[ui-manager.js] loginModal が初期化されていません。モーダルを閉じられません。');
     }
 }
