@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>サービスワーカー削除ツール</title>
+    <title>キャッシュとログイン情報削除ツール</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -11,14 +11,45 @@
             font-family: 'Inter', sans-serif;
         }
     </style>
+    <!-- Firebase SDKを追加 -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
+        import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
+        
+        // TODO: あなたのFirebaseプロジェクト設定に置き換えてください
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        // Firebaseを初期化
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        
+        // グローバルスコープに公開して、ボタンからアクセスできるようにする
+        window.auth = auth;
+        window.signOut = signOut;
+    </script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">サービスワーカー削除ツール</h1>
-        <p class="text-gray-600 mb-6">
-            チャットアプリの動作が不安定な場合、以下のボタンを押して古いキャッシュを削除してください。
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center space-y-4">
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">キャッシュとログイン情報削除ツール</h1>
+        <p class="text-gray-600">
+            チャットアプリの動作が不安定な場合や、ログイン情報をリセットしたい場合に使用してください。
         </p>
+
+        <!-- Firebaseログイン情報のリセットボタン -->
+        <button id="resetFirebaseButton" 
+                class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors duration-200"
+                onclick="resetFirebaseLogin()">
+            Firebaseログイン情報をリセット
+        </button>
         
+        <!-- サービスワーカーの削除ボタン -->
         <button id="removeButton" 
                 class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors duration-200"
                 onclick="unregisterServiceWorkers()">
@@ -33,6 +64,7 @@
     <script>
         // ボタンとメッセージ表示エリアのDOM要素を取得
         const removeButton = document.getElementById('removeButton');
+        const resetFirebaseButton = document.getElementById('resetFirebaseButton');
         const messageBox = document.getElementById('messageBox');
 
         /**
@@ -46,42 +78,70 @@
             messageBox.classList.remove('hidden');
 
             try {
-                // ブラウザがサービスワーカーに対応しているか確認
                 if ('serviceWorker' in navigator) {
-                    // 全てのサービスワーカーの登録情報を取得
                     const registrations = await navigator.serviceWorker.getRegistrations();
                     
                     if (registrations.length === 0) {
                         messageBox.textContent = 'サービスワーカーは見つかりませんでした。';
-                        console.log('サービスワーカーは見つかりませんでした。');
                         return;
                     }
                     
-                    console.log(`[Service Worker Remover] ${registrations.length}個のサービスワーカーが見つかりました。`);
-
-                    // 各登録情報をループして削除
                     for (const registration of registrations) {
                         await registration.unregister();
                         console.log(`[Service Worker Remover] サービスワーカーが削除されました: ${registration.scope}`);
                     }
                     
-                    messageBox.textContent = 'サービスワーカーが正常に削除されました！ページをリロードしてください。';
-                    messageBox.classList.remove('bg-gray-50');
+                    messageBox.textContent = 'サービスワーカーが正常に削除されました！';
+                    messageBox.classList.remove('bg-gray-50', 'bg-red-100');
                     messageBox.classList.add('bg-green-100', 'text-green-800');
                     
                 } else {
                     messageBox.textContent = 'お使いのブラウザはサービスワーカーに対応していません。';
-                    console.warn('[Service Worker Remover] サービスワーカーはサポートされていません。');
                 }
             } catch (error) {
                 console.error('[Service Worker Remover] サービスワーカーの削除中にエラーが発生しました:', error);
                 messageBox.textContent = 'エラーが発生しました。コンソールログを確認してください。';
-                messageBox.classList.remove('bg-gray-50');
+                messageBox.classList.remove('bg-gray-50', 'bg-green-100');
                 messageBox.classList.add('bg-red-100', 'text-red-800');
             } finally {
-                // ボタンを元の状態に戻す
                 removeButton.disabled = false;
                 removeButton.textContent = 'サービスワーカーを削除';
+            }
+        }
+
+        /**
+         * Firebaseのログイン情報をリセットする関数
+         */
+        async function resetFirebaseLogin() {
+            resetFirebaseButton.disabled = true;
+            resetFirebaseButton.textContent = 'リセット中...';
+            messageBox.textContent = 'Firebaseの認証情報を削除しています...';
+            messageBox.classList.remove('hidden');
+
+            try {
+                if (window.auth && window.signOut) {
+                    // Firebaseからサインアウト
+                    await window.signOut(window.auth);
+                    
+                    // localStorageに保存されたIDトークンを削除
+                    localStorage.removeItem('firebase_id_token');
+                    
+                    messageBox.textContent = 'Firebaseログイン情報がリセットされました。再ログインが必要です。';
+                    messageBox.classList.remove('bg-gray-50', 'bg-red-100');
+                    messageBox.classList.add('bg-green-100', 'text-green-800');
+                } else {
+                    messageBox.textContent = 'Firebase SDKが正しく読み込まれていません。';
+                    messageBox.classList.remove('bg-gray-50', 'bg-green-100');
+                    messageBox.classList.add('bg-red-100', 'text-red-800');
+                }
+            } catch (error) {
+                console.error('[Firebase Reset] 認証情報のリセット中にエラーが発生しました:', error);
+                messageBox.textContent = 'エラーが発生しました。コンソールログを確認してください。';
+                messageBox.classList.remove('bg-gray-50', 'bg-green-100');
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } finally {
+                resetFirebaseButton.disabled = false;
+                resetFirebaseButton.textContent = 'Firebaseログイン情報をリセット';
             }
         }
     </script>
