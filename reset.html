@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サービスワーカー削除ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">サービスワーカー削除ツール</h1>
+        <p class="text-gray-600 mb-6">
+            チャットアプリの動作が不安定な場合、以下のボタンを押して古いキャッシュを削除してください。
+        </p>
+        
+        <button id="removeButton" 
+                class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors duration-200"
+                onclick="unregisterServiceWorkers()">
+            サービスワーカーを削除
+        </button>
+
+        <div id="messageBox" class="mt-6 text-gray-700 bg-gray-50 p-4 rounded-lg hidden">
+            <!-- ここにメッセージが表示されます -->
+        </div>
+    </div>
+
+    <script>
+        // ボタンとメッセージ表示エリアのDOM要素を取得
+        const removeButton = document.getElementById('removeButton');
+        const messageBox = document.getElementById('messageBox');
+
+        /**
+         * サービスワーカーの削除処理を実行する関数
+         */
+        async function unregisterServiceWorkers() {
+            // ローディング状態をUIに表示
+            removeButton.disabled = true;
+            removeButton.textContent = '削除中...';
+            messageBox.textContent = 'サービスワーカーを検索して削除しています...';
+            messageBox.classList.remove('hidden');
+
+            try {
+                // ブラウザがサービスワーカーに対応しているか確認
+                if ('serviceWorker' in navigator) {
+                    // 全てのサービスワーカーの登録情報を取得
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        messageBox.textContent = 'サービスワーカーは見つかりませんでした。';
+                        console.log('サービスワーカーは見つかりませんでした。');
+                        return;
+                    }
+                    
+                    console.log(`[Service Worker Remover] ${registrations.length}個のサービスワーカーが見つかりました。`);
+
+                    // 各登録情報をループして削除
+                    for (const registration of registrations) {
+                        await registration.unregister();
+                        console.log(`[Service Worker Remover] サービスワーカーが削除されました: ${registration.scope}`);
+                    }
+                    
+                    messageBox.textContent = 'サービスワーカーが正常に削除されました！ページをリロードしてください。';
+                    messageBox.classList.remove('bg-gray-50');
+                    messageBox.classList.add('bg-green-100', 'text-green-800');
+                    
+                } else {
+                    messageBox.textContent = 'お使いのブラウザはサービスワーカーに対応していません。';
+                    console.warn('[Service Worker Remover] サービスワーカーはサポートされていません。');
+                }
+            } catch (error) {
+                console.error('[Service Worker Remover] サービスワーカーの削除中にエラーが発生しました:', error);
+                messageBox.textContent = 'エラーが発生しました。コンソールログを確認してください。';
+                messageBox.classList.remove('bg-gray-50');
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } finally {
+                // ボタンを元の状態に戻す
+                removeButton.disabled = false;
+                removeButton.textContent = 'サービスワーカーを削除';
+            }
+        }
+    </script>
+</body>
+</html>
