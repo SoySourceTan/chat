@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>TwitCasting Recorder in Browser</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/RecordRTC/5.6.2/RecordRTC.js"></script>
+</head>
+<body>
+    <h1>TwitCasting ライブ録画 (ブラウザ版)</h1>
+    <input type="text" id="streamUrl" placeholder="TwitCasting HLS URL (例: https://twitcasting.tv/username/movie/xxxx.m3u8)" style="width: 400px;">
+    <button onclick="loadStream()">ストリームロード</button>
+    <br>
+    <video id="video" controls autoplay muted width="640" height="360"></video>
+    <br>
+    <button id="startRecord" onclick="startRecording()" disabled>録画開始</button>
+    <button id="stopRecord" onclick="stopRecording()" disabled>録画停止 & ダウンロード</button>
+
+    <script>
+        let recorder;
+        let video = document.getElementById('video');
+        let hls;
+
+        function loadStream() {
+            const url = document.getElementById('streamUrl').value;
+            if (!url) {
+                alert('URLを入力しろ');
+                return;
+            }
+
+            if (Hls.isSupported()) {
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    video.play();
+                    document.getElementById('startRecord').disabled = false;
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                video.addEventListener('loadedmetadata', function() {
+                    video.play();
+                    document.getElementById('startRecord').disabled = false;
+                });
+            } else {
+                alert('HLSサポートなし。ブラウザを確認しろ');
+            }
+        }
+
+        function startRecording() {
+            const stream = video.captureStream();  // ビデオからストリームキャプチャ
+            recorder = new RecordRTC(stream, {
+                type: 'video',
+                mimeType: 'video/webm',
+                bitsPerSecond: 128000
+            });
+            recorder.startRecording();
+            document.getElementById('startRecord').disabled = true;
+            document.getElementById('stopRecord').disabled = false;
+        }
+
+        function stopRecording() {
+            recorder.stopRecording(function() {
+                const blob = recorder.getBlob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'recording.webm';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+            document.getElementById('startRecord').disabled = false;
+            document.getElementById('stopRecord').disabled = true;
+        }
+    </script>
+</body>
+</html>
